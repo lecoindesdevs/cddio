@@ -1,17 +1,12 @@
-import discord
+from discord.ext import commands
+import os
 
-client = discord.Client()
+token, prefix = os.environ['TOKEN'], os.environ['PREFIX']
 
-@client.event
+bot = commands.Bot(command_prefix=prefix)
+
+@bot.event
 async def on_ready():
-    print('We have logged in as {0.user}'.format(client))
+    print(f'I\'ve logged in as {bot.user}.')
 
-@client.event
-async def on_message(message):
-    if message.author == client.user:
-        return
-
-    if message.content.startswith('$hello'):
-        await message.channel.send('Hello!')
-
-client.run('OpenCDD_dev token')
+bot.run(token)
