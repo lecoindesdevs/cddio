@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.DEBUG)
 token, prefix = os.environ['TOKEN'], os.environ['PREFIX']
 
 # Creates the bot without default help command.
-bot = commands.Bot(prefix, help_command=None)
+bot = commands.Bot(command_prefix=prefix, help_command=None)
 
 # Adds cogs to the bot.
 cogs_management.add_cogs(bot, './cogs')
