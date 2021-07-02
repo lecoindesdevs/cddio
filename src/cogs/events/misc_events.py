@@ -1,6 +1,6 @@
 from discord.ext import commands
 
-class BotEvents(commands.Cog):
+class MiscEvents(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
@@ -10,4 +10,4 @@ class BotEvents(commands.Cog):
         print(f'I\'ve logged in as {self.bot.user}.')
 
 def setup(bot):
-    bot.add_cog(BotEvents(bot))
+    bot.add_cog(MiscEvents(bot))
