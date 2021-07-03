@@ -4,7 +4,7 @@ def add_cogs(bot, cogs_dir):
     # For each file in the cogs directory:
     for filename in os.listdir(cogs_dir):
         # If file's name ends with ".py":
-        if filename.endswith('.py'):
+        if filename.endswith('_cog.py'):
             # Processes the path.
             extension_path = cogs_dir.replace('./', '').replace('/', '.')
 
