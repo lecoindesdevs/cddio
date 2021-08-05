@@ -1,12 +1,3 @@
-
-	"channels":
-		"commandes":688084123725725800,
-		"pub":688092099513417796,
-		"annonces":688083560770437140,
-		"bienvenue":688083253818949753,
-		"passer-commande":815339353365544981,
-		"devenir-developper":737239120354607104
-
 ROLES = {
 	'owner': 687691931840413696,
 	'administrator': 687691931840413696,
