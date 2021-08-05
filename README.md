@@ -1,5 +1,5 @@
 # openCDD
-The official repository (fork) of OpenCDD Bot. A bot by the community for the community.
+The official repository of OpenCDD Bot. A bot by the community for the community.
 Note: this bot as well as this code belongs to the Coin Des Développeurs server and community.
 **This bot is written in PYTHON.**
 
