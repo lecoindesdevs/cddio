@@ -1,3 +1,5 @@
+TOKEN, PREFIX = '', ''
+
 ROLES = {
 	'owner': 687691931840413696,
 	'administrator': 687691931840413696,
