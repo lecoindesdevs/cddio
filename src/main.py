@@ -10,6 +10,7 @@ config.TOKEN, config.PREFIX = os.environ['TOKEN'], os.environ['PREFIX']
 
 # Initializes default intents.
 intents = discord.Intents.default()
+intents.members = True
 
 # Creates bot with a custom help command and default intents.
 bot = commands.Bot(command_prefix=config.PREFIX, help_command=HelpCommand(), intents=intents)
