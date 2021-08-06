@@ -13,7 +13,7 @@ class MiscCommands(commands.Cog):
 
         embed = discord.Embed(title=f':ping_pong: {latency}ms.', color=ctx.author.color)
 
-        embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar_url)
+        embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar.url)
         embed.set_footer(text='github.com/LeCoinDesDevs/openCDD')
 
         embed.timestamp = datetime.utcnow()
