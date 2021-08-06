@@ -1,3 +1,5 @@
+TOKEN, PREFIX = '', ''
+
 ROLES = {
 	'owner': 687691931840413696,
 	'administrator': 687693135987605512,
@@ -20,4 +22,8 @@ CHANNELS = {
 	'welcome': 688083253818949753,
 	'send_request': 815339353365544981,
 	'become_developer': 737239120354607104
+}
+
+GUILDS = {
+	'default': 687640485984206871
 }
