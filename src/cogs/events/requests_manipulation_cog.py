@@ -16,7 +16,7 @@ class RequestsThreads(commands.Cog):
             return
         
         # For each emoji
-        for reaction in '✅🔐':
+        for reaction in '✅🔐❌':
             # Adds emoji to message by using reactions.
             await message.add_reaction(reaction)
 
@@ -29,7 +29,7 @@ class RequestsThreads(commands.Cog):
             return
 
         # If it's not in requests channel OR the reaction isn't a manipulation reaction
-        if payload.channel_id != config.CHANNELS['requests'] or not str(payload.emoji) in '✅🔐':
+        if payload.channel_id != config.CHANNELS['requests'] or not str(payload.emoji) in '✅🔐❌':
             # Then cancels.
             return
 
@@ -56,6 +56,8 @@ class RequestsThreads(commands.Cog):
         
         # If the new reaction's emoji is a check mark
         if str(payload.emoji) == '✅':
+            # Removes reaction (just prettier).
+            await message.remove_reaction(payload.emoji, payload.member)
 
             # Checks if reaction's author has the developer role.
             is_developer = False
@@ -64,16 +66,13 @@ class RequestsThreads(commands.Cog):
             for role in payload.member.roles:
                 # If the role is the developer one
                 if role.id == config.ROLES['developer']:
-                    # Then validating that he's a developer.
+                    # Then validates that he's a developer.
                     is_developer = True
 
             # If he's not confirmed as developer
             if not is_developer:
                 # Then cancels.
                 return
-
-            # Removes reaction (just prettier).
-            await message.remove_reaction(payload.emoji, payload.member)
 
             # Creates the new thread's name so it's unique.
             thread_name = f'{payload.member.display_name}>{message.id}>{datetime.now()}'
@@ -114,6 +113,29 @@ class RequestsThreads(commands.Cog):
 
             # Adds the lock reaction to the request. == Locks the request.
             await message.add_reaction('🔒')
+        
+        #If the new reaction's emoji is a cross mark
+        elif str(payload.emoji) == '❌':
+            # Checks if reaction's author has the developer role.
+            is_developer = False
+
+            # For each role in the reaction's author's roles
+            for role in payload.member.roles:
+                # If the role is the developer one
+                if role.id == config.ROLES['developer']:
+                    # Then validates that he's a developer.
+                    is_developer = True
+
+            # If he's not confirmed as developer
+            if not is_developer:
+                # Then cancels.
+                await message.remove_reaction(payload.emoji, payload.member)            
+                return
+            
+            for reaction in message.reactions:
+                if str(reaction.emoji) == '❌':
+                    if reaction.count >= 5:
+                        await message.delete()
 
 def setup(bot):
     bot.add_cog(RequestsThreads(bot))
