@@ -21,7 +21,10 @@ CHANNELS = {
 	'announcement': 688083560770437140,
 	'welcome': 688083253818949753,
 	'send_request': 815339353365544981,
-	'become_developer': 737239120354607104
+	'become_developer': 737239120354607104,
+	'create_voice_channel': 687640486412156994,
+	'voice_category': 687640486412156945,
+	'afk_channel': 831818767348137994
 }
 
 GUILDS = {
