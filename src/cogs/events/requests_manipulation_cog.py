@@ -3,7 +3,7 @@ from discord.permissions import P
 from datetime import datetime
 import config
 
-class RequestsThreads(commands.Cog):
+class RequestsManipulation(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
     
@@ -138,4 +138,4 @@ class RequestsThreads(commands.Cog):
                         await message.delete()
 
 def setup(bot):
-    bot.add_cog(RequestsThreads(bot))
+    bot.add_cog(RequestsManipulation(bot))
