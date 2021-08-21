@@ -6,7 +6,7 @@ import discord, os, cogs_management, logging, config
 logging.basicConfig(level=logging.DEBUG)
 
 # Gets environment data.
-config.TOKEN, config.PREFIX = os.environ['TOKEN'], os.environ['PREFIX']
+config.TOKEN, config.PREFIX = 'tokenhere', '!'
 
 # Initializes default intents.
 intents = discord.Intents.default()
