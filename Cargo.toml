@@ -7,3 +7,4 @@ edition = "2018"
 
 [dependencies]
 serenity = "0.10"
+tokio = { version = "1.12", features = ["full"] }
