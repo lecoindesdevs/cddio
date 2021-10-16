@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use serenity::{Client, async_trait, client::{ClientBuilder, Context, EventHandler, bridge::gateway::GatewayIntents}, framework, model::gateway::Ready, model::{Permissions, prelude::Gateway}};
-use crate::config::Config;
+use crate::{commands, config::Config};
 
 type Result<T> = serenity::Result<T>;
 
@@ -16,7 +16,6 @@ impl EventHandler for Handler {
             Ok(v) => println!("Invitation: {}", v),
             Err(e) => println!("Unable to create invitation link: {}", e.to_string()),
         }
-        
     }
 }
 
@@ -28,12 +27,13 @@ impl Bot {
     pub async fn new(config: &Config) -> Result<Bot> {
         let framework = framework::StandardFramework::new()
             .configure(|c| c
-                .prefix("~")
+                .prefix(&config.prefix)
             );
+        let framework = commands::set_commands(framework);
 
         let client = Client::builder(&config.token)
             .framework(framework)
-            .intents(GatewayIntents::from_bits_truncate(config.permissions))
+            .intents(GatewayIntents::all())
             .event_handler(Handler)
             .await?;
         Ok(Bot{
@@ -42,8 +42,5 @@ impl Bot {
     }
     pub async fn start(&mut self) -> Result<()> {
         self.client.start().await
-    }
-    pub fn link(&self) {
-
     }
 }

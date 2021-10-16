@@ -1,4 +1,5 @@
 mod bot;
+mod commands;
 mod config;
 
 
