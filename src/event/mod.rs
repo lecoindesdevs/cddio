@@ -1,10 +1,11 @@
 mod sub_event_handler;
+mod bot_start;
 
-use std::{collections::HashMap, sync::{Arc}};
+use sub_event_handler::SubEventHandler;
+
 
 use futures::lock::Mutex;
-use serenity::{async_trait, client::{Context, EventHandler}, model::{Permissions, prelude::Ready}};
-use sub_event_handler::SubEventHandler;
+use serenity::{async_trait, client::{Context, EventHandler}, model::prelude::Ready};
 
 
 #[derive(PartialEq, Eq, Hash, Clone)]
@@ -84,7 +85,7 @@ impl EventListenerContainer {
     pub fn init() -> EventListenerContainer {
         use EventType::*;
         let mut evts = EventListenerContainer::default();
-        evts.register_event_listener("bot_start", Box::new(BotStart), vec![OnReady]);
+        evts.register_event_listener("bot_start", Box::new(bot_start::BotStart), vec![OnReady]);
         evts
     }
     fn register_event_listener(&mut self, name: &str, event_listener: Box<dyn SubEventHandler>, _:Vec<EventType>) {
