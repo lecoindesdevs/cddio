@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use crate::event::EventListener;
+use crate::event::EventListenerContainer;
 use serenity::{Client, async_trait, client::{ClientBuilder, Context, EventHandler, bridge::gateway::GatewayIntents}, framework, model::gateway::Ready, model::{Permissions, prelude::Gateway}};
 use crate::{commands, config::Config};
 
@@ -20,7 +20,7 @@ impl Bot {
         let client = Client::builder(&config.token)
             .framework(framework)
             .intents(GatewayIntents::all())
-            .event_handler(EventListener::init())
+            .event_handler(EventListenerContainer::init())
             .await?;
         Ok(Bot{
             client

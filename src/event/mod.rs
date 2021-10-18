@@ -1,6 +1,10 @@
-use std::{collections::HashMap, sync::Arc};
+mod sub_event_handler;
 
+use std::{collections::HashMap, sync::{Arc}};
+
+use futures::lock::Mutex;
 use serenity::{async_trait, client::{Context, EventHandler}, model::{Permissions, prelude::Ready}};
+use sub_event_handler::SubEventHandler;
 
 
 #[derive(PartialEq, Eq, Hash, Clone)]
@@ -64,48 +68,46 @@ enum EventType {
     OnThreadMemberUpdate,
     OnThreadMembersUpdate,
 }
-#[derive(Default)]
-pub struct EventListener {
-    event_listeners: HashMap<String, Arc<dyn EventHandler>>,
-    event_helper: HashMap<EventType, Vec<Arc<dyn EventHandler>>>
+
+struct EventListener {
+    name: String,
+    listener: Mutex<Box<dyn SubEventHandler>>,
 }
 
-impl EventListener {
-    pub fn init() -> EventListener {
+#[derive(Default)]
+pub struct EventListenerContainer {
+    event_listeners: Vec<EventListener>,
+    // event_helper: HashMap<EventType, Vec<Arc<dyn EventHandler>>>
+}
+
+impl EventListenerContainer {
+    pub fn init() -> EventListenerContainer {
         use EventType::*;
-        let mut evts = EventListener::default();
-        evts.register_event("name", Arc::new(BotStart), &[OnReady]);
+        let mut evts = EventListenerContainer::default();
+        evts.register_event_listener("bot_start", Box::new(BotStart), vec![OnReady]);
         evts
-        
     }
-    fn register_event(&mut self, name: &str, event_listener: Arc<dyn EventHandler>, event_types:&[EventType]) {
-        // let arc_event = Arc::new(event_listener);
-        self.event_listeners.insert(name.to_string(), Arc::clone(&event_listener));
-        for evt in event_types {
-            let vec_events = match self.event_helper.get_mut(evt) {
-                Some(v) => v,
-                None => {
-                    self.event_helper.insert(evt.clone(),Vec::new());
-                    self.event_helper.get_mut(evt).unwrap()
-                }
-            };
-            vec_events.push(Arc::clone(&event_listener));
-        }
+    fn register_event_listener(&mut self, name: &str, event_listener: Box<dyn SubEventHandler>, _:Vec<EventType>) {
+        self.event_listeners.push(EventListener {
+            name: name.to_string(),
+            listener: Mutex::new(event_listener),
+        });
     }
 }
 
 #[async_trait]
-impl EventHandler for EventListener {
+impl EventHandler for EventListenerContainer {
     async fn ready(&self, ctx: Context, ready: Ready) {
-        if let Some(evt_list) = self.event_helper.get_mut(&EventType::OnReady) {
-            for evt in evt_list {
-                let evt = match Arc::get_mut(evt) {
-                    Some(v) => v,
-                    None => continue
-                };
-                evt.ready(ctx, ready);
-            }
-
+        self.m_ready(ctx, ready).await
+    }
+}
+impl EventListenerContainer {
+    async fn m_ready(&self, ctx: Context, ready: Ready) {
+        let ctx = Mutex::new(ctx);
+        let ready = Mutex::new(ready);
+        for evt in &self.event_listeners {
+            let mut evt = evt.listener.lock().await;
+            evt.as_mut().ready(&ctx, &ready).await
         }
     }
 }
@@ -113,11 +115,15 @@ impl EventHandler for EventListener {
 struct BotStart;
 
 #[async_trait]
-impl EventHandler for BotStart {
-    async fn ready(&self, ctx: Context, ready: Ready) {
-        println!("{} is connected!", ready.user.name);
-        let http = Arc::clone(&ctx.http);
-        match ready.user.invite_url(http, Permissions::empty()).await {
+impl SubEventHandler for BotStart {
+    async fn ready(&mut self, ctx: &Mutex<Context>, ready: &Mutex<Ready>) {
+        let (username, invite) = { 
+            let ctx = ctx.lock().await;
+            let ready = ready.lock().await;
+            (ready.user.name.clone(), ready.user.invite_url(&ctx.http, Permissions::empty()).await)
+        };
+        println!("{} is connected!", username);
+        match invite {
             Ok(v) => println!("Invitation: {}", v),
             Err(e) => println!("Unable to create invitation link: {}", e.to_string()),
         }
