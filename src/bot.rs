@@ -1,6 +1,5 @@
-use std::sync::Arc;
 use crate::event::EventListenerContainer;
-use serenity::{Client, async_trait, client::{ClientBuilder, Context, EventHandler, bridge::gateway::GatewayIntents}, framework, model::gateway::Ready, model::{Permissions, prelude::Gateway}};
+use serenity::{Client, client::bridge::gateway::GatewayIntents, framework::StandardFramework};
 use crate::{commands, config::Config};
 
 type Result<T> = serenity::Result<T>;
@@ -12,7 +11,7 @@ pub struct Bot {
 
 impl Bot {
     pub async fn new(config: &Config) -> Result<Bot> {
-        let framework = framework::StandardFramework::new()
+        let framework = StandardFramework::new()
             .configure(|c| c
                 .prefix(&config.prefix)
             );
