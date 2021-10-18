@@ -95,65 +95,14 @@ impl EventListenerContainer {
     }
 }
 
-macro_rules! declare_event {
-    (struct $name:ident { $(fn $name_fct:tt $def_struct:tt;)* }) => {
-        
-        impl EventHandler for $name {
-            $(
-                declare_event!{fn $name_fct $def_struct}
-            )*
-        }
-    };
-    (fn $name:ident ($($arg:ident: $type:ty),*)) => {
-        async fn  $name(&self, ctx: Context, $($arg: $type),*) {
-            let ctx = Mutex::new(ctx);
-            $(
-                let $arg = Mutex::new($arg);
-            )*
-            for evt in &self.event_listeners {
-                let mut evt = evt.listener.lock().await;
-                evt.as_mut().ready(&ctx, $(&$arg),*).await;
-            }
-        }
-    };
-}
 #[async_trait]
 impl EventHandler for EventListenerContainer {
     async fn ready(&self, ctx: Context, ready: Ready) {
-        self.m_ready(ctx, ready).await
-    }
-}
-// declare_event!{
-//     struct EventListenerContainer {
-//         fn ready(ready: Ready);
-//     }
-// }
-
-impl EventListenerContainer {
-    async fn m_ready(&self, ctx: Context, ready: Ready) {
         let ctx = Mutex::new(ctx);
         let ready = Mutex::new(ready);
         for evt in &self.event_listeners {
             let mut evt = evt.listener.lock().await;
             evt.as_mut().ready(&ctx, &ready).await
-        }
-    }
-}
-
-struct BotStart;
-
-#[async_trait]
-impl SubEventHandler for BotStart {
-    async fn ready(&mut self, ctx: &Mutex<Context>, ready: &Mutex<Ready>) {
-        let (username, invite) = { 
-            let ctx = ctx.lock().await;
-            let ready = ready.lock().await;
-            (ready.user.name.clone(), ready.user.invite_url(&ctx.http, Permissions::empty()).await)
-        };
-        println!("{} is connected!", username);
-        match invite {
-            Ok(v) => println!("Invitation: {}", v),
-            Err(e) => println!("Unable to create invitation link: {}", e.to_string()),
         }
     }
 }
