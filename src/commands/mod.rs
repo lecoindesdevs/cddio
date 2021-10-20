@@ -1,6 +1,6 @@
-use serenity::framework::{Framework, StandardFramework};
+use serenity::framework::StandardFramework;
 
-pub mod test;
+mod test;
 
 pub fn set_commands(framework: StandardFramework) -> StandardFramework {
     framework
