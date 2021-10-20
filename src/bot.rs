@@ -44,7 +44,7 @@ impl Bot {
             event_container: mw::EventContainer::init(),
         };
 
-        let framework = commands::set_commands(framework);
+        mwh.add_middleware(mw::BotStart::new());
 
         let MiddlewareHandler{middlewares,framework,event_container} = mwh;
         let client = Client::builder(&config.token)
