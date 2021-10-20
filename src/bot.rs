@@ -19,7 +19,7 @@ impl Bot {
         let client = Client::builder(&config.token)
             .framework(framework)
             .intents(GatewayIntents::all())
-            .event_handler(EventListenerContainer::init())
+            .raw_event_handler(EventListenerContainer::init())
             .await?;
         Ok(Bot{
             client
