@@ -37,6 +37,7 @@ impl Bot {
     pub async fn new(config: &Config) -> Result<Bot> {
         let framework = cmp::Framework::new('~');
         let cmph = ComponentHandler::new(framework)
+        // AJOUTER LES COMPOSANTS ICI A LA SUITE
             .add_component(cmp::to_arc(cmp::BotStart::new()));
             
         let ComponentHandler{components,framework,event_container} = cmph;
