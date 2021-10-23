@@ -2,27 +2,27 @@
 use std::sync::Arc;
 
 use serenity::{Client, client::bridge::gateway::GatewayIntents};
-use crate::{config::Config, component as mw};
+use crate::{config::Config, component as cmp};
 
 type Result<T> = serenity::Result<T>;
 
 struct ComponentHandler {
-    pub components: Vec<mw::ArcComponent>,
-    pub framework: mw::Framework, 
-    pub event_container: mw::EventContainer
+    pub components: Vec<cmp::ArcComponent>,
+    pub framework: cmp::Framework, 
+    pub event_container: cmp::EventContainer
 }
 impl ComponentHandler {
-    pub fn new(framework: mw::Framework) -> Self {
+    pub fn new(framework: cmp::Framework) -> Self {
         ComponentHandler {
             components: Vec::new(),
             framework,
-            event_container: mw::EventContainer::init(),
+            event_container: cmp::EventContainer::init(),
         }
     }
-    pub fn add_component(mut self, mw_arc: mw::ArcComponent) -> Self {
-        self.framework.add_component(Arc::clone(&mw_arc));
-        self.event_container.add_component(Arc::clone(&mw_arc));
-        self.components.push(Arc::clone(&mw_arc));
+    pub fn add_component(mut self, cmp_arc: cmp::ArcComponent) -> Self {
+        self.framework.add_component(Arc::clone(&cmp_arc));
+        self.event_container.add_component(Arc::clone(&cmp_arc));
+        self.components.push(Arc::clone(&cmp_arc));
         self
     }
     // fn add_command_group(&mut self)
@@ -30,16 +30,16 @@ impl ComponentHandler {
 
 pub struct Bot {
     client: Client,
-    _components: Vec<mw::ArcComponent>
+    _components: Vec<cmp::ArcComponent>
 }
 
 impl Bot {
     pub async fn new(config: &Config) -> Result<Bot> {
-        let framework = mw::Framework::new('~');
-        let mwh = ComponentHandler::new(framework)
-            .add_component(mw::to_arc(mw::BotStart::new()));
+        let framework = cmp::Framework::new('~');
+        let cmph = ComponentHandler::new(framework)
+            .add_component(cmp::to_arc(cmp::BotStart::new()));
             
-        let ComponentHandler{components,framework,event_container} = mwh;
+        let ComponentHandler{components,framework,event_container} = cmph;
 
         let client = Client::builder(&config.token)
             .framework(framework)
