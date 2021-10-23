@@ -8,7 +8,7 @@ mod framework;
 pub use event::EventListenerContainer as EventContainer;
 pub use framework::CDDFramework as Framework;
 
-pub type ArcMiddleware = Arc<Mutex<dyn Middleware>>;
+pub type ArcComponent = Arc<Mutex<dyn Component>>;
 
 pub enum CommandMatch {
     Matched,
@@ -17,14 +17,14 @@ pub enum CommandMatch {
 }
 
 #[async_trait]
-pub trait Middleware: Sync + Send
+pub trait Component: Sync + Send
 {
     fn name(&self) -> &str;
     async fn command(&mut self, _ctx: &framework::Context, msg: &framework::Message) -> CommandMatch;
     async fn event(&mut self, _ctx: &framework::Context, msg: &event::Event) -> Result<(), String>;
 }
 
-pub fn to_arc<M: Middleware + 'static>(mid: M) -> ArcMiddleware {
+pub fn to_arc<M: Component + 'static>(mid: M) -> ArcComponent {
     Arc::new(Mutex::new(mid))
 }
 

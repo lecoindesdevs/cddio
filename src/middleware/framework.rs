@@ -3,7 +3,7 @@ pub use serenity::model::channel::Message;
 use serenity::framework::Framework;
 use serenity::async_trait;
 
-use super::ArcMiddleware;
+use super::ArcComponent;
 
 // pub type ID = u32;
 
@@ -58,19 +58,19 @@ use super::ArcMiddleware;
 
 pub struct CDDFramework {
     // node: Node,
-    middlewares: Vec<ArcMiddleware>,
+    components: Vec<ArcComponent>,
     prefix: char
 }
 
 impl CDDFramework {
     pub fn new(prefix: char) -> CDDFramework {
         CDDFramework{
-            middlewares: Vec::new(),
+            components: Vec::new(),
             prefix
         }
     }
-    pub fn add_middleware(&mut self, mid: ArcMiddleware) {
-        self.middlewares.push(mid);
+    pub fn add_component(&mut self, mid: ArcComponent) {
+        self.components.push(mid);
     }
 }
 
@@ -86,7 +86,7 @@ impl Framework for CDDFramework {
             } else {
                 break 'main;
             }
-            for mid in &self.middlewares {
+            for mid in &self.components {
                 let mut mid = mid.lock().await;
                 if match mid.command(&ctx, &msg).await {
                     super::CommandMatch::Matched => true,

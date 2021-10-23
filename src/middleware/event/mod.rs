@@ -3,18 +3,18 @@ use serenity::async_trait;
 use serenity::client::{Context, RawEventHandler};
 pub use serenity::model::event::Event;
 
-use super::ArcMiddleware;
+use super::ArcComponent;
 
 #[derive(Default)]
 pub struct EventListenerContainer {
-    event_listeners: Vec<ArcMiddleware>,
+    event_listeners: Vec<ArcComponent>,
 }
 
 impl EventListenerContainer {
     pub fn init() -> EventListenerContainer {
         EventListenerContainer::default()
     }
-    pub fn add_middleware(&mut self, event_listener: ArcMiddleware) {
+    pub fn add_component(&mut self, event_listener: ArcComponent) {
         self.event_listeners.push(event_listener);
     }
 }

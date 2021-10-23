@@ -2,27 +2,27 @@
 use std::sync::Arc;
 
 use serenity::{Client, client::bridge::gateway::GatewayIntents};
-use crate::{config::Config, middleware as mw};
+use crate::{config::Config, component as mw};
 
 type Result<T> = serenity::Result<T>;
 
-struct MiddlewareHandler {
-    pub middlewares: Vec<mw::ArcMiddleware>,
+struct ComponentHandler {
+    pub components: Vec<mw::ArcComponent>,
     pub framework: mw::Framework, 
     pub event_container: mw::EventContainer
 }
-impl MiddlewareHandler {
+impl ComponentHandler {
     pub fn new(framework: mw::Framework) -> Self {
-        MiddlewareHandler {
-            middlewares: Vec::new(),
+        ComponentHandler {
+            components: Vec::new(),
             framework,
             event_container: mw::EventContainer::init(),
         }
     }
-    pub fn add_middleware(mut self, mw_arc: mw::ArcMiddleware) -> Self {
-        self.framework.add_middleware(Arc::clone(&mw_arc));
-        self.event_container.add_middleware(Arc::clone(&mw_arc));
-        self.middlewares.push(Arc::clone(&mw_arc));
+    pub fn add_component(mut self, mw_arc: mw::ArcComponent) -> Self {
+        self.framework.add_component(Arc::clone(&mw_arc));
+        self.event_container.add_component(Arc::clone(&mw_arc));
+        self.components.push(Arc::clone(&mw_arc));
         self
     }
     // fn add_command_group(&mut self)
@@ -30,16 +30,16 @@ impl MiddlewareHandler {
 
 pub struct Bot {
     client: Client,
-    _middlewares: Vec<mw::ArcMiddleware>
+    _components: Vec<mw::ArcComponent>
 }
 
 impl Bot {
     pub async fn new(config: &Config) -> Result<Bot> {
         let framework = mw::Framework::new('~');
-        let mwh = MiddlewareHandler::new(framework)
-            .add_middleware(mw::to_arc(mw::BotStart::new()));
+        let mwh = ComponentHandler::new(framework)
+            .add_component(mw::to_arc(mw::BotStart::new()));
             
-        let MiddlewareHandler{middlewares,framework,event_container} = mwh;
+        let ComponentHandler{components,framework,event_container} = mwh;
 
         let client = Client::builder(&config.token)
             .framework(framework)
@@ -48,7 +48,7 @@ impl Bot {
             .await?;
         Ok(Bot{
             client,
-            _middlewares: middlewares
+            _components: components
         })
     }
     

@@ -2,14 +2,14 @@ use serenity::async_trait;
 use serenity::client::Context;
 use serenity::model::channel::Message;
 use serenity::model::{Permissions, event::{Event, ReadyEvent}};
-use super::{CommandMatch, Middleware};
+use super::{CommandMatch, Component};
 
 
 
 pub struct BotStart;
 
 #[async_trait]
-impl Middleware for BotStart {
+impl Component for BotStart {
     fn name(&self) -> &'static str {
         "Bot Start"
     }

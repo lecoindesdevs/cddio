@@ -1,5 +1,5 @@
 mod bot;
-mod middleware;
+mod component;
 mod config;
 
 
