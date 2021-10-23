@@ -1,52 +1,46 @@
 
 use std::sync::Arc;
 
-use futures::lock::Mutex;
-use serenity::{Client, client::bridge::gateway::GatewayIntents, framework::{StandardFramework, standard::macros::group}};
+use serenity::{Client, client::bridge::gateway::GatewayIntents};
 use crate::{config::Config, middleware as mw};
 
 type Result<T> = serenity::Result<T>;
 
-
-
 struct MiddlewareHandler {
     pub middlewares: Vec<mw::ArcMiddleware>,
-    pub framework: StandardFramework, 
+    pub framework: mw::Framework, 
     pub event_container: mw::EventContainer
 }
 impl MiddlewareHandler {
-    pub fn add_middleware(&mut self, middleware: impl 'static+mw::Middleware) {
-        if let Some(v) = middleware.command_group() {
-            self.framework = self.framework.group(v);
+    pub fn new(framework: mw::Framework) -> Self {
+        MiddlewareHandler {
+            middlewares: Vec::new(),
+            framework,
+            event_container: mw::EventContainer::init(),
         }
-        let mw_arc = Arc::new(Mutex::new(middleware));
-        self.event_container.add_event_listener(Arc::clone(&(mw_arc as mw::ArcEvent)));
-        self.middlewares.push(mw_arc);
     }
+    pub fn add_middleware(mut self, mw_arc: mw::ArcMiddleware) -> Self {
+        self.framework.add_middleware(Arc::clone(&mw_arc));
+        self.event_container.add_middleware(Arc::clone(&mw_arc));
+        self.middlewares.push(Arc::clone(&mw_arc));
+        self
+    }
+    // fn add_command_group(&mut self)
 }
 
 pub struct Bot {
     client: Client,
-    middlewares: Vec<mw::ArcMiddleware>
+    _middlewares: Vec<mw::ArcMiddleware>
 }
-#[group]
-struct GTest;
 
 impl Bot {
     pub async fn new(config: &Config) -> Result<Bot> {
-        let framework = StandardFramework::new()
-            .configure(|c| c
-                .prefix(&config.prefix)
-            );
-        let mut mwh = MiddlewareHandler {
-            middlewares: Vec::new(),
-            framework,
-            event_container: mw::EventContainer::init(),
-        };
-
-        mwh.add_middleware(mw::BotStart::new());
-
+        let framework = mw::Framework::new('~');
+        let mwh = MiddlewareHandler::new(framework)
+            .add_middleware(mw::to_arc(mw::BotStart::new()));
+            
         let MiddlewareHandler{middlewares,framework,event_container} = mwh;
+
         let client = Client::builder(&config.token)
             .framework(framework)
             .intents(GatewayIntents::all())
@@ -54,7 +48,7 @@ impl Bot {
             .await?;
         Ok(Bot{
             client,
-            middlewares
+            _middlewares: middlewares
         })
     }
     

@@ -1,69 +1,47 @@
-use futures::lock::Mutex;
 use serenity::async_trait;
 use serenity::client::Context;
-use serenity::framework::standard::{CommandGroup, CommandResult};
 use serenity::model::channel::Message;
 use serenity::model::{Permissions, event::{Event, ReadyEvent}};
-use serenity::framework::standard::macros::command;
-use super::{SubEvent, Middleware};
+use super::{CommandMatch, Middleware};
 
-pub struct BotStart {
-    command_group: CommandGroup
-}
+
+
+pub struct BotStart;
 
 #[async_trait]
-impl SubEvent for BotStart {
-    async fn raw_event(&mut self, ctx: &Mutex<Context>, evt: &Mutex<Event>) {
-        let evt = evt.lock().await.clone();
-        if let Event::Ready(ReadyEvent{ready, ..}) = evt {
-            let (username, invite) = { 
-                let ctx = ctx.lock().await;
-                (ready.user.name.clone(), ready.user.invite_url(&ctx.http, Permissions::empty()).await)
-            };
-            println!("{} is connected!", username);
-            match invite {
-                Ok(v) => println!("Invitation: {}", v),
-                Err(e) => println!("Unable to create invitation link: {}", e.to_string()),
-            }
-        }
-    }
-}
-
 impl Middleware for BotStart {
     fn name(&self) -> &'static str {
         "Bot Start"
     }
 
-    fn command_group<'a>(&'a self) -> Option<&'a CommandGroup> {
-        Some(&self.command_group)
-    }
-}
-impl BotStart {
-    pub fn new() -> BotStart {
-        use serenity::framework::standard::*;
-        BotStart {
-            command_group: CommandGroup{
-                name: "test",
-                options: &GroupOptions{
-                    commands: &[
-                        &Command{
-                            fun: ping,
-                            options: &CommandOptions{
-                                ..Default::default()
-                            },
-                        }
-                    ],
-                    .. Default::default()
-                },
+    async fn command(&mut self, ctx: &Context, msg: &Message) -> CommandMatch {
+        if msg.content == "~ping" {
+            match msg.channel_id.say(&ctx.http, "pong!").await {
+                Ok(_) => CommandMatch::Matched,
+                Err(e) => CommandMatch::Error(e.to_string()),
             }
+        } else {
+            CommandMatch::NotMatched
         }
     }
+
+    async fn event(&mut self, ctx: &Context, evt: &Event) -> Result<(), String> {
+        if let Event::Ready(ReadyEvent{ready, ..}) = evt {
+            let (username, invite) = { 
+                (ready.user.name.clone(), ready.user.invite_url(&ctx.http, Permissions::empty()).await)
+            };
+            println!("{} is connected!", username);
+            match invite {
+                Ok(v) => println!("Invitation: {}", v),
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+        Ok(())
+    }
 }
 
-
-#[command]
-async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
-    println!("ping command");
-    msg.channel_id.say(&ctx.http, "pong!").await?;
-    Ok(())
+impl BotStart {
+    pub fn new () -> BotStart {
+        BotStart
+    }
 }

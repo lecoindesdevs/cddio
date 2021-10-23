@@ -1,33 +1,20 @@
-mod bot_start;
 
-use std::sync::Arc;
-use futures::lock::Mutex;
 use serenity::async_trait;
 use serenity::client::{Context, RawEventHandler};
-use serenity::model::event::Event;
+pub use serenity::model::event::Event;
 
-/// This core trait for handling raw events
-#[async_trait]
-pub trait SubRawEventHandler: Send + Sync {
-    /// Dispatched when any event occurs
-    #[inline]
-    async fn raw_event(&mut self, ctx: &Mutex<Context>, evt: &Mutex<Event>)
-    {}
-}
-
-pub type ArcEvent = Arc<Mutex<dyn SubRawEventHandler>>;
-
+use super::ArcMiddleware;
 
 #[derive(Default)]
 pub struct EventListenerContainer {
-    event_listeners: Vec<ArcEvent>,
+    event_listeners: Vec<ArcMiddleware>,
 }
 
 impl EventListenerContainer {
     pub fn init() -> EventListenerContainer {
         EventListenerContainer::default()
     }
-    pub fn add_event_listener(&mut self, event_listener: ArcEvent) {
+    pub fn add_middleware(&mut self, event_listener: ArcMiddleware) {
         self.event_listeners.push(event_listener);
     }
 }
@@ -35,11 +22,16 @@ impl EventListenerContainer {
 #[async_trait]
 impl RawEventHandler for EventListenerContainer {
     async fn raw_event(&self, ctx: Context, evt: Event) {
-        let ctx = Mutex::new(ctx);
-        let evt = Mutex::new(evt);
-        for middleware in &self.event_listeners {
-            let mut middleware = middleware.lock().await;
-            middleware.raw_event(&ctx, &evt).await
+        for mid in &self.event_listeners {
+            let mut mid = mid.lock().await;
+            if let Err(what) = mid.event(&ctx, &evt).await {
+                println!("[{}] Module {} command error: {}\nEvent: {:?}\n\n",
+                    chrono::Local::now().format("%Y-%m-%d %H:%M:%S"), 
+                    mid.name(),
+                    what,
+                    evt
+                );
+            }
         }
     }
 }
