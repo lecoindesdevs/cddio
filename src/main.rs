@@ -1,6 +1,5 @@
 mod bot;
-mod event;
-mod commands;
+mod component;
 mod config;
 
 
