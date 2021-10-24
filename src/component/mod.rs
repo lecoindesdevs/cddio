@@ -4,6 +4,7 @@ use futures::lock::Mutex;
 
 mod event;
 mod framework;
+pub mod command_parser;
 pub mod components;
 
 pub use event::EventListenerContainer as EventContainer;
