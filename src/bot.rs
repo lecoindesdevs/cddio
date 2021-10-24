@@ -38,7 +38,7 @@ impl Bot {
         let framework = cmp::Framework::new(config.prefix);
         let cmph = ComponentHandler::new(framework)
         // AJOUTER LES COMPOSANTS ICI A LA SUITE
-            .add_component(cmp::to_arc(cmp::BotStart::new()));
+            .add_component(cmp::to_arc_mut(cmp::BotStart::new()));
             
         let ComponentHandler{components,framework,event_container} = cmph;
 

@@ -8,8 +8,9 @@ mod framework;
 pub use event::EventListenerContainer as EventContainer;
 pub use framework::{CDDFramework as Framework, FrameworkConfig};
 
+pub type ArcMut<T> = Arc<Mutex<T>>;
 
-pub type ArcComponent = Arc<Mutex<dyn Component>>;
+pub type ArcComponent = ArcMut<dyn Component>;
 
 pub enum CommandMatch {
     Matched,
@@ -25,7 +26,7 @@ pub trait Component: Sync + Send
     async fn event(&mut self, ctx: &framework::Context, evt: &event::Event) -> Result<(), String>;
 }
 
-pub fn to_arc<M: Component + 'static>(mid: M) -> ArcComponent {
+pub fn to_arc_mut<M>(mid: M) -> ArcMut<M> {
     Arc::new(Mutex::new(mid))
 }
 
