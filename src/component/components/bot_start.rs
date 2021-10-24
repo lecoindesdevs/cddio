@@ -2,7 +2,7 @@ use serenity::async_trait;
 use serenity::client::Context;
 use serenity::model::channel::Message;
 use serenity::model::{Permissions, event::{Event, ReadyEvent}};
-use super::{CommandMatch, Component};
+use super::super::{CommandMatch, Component, FrameworkConfig};
 
 
 

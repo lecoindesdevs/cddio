@@ -4,6 +4,7 @@ use futures::lock::Mutex;
 
 mod event;
 mod framework;
+pub mod components;
 
 pub use event::EventListenerContainer as EventContainer;
 pub use framework::{CDDFramework as Framework, FrameworkConfig};
@@ -29,6 +30,3 @@ pub trait Component: Sync + Send
 pub fn to_arc_mut<M>(mid: M) -> ArcMut<M> {
     Arc::new(Mutex::new(mid))
 }
-
-mod bot_start;
-pub use bot_start::BotStart;
