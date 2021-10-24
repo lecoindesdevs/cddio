@@ -14,8 +14,8 @@ impl Component for BotStart {
         "Bot Start"
     }
 
-    async fn command(&mut self, ctx: &Context, msg: &Message) -> CommandMatch {
-        if msg.content == "~ping" {
+    async fn command(&mut self, fw_config: &FrameworkConfig, ctx: &Context, msg: &Message) -> CommandMatch {
+        if msg.content == format!("{}ping", fw_config.prefix) {
             match msg.channel_id.say(&ctx.http, "pong!").await {
                 Ok(_) => CommandMatch::Matched,
                 Err(e) => CommandMatch::Error(e.to_string()),

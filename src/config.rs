@@ -3,7 +3,7 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug)]
 pub struct Config {
     pub token: String,
-    pub prefix: String,
+    pub prefix: char,
     pub permissions: u64,
 }
 
