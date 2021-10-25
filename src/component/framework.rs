@@ -35,7 +35,7 @@ impl CDDFramework {
 #[async_trait]
 impl Framework for CDDFramework {
     async fn dispatch(&self, ctx: Context, msg: Message) {
-        if msg.content.starts_with(self.config.prefix) {
+        if !msg.content.starts_with(self.config.prefix) {
             return;
         }
         
