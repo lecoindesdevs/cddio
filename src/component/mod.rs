@@ -28,6 +28,9 @@ pub trait Component: Sync + Send
     fn name(&self) -> &str;
     async fn command(&mut self, fw_config: &FrameworkConfig, ctx: &Context, msg: &Message) -> CommandMatch;
     async fn event(&mut self, ctx: &Context, evt: &Event) -> Result<(), String>;
+    fn group_parser(&self) -> Option<&command_parser::Group> {
+        None
+    }
 }
 
 pub fn to_arc_mut<M>(mid: M) -> ArcMut<M> {

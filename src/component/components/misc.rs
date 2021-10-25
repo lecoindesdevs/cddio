@@ -42,6 +42,9 @@ impl Component for Misc {
         }
         Ok(())
     }
+    fn group_parser(&self) -> Option<&cmd::Group> {
+        Some(&self.group_match)
+    }
 }
 
 impl Misc {
