@@ -91,7 +91,7 @@ impl CommandParameter {
         self
     }
     pub fn help(&self) -> Option<&str> {
-        match self.help {
+        match &self.help {
             Some(h) => Some(&h),
             None => None,
         }
@@ -101,7 +101,7 @@ impl CommandParameter {
         self
     }
     pub fn value_type(&self) -> Option<&str> {
-        match self.value_type {
+        match &self.value_type {
             Some(v) => Some(&v),
             None => None,
         }
@@ -135,7 +135,7 @@ impl Command {
         self
     }
     pub fn help(&self) -> Option<&str> {
-        match self.help {
+        match &self.help {
             Some(h) => Some(&h),
             None => None,
         }
@@ -197,8 +197,12 @@ impl Group {
         self.node.commands.add(cmd);
         self
     }
+    pub fn set_help<S: Into<String>>(mut self, h: S) -> Group {
+        self.help = Some(h.into());
+        self
+    }
     pub fn help(&self) -> Option<&str> {
-        match self.help {
+        match &self.help {
             Some(h) => Some(&h),
             None => None,
         }
@@ -245,7 +249,7 @@ impl Node {
     }
 }
 #[derive(Debug, Clone)]
-struct Container<T: Named>(Vec<T>);
+pub struct Container<T: Named>(Vec<T>);
 
 impl<T: Named> Container<T> {
     pub fn new() -> Self {
