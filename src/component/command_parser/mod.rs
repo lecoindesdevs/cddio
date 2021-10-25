@@ -1,6 +1,5 @@
 use std::{borrow::Cow, collections::HashMap};
 
-
 pub mod matching {
     #[derive(Debug, PartialEq)]
     pub struct Parameter<'a> {
@@ -13,6 +12,11 @@ pub mod matching {
         pub params: Vec<Parameter<'a>>,
     }
 }
+
+trait Named {
+    fn get_name(&self) -> &str;
+}
+
 #[derive(Debug, PartialEq)]
 pub enum ParseError<'a> {
     NotMatched,
@@ -42,6 +46,11 @@ pub struct CommandParameter {
     pub name: String,
     pub help: Option<String>,
     pub value_type: Option<String>
+}
+impl Named for CommandParameter {
+    fn get_name(&self) -> &str {
+        &self.name
+    }
 }
 impl CommandParameter {
     pub fn new<S: Into<String>>(name: S) -> CommandParameter {
@@ -75,6 +84,11 @@ pub struct Command {
     pub name: String,
     pub help: Option<String>,
     pub params: Vec<CommandParameter>
+}
+impl Named for Command {
+    fn get_name(&self) -> &str {
+        &self.name
+    }
 }
 impl Command {
     pub fn new<S: Into<String>>(name: S) -> Command {
@@ -139,38 +153,42 @@ pub struct Group {
     help: Option<String>,
     node: Node
 }
+impl Named for Group {
+    fn get_name(&self) -> &str {
+        &self.name
+    }
+}
 #[derive(Debug, Clone)]
 struct Node {
     pub commands: Container<Command>,
     pub groups: Container<Group>,
 }
 #[derive(Debug, Clone)]
-struct Container<T>(Option<HashMap<ID, T>>, ID);
+struct Container<T: Named>(Vec<T>);
 
-impl<T> Container<T> {
+impl<T: Named> Container<T> {
     pub fn new() -> Self {
-        Self(None, 1)
+        Self(Vec::new())
     }
-    pub fn add(&mut self, value: T) -> ID {
-        if let None = self.0 {
-            self.0 = Some(HashMap::new());
-        };
-        let current_id = self.1;
-        self.0.as_mut().unwrap().insert(current_id, value);
-        
-        self.1+=1;
-        current_id
-    }
-    pub fn remove(&mut self, id: ID) -> Option<T> {
-        if let Some(table) = &mut self.0 {
-            table.remove(&id)
-        } else {
-            None
+    pub fn add(&mut self, value: T) {
+        if let Some(_) = self.find(value.get_name()) {
+            panic!("Container values MUST BE name distinct");
         }
+        self.0.push(value);
+    }
+    pub fn find(&self, name: &str) -> Option<&T> {
+        self.0.iter().find(|v| v.get_name() == name)
+    }
+    pub fn remove(&self, name: &str)  {
+        let id = self.0.iter().take_while(|v| v.get_name() == name).count();
+        if id>=self.0.len() {
+            panic!("Container remove: {} not found", name);
+        }
+        self.0.remove(id);
     }
 }
 
-impl<T> Default for Container<T> {
+impl<T: Named> Default for Container<T> {
     fn default() -> Self {
         Self::new()
     }
