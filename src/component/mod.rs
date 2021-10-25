@@ -9,6 +9,8 @@ pub mod components;
 
 pub use event::EventListenerContainer as EventContainer;
 pub use framework::{CDDFramework as Framework, FrameworkConfig};
+pub use framework::{Context, Message};
+pub use serenity::model::event::Event;
 
 pub type ArcMut<T> = Arc<Mutex<T>>;
 
@@ -24,8 +26,8 @@ pub enum CommandMatch {
 pub trait Component: Sync + Send
 {
     fn name(&self) -> &str;
-    async fn command(&mut self, fw_config: &framework::FrameworkConfig, ctx: &framework::Context, msg: &framework::Message) -> CommandMatch;
-    async fn event(&mut self, ctx: &framework::Context, evt: &event::Event) -> Result<(), String>;
+    async fn command(&mut self, fw_config: &FrameworkConfig, ctx: &Context, msg: &Message) -> CommandMatch;
+    async fn event(&mut self, ctx: &Context, evt: &Event) -> Result<(), String>;
 }
 
 pub fn to_arc_mut<M>(mid: M) -> ArcMut<M> {
