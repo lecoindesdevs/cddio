@@ -1,6 +1,8 @@
-use std::{borrow::Cow, collections::HashMap};
+use std::{borrow::Cow, collections::{HashMap, VecDeque}};
 
 pub mod matching {
+    use std::collections::VecDeque;
+
     #[derive(Debug, PartialEq)]
     pub struct Parameter<'a> {
         pub name: &'a str,
@@ -8,7 +10,7 @@ pub mod matching {
     }
     #[derive(Debug, PartialEq)]
     pub struct Command<'a> {
-        pub name: &'a str,
+        pub path: VecDeque<&'a str>,
         pub params: Vec<Parameter<'a>>,
     }
 }
@@ -22,6 +24,8 @@ pub enum ParseError<'a> {
     NotMatched,
     UnknownParameter(&'a str),
     MissingParameterValue(&'a str),
+    ExpectedPath(&'a str),
+    RequiredParameters(String),
     Todo
 }
 pub fn split_shell<'a>(txt: &'a str) -> Vec<&'a str> {
@@ -45,7 +49,8 @@ pub type ID = u32;
 pub struct CommandParameter {
     pub name: String,
     pub help: Option<String>,
-    pub value_type: Option<String>
+    pub value_type: Option<String>,
+    pub required: bool
 }
 impl Named for CommandParameter {
     fn get_name(&self) -> &str {
@@ -57,7 +62,8 @@ impl CommandParameter {
         CommandParameter {
             name: name.into(),
             help: None,
-            value_type: None
+            value_type: None,
+            required: false
         }
     }
     pub fn set_help<S: Into<String>>(mut self, h: S) -> CommandParameter {
@@ -74,8 +80,12 @@ impl CommandParameter {
         }
         msg
     }
-    pub fn value_type<S: Into<String>>(mut self, vt: S) -> CommandParameter {
+    pub fn set_value_type<S: Into<String>>(mut self, vt: S) -> CommandParameter {
         self.value_type = Some(vt.into());
+        self
+    }
+    pub fn set_required(mut self, req: bool) -> CommandParameter {
+        self.required = req;
         self
     }
 }
@@ -123,7 +133,7 @@ impl Command {
         self
     }
 
-    pub fn try_match<'a>(&self, args: Vec<&'a str>) -> Result<matching::Command<'a>, ParseError<'a>> {
+    pub fn try_match<'a>(&self, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>> {
         if args.is_empty() {
             return Err(ParseError::Todo);
         }
@@ -141,8 +151,13 @@ impl Command {
                 None => return Err(ParseError::MissingParameterValue(name))
             }
         }
+        let it_req = self.params.iter().filter(|p| p.required);
+        let mut it_req_missing = it_req.filter(|p1| params.iter().find(|p2| p1.name == p2.name).is_none());
+        if let Some(param_missing) = it_req_missing.next() {
+            return Err(ParseError::RequiredParameters(param_missing.name.clone()));
+        }
         Ok(matching::Command{
-            name: args[0],
+            path: {let mut v = VecDeque::new(); v.push_back(args[0]); v},
             params,
         })
     }
@@ -153,6 +168,42 @@ pub struct Group {
     help: Option<String>,
     node: Node
 }
+impl Group {
+    pub fn new<S: Into<String>>(name: S) -> Group {
+        Group { 
+            name: name.into(), 
+            help: None, 
+            node: Node::new() 
+        }
+    }
+    pub fn add_group(mut self, grp: Group) -> Group {
+        self.node.groups.add(grp);
+        self
+    }
+    pub fn add_command(mut self, cmd: Command) -> Group {
+        self.node.commands.add(cmd);
+        self
+    }
+    pub fn try_match<'a>(&self, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>> {
+        if args[0] != self.name {
+            return Err(ParseError::NotMatched);
+        }
+        if args.len() == 1 {
+            return Err(ParseError::ExpectedPath(args[0]))
+        }
+        if args[1].starts_with('-') {
+            return Err(ParseError::ExpectedPath(args[0]));
+        }
+        match self.node.commands.find(args[1]) {
+            Some(cmd) => cmd.try_match(&args[1..]),
+            None => match self.node.groups.find(args[1]) {
+                Some(grp) => grp.try_match(&args[1..]),
+                None => Err(ParseError::NotMatched),
+            },
+        }
+        .and_then(|mut cmd| Ok({cmd.path.push_front(args[0]); cmd}))
+    }
+}
 impl Named for Group {
     fn get_name(&self) -> &str {
         &self.name
@@ -162,6 +213,14 @@ impl Named for Group {
 struct Node {
     pub commands: Container<Command>,
     pub groups: Container<Group>,
+}
+impl Node {
+    pub fn new() -> Node {
+        Node { 
+            commands: Container::new(), 
+            groups: Container::new() 
+        }
+    }
 }
 #[derive(Debug, Clone)]
 struct Container<T: Named>(Vec<T>);
@@ -179,7 +238,7 @@ impl<T: Named> Container<T> {
     pub fn find(&self, name: &str) -> Option<&T> {
         self.0.iter().find(|v| v.get_name() == name)
     }
-    pub fn remove(&self, name: &str)  {
+    pub fn remove(&mut self, name: &str)  {
         let id = self.0.iter().take_while(|v| v.get_name() == name).count();
         if id>=self.0.len() {
             panic!("Container remove: {} not found", name);
