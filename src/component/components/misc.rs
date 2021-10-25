@@ -23,12 +23,10 @@ impl Component for Misc {
             Err(ParseError::NotMatched) => return CommandMatch::NotMatched,
             Err(e) => return CommandMatch::Error(e.to_string())
         };
-        if matched.get_command() == "ping" {
-            Self::send_text(ctx, msg, "pong!").await
-        } else {
-            unreachable!()
+        match matched.get_command() {
+            "ping" => Self::send_text(ctx, msg, "pong!").await,
+            _ => unreachable!()
         }
-        
     }
 
     async fn event(&mut self, ctx: &Context, evt: &Event) -> Result<(), String> {
