@@ -25,6 +25,10 @@ impl ComponentHandler {
         self.components.push(Arc::clone(&cmp_arc));
         self
     }
+    pub fn add_help(self) -> Self {
+        let help = cmp::to_arc_mut(cmp::components::Help::new(self.components.clone()));
+        self.add_component(help)
+    }
     // fn add_command_group(&mut self)
 }
 
@@ -38,7 +42,8 @@ impl Bot {
         let framework = cmp::Framework::new(config.prefix);
         let cmph = ComponentHandler::new(framework)
         // AJOUTER LES COMPOSANTS ICI A LA SUITE
-            .add_component(cmp::to_arc_mut(cmp::components::Misc::new()));
+            .add_component(cmp::to_arc_mut(cmp::components::Misc::new()))
+            .add_help();
             
         let ComponentHandler{components,framework,event_container} = cmph;
 
