@@ -34,33 +34,27 @@ impl CDDFramework {
 
 #[async_trait]
 impl Framework for CDDFramework {
-// impl CDDFramework {
     async fn dispatch(&self, ctx: Context, msg: Message) {
-        'main: loop {
-            if let Some(c) = msg.content.chars().next() {
-                if c != self.config.prefix {
-                    break 'main;
-                }
-            } else {
-                break 'main;
-            }
-            for mid in &self.components {
-                let mut mid = mid.lock().await;
-                if match mid.command(self.config(), &ctx, &msg).await {
-                    super::CommandMatch::Matched => true,
-                    super::CommandMatch::NotMatched => false,
-                    super::CommandMatch::Error(what) => {
-                        println!("[{}] Module {} command error: {}\nMessage: {:?}\n\n",
-                            chrono::Local::now().format("%Y-%m-%d %H:%M:%S"), 
-                            mid.name(),
-                            what,
-                            msg
-                        );
-                        true
-                    },
-                } {
-                    break 'main;
-                }
+        if msg.content.starts_with(self.config.prefix) {
+            return;
+        }
+        
+        for mid in &self.components {
+            let mut mid = mid.lock().await;
+            if match mid.command(self.config(), &ctx, &msg).await {
+                super::CommandMatch::Matched => true,
+                super::CommandMatch::NotMatched => false,
+                super::CommandMatch::Error(what) => {
+                    println!("[{}] Module {} command error: {}\nMessage: {:?}\n\n",
+                        chrono::Local::now().format("%Y-%m-%d %H:%M:%S"), 
+                        mid.name(),
+                        what,
+                        msg
+                    );
+                    true
+                },
+            } {
+                return;
             }
         }
     }
