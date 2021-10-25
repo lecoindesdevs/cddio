@@ -51,7 +51,10 @@ impl Misc {
     pub fn new () -> Misc {
         Misc{
             group_match: cmd::Group::new("misc")
-                .add_command(cmd::Command::new("ping"))
+                .set_help("Commande diverse, sans catégorie, ou de test")
+                .add_command(cmd::Command::new("ping")
+                    .set_help("Permet d'avoir une réponse du bot")
+                )
         }
     }
     pub async fn send_text(ctx: &Context, msg: &Message, txt: &str) -> CommandMatch{
