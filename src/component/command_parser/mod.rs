@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::{HashMap, VecDeque}};
+use std::collections::VecDeque;
 
 pub mod matching {
     use std::collections::VecDeque;
@@ -12,6 +12,14 @@ pub mod matching {
     pub struct Command<'a> {
         pub path: VecDeque<&'a str>,
         pub params: Vec<Parameter<'a>>,
+    }
+    impl<'a> Command<'a> {
+        pub fn get_command(&self) -> &'a str {
+            self.path.as_slices().1[0]
+        }
+        pub fn get_groups(&self) -> &[&'a str] {
+            &self.path.as_slices().0
+        }
     }
 }
 
