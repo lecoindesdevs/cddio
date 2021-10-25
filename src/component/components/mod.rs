@@ -1,4 +1,4 @@
-mod bot_start;
-pub use bot_start::*;
+mod misc;
+pub use misc::*;
 // mod help;
 // pub use help::*;
