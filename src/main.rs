@@ -1,6 +1,8 @@
 mod bot;
 mod component;
 mod config;
+#[macro_use]
+mod util;
 
 
 trait ResultLog {
