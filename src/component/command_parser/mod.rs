@@ -23,8 +23,8 @@ pub mod matching {
     }
 }
 
-trait Named {
-    fn get_name(&self) -> &str;
+pub trait Named {
+    fn name(&self) -> &str;
 }
 
 #[derive(Debug, PartialEq)]
@@ -73,7 +73,7 @@ pub struct CommandParameter {
     pub required: bool
 }
 impl Named for CommandParameter {
-    fn get_name(&self) -> &str {
+    fn name(&self) -> &str {
         &self.name
     }
 }
@@ -90,19 +90,21 @@ impl CommandParameter {
         self.help = Some(h.into());
         self
     }
-    pub fn help(&self) -> String {
-        let mut msg = self.name.clone();
-        if let Some(value_type) = &self.value_type {
-            msg=format!("{} <{}>", msg, value_type);
+    pub fn help(&self) -> Option<&str> {
+        match self.help {
+            Some(h) => Some(&h),
+            None => None,
         }
-        if let Some(help) = &self.help {
-            msg=format!("{}: {}", msg, help);
-        }
-        msg
     }
     pub fn set_value_type<S: Into<String>>(mut self, vt: S) -> CommandParameter {
         self.value_type = Some(vt.into());
         self
+    }
+    pub fn value_type(&self) -> Option<&str> {
+        match self.value_type {
+            Some(v) => Some(&v),
+            None => None,
+        }
     }
     pub fn set_required(mut self, req: bool) -> CommandParameter {
         self.required = req;
@@ -116,7 +118,7 @@ pub struct Command {
     pub params: Vec<CommandParameter>
 }
 impl Named for Command {
-    fn get_name(&self) -> &str {
+    fn name(&self) -> &str {
         &self.name
     }
 }
@@ -132,20 +134,11 @@ impl Command {
         self.help = Some(h.into());
         self
     }
-    pub fn help(&self) -> String {
-        let mut msg = self.name.clone();
-        if let Some(help) = &self.help {
-            msg=format!("{}: {}", msg, help);
+    pub fn help(&self) -> Option<&str> {
+        match self.help {
+            Some(h) => Some(&h),
+            None => None,
         }
-        
-        if !self.params.is_empty() {
-            msg=format!("{}\nParamètres\n", msg);
-            for param in &self.params {
-                msg=format!("{}{}\n", msg, param.help());
-            }
-            msg.pop();
-        }
-        msg
     }
 
     pub fn add_param(mut self, param: CommandParameter) -> Command {
@@ -204,6 +197,15 @@ impl Group {
         self.node.commands.add(cmd);
         self
     }
+    pub fn help(&self) -> Option<&str> {
+        match self.help {
+            Some(h) => Some(&h),
+            None => None,
+        }
+    }
+    pub fn node(&self) -> &Node {
+        &self.node
+    }
     pub fn try_match<'a>(&self, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>> {
         if args[0] != self.name {
             return Err(ParseError::NotMatched);
@@ -225,12 +227,12 @@ impl Group {
     }
 }
 impl Named for Group {
-    fn get_name(&self) -> &str {
+    fn name(&self) -> &str {
         &self.name
     }
 }
 #[derive(Debug, Clone)]
-struct Node {
+pub struct Node {
     pub commands: Container<Command>,
     pub groups: Container<Group>,
 }
@@ -250,16 +252,19 @@ impl<T: Named> Container<T> {
         Self(Vec::new())
     }
     pub fn add(&mut self, value: T) {
-        if let Some(_) = self.find(value.get_name()) {
+        if let Some(_) = self.find(value.name()) {
             panic!("Container values MUST BE name distinct");
         }
         self.0.push(value);
     }
     pub fn find(&self, name: &str) -> Option<&T> {
-        self.0.iter().find(|v| v.get_name() == name)
+        self.0.iter().find(|v| v.name() == name)
+    }
+    pub fn list(&self) -> impl Iterator<Item = &T> {
+        self.0.iter()
     }
     pub fn remove(&mut self, name: &str)  {
-        let id = self.0.iter().take_while(|v| v.get_name() == name).count();
+        let id = self.0.iter().take_while(|v| v.name() == name).count();
         if id>=self.0.len() {
             panic!("Container remove: {} not found", name);
         }
