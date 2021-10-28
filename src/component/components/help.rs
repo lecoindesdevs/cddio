@@ -1,5 +1,3 @@
-use std::{borrow::Cow, ops::Deref};
-
 use serenity::{async_trait, utils::Colour};
 
 use crate::component::{self as cmp, command_parser::{self as cmd, Named}};
@@ -17,7 +15,7 @@ impl cmp::Component for Help {
         self.r_command(fw_config, ctx, msg).await
     }
 
-    async fn event(&mut self, ctx: &cmp::Context, evt: &cmp::Event) -> Result<(), String> {
+    async fn event(&mut self, _: &cmp::Context, _: &cmp::Event) -> Result<(), String> {
         Ok(())
     }
 }
@@ -25,6 +23,7 @@ impl cmp::Component for Help {
 struct HelpInfo {
     name: String,
     desc: Option<String>,
+    role: Option<String>,
     groups: Option<Vec<(String, Option<String>)>>,
     commands: Option<Vec<(String, Option<String>)>>,
     params: Option<Vec<(String, Option<String>)>>,
@@ -55,6 +54,9 @@ impl Help {
                 if let Some(desc) = info.desc {
                     embed.description(desc);
                 }
+                let role = info.role;
+                embed.footer(|f| f.text(format!("Autorisé par {}", if let Some(v) = &role {format!("@{}", v.as_str())} else {"tout le monde".to_string()})));
+                
                 let mut make_field = |name: &str, groups: Option<Vec<(String, Option<String>)>>| 
                     if let Some(groups) = groups {
                         let mut value = String::new();
@@ -114,7 +116,7 @@ impl Help {
                 for cmp in &self.components {
                     let cmp = cmp.lock().await;
                     match (cmp.name(), cmp.group_parser()) {
-                        (n, Some(grp)) if n == name => return Self::help_group(grp, list_words),
+                        (n, Some(grp)) if n == name => return Self::help_group(grp, None, list_words),
                         _ => ()
                     }
                 }
@@ -128,19 +130,23 @@ impl Help {
         }
     }
     #[inline]
-    fn help_node<'a, 'b>(node: &'a cmd::Node, name: &str, list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
+    fn help_node<'a, 'b>(node: &'a cmd::Node, role: Option<&'a str>, name: &str, list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
         if let Some(found) = node.groups.list().find(|g| g.name() == name) {
-            Self::help_group(found, list_words)
+            Self::help_group(found, role, list_words)
         } else if let Some(found) = node.commands.list().find(|c| c.name() == name) {
-            Self::help_command(found, list_words)
+            Self::help_command(found, role, list_words)
         } else {
             Err(())
         }
     }
     
-    fn help_group<'a, 'b>(group: &'a cmd::Group, mut list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
+    fn help_group<'a, 'b>(group: &'a cmd::Group, role: Option<&'a str>, mut list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
+        let role = match group.role() {
+            Some(v) => Some(v),
+            None => role,
+        };
         match list_words.next() {
-            Some(name) => Self::help_node(group.node(), name, list_words),
+            Some(name) => Self::help_node(group.node(), role, name, list_words),
             None => {
                 let mut groups = Vec::new();
                 for grp in group.node().groups.list() {
@@ -152,6 +158,7 @@ impl Help {
                 }
                 Ok(HelpInfo{
                     name: format!("{} (Groupe de commande)", group.name()),
+                    role: group.role().and_then(|v| Some(v.to_string())),
                     desc: group.help().and_then(|v| Some(v.to_string())),
                     groups: if groups.is_empty() {None} else {Some(groups)},
                     commands: if cmds.is_empty() {None} else {Some(cmds)},
@@ -160,7 +167,11 @@ impl Help {
             },
         }
     }
-    fn help_command<'a, 'b>(command: &'a cmd::Command, mut list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
+    fn help_command<'a, 'b>(command: &'a cmd::Command, role: Option<&'a str>, mut list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
+        let role = match command.role() {
+            Some(v) => Some(v),
+            None => role,
+        };
         match list_words.next() {
             Some(_) => Err(()),
             None => {
@@ -174,6 +185,7 @@ impl Help {
                 }
                 Ok(HelpInfo{
                     name: format!("{} (Commande)", command.name()),
+                    role: role.and_then(|v| Some(v.to_string())),
                     desc: command.help().and_then(|v| Some(v.to_string())),
                     .. Default::default()
                 })

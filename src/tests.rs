@@ -10,10 +10,11 @@ fn command_parser() {
                 .set_help("Un paramètre")
                 .set_value_type("texte")
         );
-    assert_eq!(cmd.try_match(&split_shell(r#"command -param "Je suis un parametre" -unknown"#)), Err(ParseError::UnknownParameter("-unknown")));
-    assert_eq!(cmd.try_match(&split_shell(r#"command -param"#)), Err(ParseError::MissingParameterValue("-param")));
-    assert_eq!(cmd.try_match(&split_shell(r#"command -param "Je suis un parametre""#)), Ok(matching::Command{
+    assert_eq!(cmd.try_match(None, &split_shell(r#"command -param "Je suis un parametre" -unknown"#)), Err(ParseError::UnknownParameter("-unknown")));
+    assert_eq!(cmd.try_match(None, &split_shell(r#"command -param"#)), Err(ParseError::MissingParameterValue("-param")));
+    assert_eq!(cmd.try_match(None, &split_shell(r#"command -param "Je suis un parametre""#)), Ok(matching::Command{
         path: vdq!["command"],
+        role: None,
         params: vec![ matching::Parameter{ name: "param", value: "Je suis un parametre" } ]
     }));
 }
@@ -32,14 +33,16 @@ fn group_parser() {
         )
         .add_command(cmd::Command::new("command2"));
     
-    let matched = group.try_match(&split_shell(r#"group1 group2 command1"#));
+    let matched = group.try_match(None, &split_shell(r#"group1 group2 command1"#));
     assert_eq!(matched, Ok(cmd::matching::Command {
         path: vdq!["group1", "group2", "command1"],
-        params: vec![]
+        params: vec![],
+        role: None
     }));
     println!("{:?}", matched.unwrap().path.as_slices());
-    assert_eq!(group.try_match(&split_shell(r#"group1 group2 command3 -param "Test param" -param2 test"#)), Ok(cmd::matching::Command {
+    assert_eq!(group.try_match(None, &split_shell(r#"group1 group2 command3 -param "Test param" -param2 test"#)), Ok(cmd::matching::Command {
         path: vdq!["group1", "group2", "command3"],
+        role: None,
         params: vec![cmd::matching::Parameter{
             name:"param",
             value: "Test param"
@@ -49,9 +52,10 @@ fn group_parser() {
             value: "test"
         }]
     }));
-    assert_eq!(group.try_match(&split_shell(r#"group1 group2 command3 -param "Test param""#)), Err(ParseError::RequiredParameters("param2".to_string())));
-    assert_eq!(group.try_match(&split_shell(r#"group1 command2"#)), Ok(cmd::matching::Command {
+    assert_eq!(group.try_match(None, &split_shell(r#"group1 group2 command3 -param "Test param""#)), Err(ParseError::RequiredParameters("param2".to_string())));
+    assert_eq!(group.try_match(None, &split_shell(r#"group1 command2"#)), Ok(cmd::matching::Command {
         path: vdq!["group1", "command2"],
+        role: None,
         params: vec![]
     }));
 }
