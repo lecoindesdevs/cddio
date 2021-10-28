@@ -1,5 +1,6 @@
 use serenity::async_trait;
 use serenity::client::Context;
+use serenity::http::CacheHttp;
 use serenity::model::channel::Message;
 use serenity::model::{Permissions, event::{Event, ReadyEvent}};
 use super::super::{CommandMatch, Component, FrameworkConfig};
@@ -18,13 +19,16 @@ impl Component for Misc {
 
     async fn command(&mut self, _: &FrameworkConfig, ctx: &Context, msg: &Message) -> CommandMatch {
         let args = cmd::split_shell(&msg.content[1..]);
-        let matched = match self.group_match.try_match(&args) {
+        let matched = match self.group_match.try_match(None, &args) {
             Ok(v) => v,
             Err(ParseError::NotMatched) => return CommandMatch::NotMatched,
             Err(e) => return CommandMatch::Error(e.to_string())
         };
         match matched.get_command() {
-            "ping" => Self::send_text(ctx, msg, "pong!").await,
+            "ping" => {
+                if msg.author.has_role(ctx.http(), msg.guild_id, "role").await{}
+                Self::send_text(ctx, msg, "pong!").await
+            },
             _ => unreachable!()
         }
     }
@@ -54,11 +58,23 @@ impl Misc {
                 .set_help("Commande diverse, sans catégorie, ou de test")
                 .add_command(cmd::Command::new("ping")
                     .set_help("Permet d'avoir une réponse du bot")
+                    .set_role("role_ping")
                 )
+                .set_role("role")
+        }
+    }
+    pub async fn has_role(ctx: &Context, msg: &Message, txt: &str) -> Result<bool, CommandMatch>{
+        let guild_id = match msg.guild_id {
+            Some(v) => v,
+            None => return Ok(true),
+        };
+        match msg.author.has_role(ctx.http(), guild_id, "role").await {
+            Ok(v) => Ok(v),
+            Err(e) => Err(CommandMatch::Error(e.to_string())),
         }
     }
     pub async fn send_text(ctx: &Context, msg: &Message, txt: &str) -> CommandMatch{
-        match msg.channel_id.say(&ctx.http, "pong!").await {
+        match msg.channel_id.say(&ctx.http, txt).await {
             Ok(_) => CommandMatch::Matched,
             Err(e) => CommandMatch::Error(e.to_string()),
         }
