@@ -14,7 +14,7 @@ fn command_parser() {
     assert_eq!(cmd.try_match(None, &split_shell(r#"command -param"#)), Err(ParseError::MissingParameterValue("-param")));
     assert_eq!(cmd.try_match(None, &split_shell(r#"command -param "Je suis un parametre""#)), Ok(matching::Command{
         path: vdq!["command"],
-        role: None,
+        permission: None,
         params: vec![ matching::Parameter{ name: "param", value: "Je suis un parametre" } ]
     }));
 }
@@ -37,12 +37,12 @@ fn group_parser() {
     assert_eq!(matched, Ok(cmd::matching::Command {
         path: vdq!["group1", "group2", "command1"],
         params: vec![],
-        role: None
+        permission: None
     }));
     println!("{:?}", matched.unwrap().path.as_slices());
     assert_eq!(group.try_match(None, &split_shell(r#"group1 group2 command3 -param "Test param" -param2 test"#)), Ok(cmd::matching::Command {
         path: vdq!["group1", "group2", "command3"],
-        role: None,
+        permission: None,
         params: vec![cmd::matching::Parameter{
             name:"param",
             value: "Test param"
@@ -55,7 +55,7 @@ fn group_parser() {
     assert_eq!(group.try_match(None, &split_shell(r#"group1 group2 command3 -param "Test param""#)), Err(ParseError::RequiredParameters("param2".to_string())));
     assert_eq!(group.try_match(None, &split_shell(r#"group1 command2"#)), Ok(cmd::matching::Command {
         path: vdq!["group1", "command2"],
-        role: None,
+        permission: None,
         params: vec![]
     }));
 }

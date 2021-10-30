@@ -23,7 +23,7 @@ impl cmp::Component for Help {
 struct HelpInfo {
     name: String,
     desc: Option<String>,
-    role: Option<String>,
+    permission: Option<String>,
     groups: Option<Vec<(String, Option<String>)>>,
     commands: Option<Vec<(String, Option<String>)>>,
     params: Option<Vec<(String, Option<String>)>>,
@@ -54,8 +54,8 @@ impl Help {
                 if let Some(desc) = info.desc {
                     embed.description(desc);
                 }
-                let role = info.role;
-                embed.footer(|f| f.text(format!("Autorisé par {}", if let Some(v) = &role {format!("@{}", v.as_str())} else {"tout le monde".to_string()})));
+                let permission = info.permission;
+                embed.footer(|f| f.text(format!("Autorisé par {}", if let Some(v) = &permission {format!("@{}", v.as_str())} else {"tout le monde".to_string()})));
                 
                 let mut make_field = |name: &str, groups: Option<Vec<(String, Option<String>)>>| 
                     if let Some(groups) = groups {
@@ -130,23 +130,23 @@ impl Help {
         }
     }
     #[inline]
-    fn help_node<'a, 'b>(node: &'a cmd::Node, role: Option<&'a str>, name: &str, list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
+    fn help_node<'a, 'b>(node: &'a cmd::Node, permission: Option<&'a str>, name: &str, list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
         if let Some(found) = node.groups.list().find(|g| g.name() == name) {
-            Self::help_group(found, role, list_words)
+            Self::help_group(found, permission, list_words)
         } else if let Some(found) = node.commands.list().find(|c| c.name() == name) {
-            Self::help_command(found, role, list_words)
+            Self::help_command(found, permission, list_words)
         } else {
             Err(())
         }
     }
     
-    fn help_group<'a, 'b>(group: &'a cmd::Group, role: Option<&'a str>, mut list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
-        let role = match group.role() {
+    fn help_group<'a, 'b>(group: &'a cmd::Group, permission: Option<&'a str>, mut list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
+        let permission = match group.permission() {
             Some(v) => Some(v),
-            None => role,
+            None => permission,
         };
         match list_words.next() {
-            Some(name) => Self::help_node(group.node(), role, name, list_words),
+            Some(name) => Self::help_node(group.node(), permission, name, list_words),
             None => {
                 let mut groups = Vec::new();
                 for grp in group.node().groups.list() {
@@ -158,7 +158,7 @@ impl Help {
                 }
                 Ok(HelpInfo{
                     name: format!("{} (Groupe de commande)", group.name()),
-                    role: group.role().and_then(|v| Some(v.to_string())),
+                    permission: group.permission().and_then(|v| Some(v.to_string())),
                     desc: group.help().and_then(|v| Some(v.to_string())),
                     groups: if groups.is_empty() {None} else {Some(groups)},
                     commands: if cmds.is_empty() {None} else {Some(cmds)},
@@ -167,10 +167,10 @@ impl Help {
             },
         }
     }
-    fn help_command<'a, 'b>(command: &'a cmd::Command, role: Option<&'a str>, mut list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
-        let role = match command.role() {
+    fn help_command<'a, 'b>(command: &'a cmd::Command, permission: Option<&'a str>, mut list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
+        let permission = match command.permission() {
             Some(v) => Some(v),
-            None => role,
+            None => permission,
         };
         match list_words.next() {
             Some(_) => Err(()),
@@ -185,7 +185,7 @@ impl Help {
                 }
                 Ok(HelpInfo{
                     name: format!("{} (Commande)", command.name()),
-                    role: role.and_then(|v| Some(v.to_string())),
+                    permission: permission.and_then(|v| Some(v.to_string())),
                     desc: command.help().and_then(|v| Some(v.to_string())),
                     .. Default::default()
                 })

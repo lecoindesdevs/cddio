@@ -13,8 +13,7 @@ pub mod matching {
     pub struct Command<'a> {
         pub path: VecDeque<&'a str>,
         pub params: Vec<Parameter<'a>>,
-        pub role: Option<&'a str>
-        // pub role: 
+        pub permission: Option<&'a str>
     }
     impl<'a> Command<'a> {
         pub fn get_command(&self) -> &'a str {
@@ -117,7 +116,7 @@ impl CommandParameter {
 #[derive(Debug, Clone)]
 pub struct Command {
     pub name: String,
-    pub role: Option<String>,
+    pub permission: Option<String>,
     pub help: Option<String>,
     pub params: Vec<CommandParameter>
 }
@@ -130,17 +129,17 @@ impl Command {
     pub fn new<S: Into<String>>(name: S) -> Command {
         Command {
             name: name.into(),
-            role: None,
+            permission: None,
             help: None,
             params: Vec::new()
         }
     }
-    pub fn set_role<S: Into<String>>(mut self, role: S) -> Self {
-        self.role = Some(role.into());
+    pub fn set_permission<S: Into<String>>(mut self, permission: S) -> Self {
+        self.permission = Some(permission.into());
         self
     }
-    pub fn role(&self) -> Option<&str> {
-        match &self.role {
+    pub fn permission(&self) -> Option<&str> {
+        match &self.permission {
             Some(v) => Some(&v),
             None => None,
         }
@@ -161,16 +160,16 @@ impl Command {
         self
     }
 
-    pub fn try_match<'a>(&'a self, role: Option<&'a str>, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>> {
+    pub fn try_match<'a>(&'a self, permission: Option<&'a str>, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>> {
         if args.is_empty() {
             return Err(ParseError::Todo);
         }
         if args[0] != self.name {
             return Err(ParseError::NotMatched);
         }
-        let role = match &self.role {
+        let permission = match &self.permission {
             Some(v) => Some(v.as_str()),
-            None => role,
+            None => permission,
         };
         let mut params = Vec::new();
         let mut iter_args = args.iter().skip(1);
@@ -190,7 +189,7 @@ impl Command {
         }
         Ok(matching::Command{
             path: {let mut v = VecDeque::new(); v.push_back(args[0]); v},
-            role,
+            permission,
             params,
         })
     }
@@ -198,7 +197,7 @@ impl Command {
 #[derive(Debug, Clone)]
 pub struct Group {
     name: String,
-    role: Option<String>,
+    permission: Option<String>,
     help: Option<String>,
     node: Node
 }
@@ -206,7 +205,7 @@ impl Group {
     pub fn new<S: Into<String>>(name: S) -> Group {
         Group { 
             name: name.into(), 
-            role: None,
+            permission: None,
             help: None, 
             node: Node::new() 
         }
@@ -219,12 +218,12 @@ impl Group {
         self.node.commands.add(cmd);
         self
     }
-    pub fn set_role<S: Into<String>>(mut self, role: S) -> Self {
-        self.role = Some(role.into());
+    pub fn set_permission<S: Into<String>>(mut self, permission: S) -> Self {
+        self.permission = Some(permission.into());
         self
     }
-    pub fn role(&self) -> Option<&str> {
-        match &self.role {
+    pub fn permission(&self) -> Option<&str> {
+        match &self.permission {
             Some(v) => Some(&v),
             None => None,
         }
@@ -242,7 +241,7 @@ impl Group {
     pub fn node(&self) -> &Node {
         &self.node
     }
-    pub fn try_match<'a>(&'a self, role: Option<&'a str>, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>> {
+    pub fn try_match<'a>(&'a self, permission: Option<&'a str>, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>> {
         if args[0] != self.name {
             return Err(ParseError::NotMatched);
         }
@@ -252,14 +251,14 @@ impl Group {
         if args[1].starts_with('-') {
             return Err(ParseError::ExpectedPath(args[0]));
         }
-        let role = match &self.role {
+        let permission = match &self.permission {
             Some(v) => Some(v.as_str()),
-            None => role,
+            None => permission,
         };
         match self.node.commands.find(args[1]) {
-            Some(cmd) => cmd.try_match(role, &args[1..]),
+            Some(cmd) => cmd.try_match(permission, &args[1..]),
             None => match self.node.groups.find(args[1]) {
-                Some(grp) => grp.try_match(role, &args[1..]),
+                Some(grp) => grp.try_match(permission, &args[1..]),
                 None => Err(ParseError::NotMatched),
             },
         }
