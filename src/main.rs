@@ -24,6 +24,11 @@ mod tests;
 #[tokio::main]
 async fn main() {
     let config = config::Config::read_file("./config.ron").expect_log("Could not load the configuration file");
-    let mut bot = bot::Bot::new(&config).await.or_else(|e|Err(e.to_string())).expect_log("");
-    bot.start().await.or_else(|e|Err(e.to_string())).expect_log("Client won't start");
+    let mut bot = bot::Bot::new(&config).await
+        .or_else(|e|Err(e.to_string()))
+        .expect_log("");
+    bot
+        .start().await
+        .or_else(|e| Err(e.to_string()))
+        .expect_log("Could not start the bot");
 }
