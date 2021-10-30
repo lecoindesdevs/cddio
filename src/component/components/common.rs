@@ -44,7 +44,7 @@ pub async fn has_permission(ctx: &cmp::Context, msg: &cmp::Message, role: Option
         .map_err(|e| CommandMatch::Error(e.to_string()))?;
     let roles = match member.roles(&ctx.cache).await {
         Some(v) => v,
-        None => todo!(),
+        None => return Ok(false),
     };
     Ok(roles.iter().any(|r| r.name == role))
 }
