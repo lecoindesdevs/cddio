@@ -6,17 +6,19 @@ use crate::{config::Config, component as cmp};
 
 type Result<T> = serenity::Result<T>;
 
-struct ComponentHandler {
+struct ComponentHandler<'a> {
     pub components: Vec<cmp::ArcComponent>,
     pub framework: cmp::Framework, 
-    pub event_container: cmp::EventContainer
+    pub event_container: cmp::EventContainer,
+    pub config: &'a Config,
 }
-impl ComponentHandler {
-    pub fn new(framework: cmp::Framework) -> Self {
+impl<'a> ComponentHandler<'a> {
+    pub fn new(framework: cmp::Framework, config:&'a Config) -> Self {
         ComponentHandler {
             components: Vec::new(),
             framework,
             event_container: cmp::EventContainer::init(),
+            config
         }
     }
     pub fn add_component(mut self, cmp_arc: cmp::ArcComponent) -> Self {
@@ -40,12 +42,12 @@ pub struct Bot {
 impl Bot {
     pub async fn new(config: &Config) -> Result<Bot> {
         let framework = cmp::Framework::new(config.prefix);
-        let cmph = ComponentHandler::new(framework)
+        let cmph = ComponentHandler::new(framework, &config)
         // AJOUTER LES COMPOSANTS ICI A LA SUITE
             .add_component(cmp::to_arc_mut(cmp::components::Misc::new()))
             .add_help();
             
-        let ComponentHandler{components,framework,event_container} = cmph;
+        let ComponentHandler{components,framework,event_container, config: _} = cmph;
 
         let client = Client::builder(&config.token)
             .framework(framework)
