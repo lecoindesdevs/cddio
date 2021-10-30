@@ -5,6 +5,7 @@ pub struct Config {
     pub token: String,
     pub prefix: char,
     pub permissions: u64,
+    pub owners: Vec<String>,
 }
 
 impl Config {
@@ -13,9 +14,9 @@ impl Config {
             Ok(v) => v,
             Err(e) => return Err(format!("Unable to read file {}: {}", filepath.as_ref().to_string_lossy(), e.to_string())),
         };
-        match serde_json::from_str(&str_config) {
+        match ron::from_str(&str_config) {
             Ok(v) => Ok(v),
-            Err(e) => Err(format!("Unable to parse config.json: {}", e.to_string())),
+            Err(e) => Err(format!("Unable to parse {}: {}", filepath.as_ref().to_string_lossy(), e.to_string())),
         }
     }
 }
