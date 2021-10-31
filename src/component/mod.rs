@@ -31,12 +31,6 @@ pub trait Component: Sync + Send
     fn group_parser(&self) -> Option<&command_parser::Group> {
         None
     }
-    fn load_config(&mut self, _config: ron::Value) {
-        // Do nothing
-    }
-    fn get_config(&self) -> Option<&ron::Value> {
-        None
-    }
 }
 
 pub fn to_arc_mut<M>(mid: M) -> ArcMut<M> {

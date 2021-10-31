@@ -8,7 +8,6 @@ pub struct Config {
     pub prefix: char,
     pub permissions: u64,
     pub owners: Vec<String>,
-    pub components: HashMap<String, ron::Value>
 }
 
 impl Config {
