@@ -1,0 +1,21 @@
+name: Rustdoc
+
+on:
+  push:
+    branches: [ docs ]
+  pull_request:
+    branches: [ docs ]
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_TARGET_DIR: ./docs
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build
+      run: cargo doc --verbose
