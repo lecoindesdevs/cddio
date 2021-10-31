@@ -23,7 +23,6 @@
 //! [Bot::new]: crate::bot::Bot::new()
 //! [`misc`]: crate::component::components::misc
 
-
 mod bot;
 mod component;
 mod config;
