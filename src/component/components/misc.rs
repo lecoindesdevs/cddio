@@ -75,9 +75,7 @@ impl Misc {
                 .set_help("Commande diverse, sans catégorie, ou de test")
                 .add_command(cmd::Command::new("ping")
                     .set_help("Permet d'avoir une réponse du bot")
-                    .set_permission("permission_ping")
                 )
-                .set_permission("permission")
         }
     }
     pub async fn send_message(ctx: &Context, msg: &Message, txt: &str) -> CommandMatch{
