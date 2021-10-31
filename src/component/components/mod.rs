@@ -1,4 +1,10 @@
-mod bot_start;
-pub use bot_start::*;
+//! Module comportant les composants
+
+
+mod misc;
+pub use misc::*;
 mod help;
 pub use help::*;
+
+// Fonctions utiles pour les composants
+mod common;
