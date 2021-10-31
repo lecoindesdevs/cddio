@@ -1,4 +1,6 @@
-#[doc = "macro make vec deque"]
+//! Fonctions utiles pour l'ensemble du projet
+
+#[doc = "Macro pour créer un VecDeque de la même manière que vec!"]
 #[doc(alias = "std::collections::VecDeque")]
 #[macro_export]
 macro_rules! vdq {

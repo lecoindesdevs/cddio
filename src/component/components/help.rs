@@ -1,3 +1,6 @@
+//! Le composant help permet d'afficher une aide en fonction de la commande.
+//! Il se repose sur le groupe de commande retournée par la fonction [`Component::group_parser`].
+
 use serenity::{async_trait, utils::Colour};
 
 use crate::component::{self as cmp, command_parser::{self as cmd, Named}};
@@ -21,12 +24,19 @@ impl cmp::Component for Help {
 }
 #[derive(Debug, Default)]
 struct HelpInfo {
+    /// Nom du groupe ou de la commande
     name: String,
+    /// Description du groupe ou de la commande
     desc: Option<String>,
+    /// Permission (role) requise pour être utilisé
     permission: Option<String>,
+    /// Si l'aide concerne un groupe, la liste des sous-groupes, s'il y en a
     groups: Option<Vec<(String, Option<String>)>>,
+    /// Si l'aide concerne un groupe, la liste des sous-commande, s'il y en a
     commands: Option<Vec<(String, Option<String>)>>,
+    /// Si l'aide concerne une commande, la liste des paramètres, s'il y en a
     params: Option<Vec<(String, Option<String>)>>,
+    /// Si aide générale, la liste des composants
     components: Option<Vec<String>>
 }
 
@@ -34,6 +44,7 @@ impl Help {
     pub fn new(cmps: Vec<cmp::ArcComponent>) -> Help {
         Help { components: cmps }
     }
+    /// Si l'aide n'est pas trouvé, retourne une erreur en message embed
     async fn send_error(_ctx: &cmp::Context, msg: &cmp::Message) -> serenity::Result<()> {
         match msg.channel_id.send_message(&_ctx.http, |m|
             m.embed(|embed| {
@@ -47,6 +58,7 @@ impl Help {
             Err(e) => Err(e),
         }
     }
+    /// Retourne l'aide générale, du composant, du groupe ou de la commande en fonction de la commande tapée
     async fn send_help(_ctx: &cmp::Context, msg: &cmp::Message, info: HelpInfo) -> serenity::Result<()> {
         match msg.channel_id.send_message(&_ctx.http, |m|
             m.embed(|embed| {
@@ -91,6 +103,8 @@ impl Help {
             Err(e) => Err(e),
         }
     }
+    /// Helper pour le language server.
+    /// rust-analyzer n'aime pas les fonctions async dans les traits
     async fn r_command(&mut self, _: &cmp::FrameworkConfig, ctx: &cmp::Context, msg: &cmp::Message) -> cmp::CommandMatch {
         if msg.content[1..].starts_with("help") {
             let list_words = msg.content.split(' ').skip(1).filter(|s| !s.is_empty());

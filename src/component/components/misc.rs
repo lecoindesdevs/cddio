@@ -1,3 +1,8 @@
+//! Le composant misc est une sorte de composant fourre tout, lors qu'une commande ou un événement seul ne necéssite pas de composant a lui tout seul. 
+//! Pensez à regarder le domaine des autres composants voir si ce que vous voulez implémenter ne correspondrait pas à un des composants déjà existant.
+//! **Attention toutefois** : le composant misc ne doit rien enregistrer et ne doit pas posséder de configuration. 
+//! Une action (commande ou événement) dans ce composant doit se suffire à elle-même.
+
 use serenity::async_trait;
 use serenity::client::Context;
 use serenity::model::channel::Message;

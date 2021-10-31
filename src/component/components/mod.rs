@@ -1,3 +1,6 @@
+//! Module comportant les composants
+
+
 mod misc;
 pub use misc::*;
 mod help;

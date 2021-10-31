@@ -1,41 +1,98 @@
+//! Parseur de commande
+//! 
+//! Ce module a été conçu pour faciliter la déclaration de composants, de groupes et de commandes.
+//! 
+//! Il permet de déclarer des commandes, de déclarer des groupes de commandes, des composants, des arguments au commande, 
+//! de définir leur comportement tel que des arguments requis, leur type, leur valeur par défaut, leur valeur minimum et maximum, les role qui y sont permis, etc.
+//! 
+//! Il permet aussi l'affichage d'aide automatisé des groupes et des commandes par le biais de composant [`help`].
+//! 
+//! Le parseur de commande foncitonne de la même manière qu'un parseur de ligne de commande: 
+//! - Chaque partie de la ligne de commande est séparée par des espaces, sauf les arguments quotés. `mot1 mot2 "mot 3"`
+//! - Les groupes et les commandes sont analysés en mot clé au debut de la commande et de manière recursif : `group [...sous_groupes...] command`
+//! - Les arguments avec des tirets tel que `-nom_parametre valeur` ou `-nom_parametre "valeur avec des espaces"` sont considérés comme des paramètres. (TODO : ajouter des flags)
+//! - Les arguments sans tiret sont considérés comme des arguments de commande.
+//! 
+//! Le parseur est là pour aidé a concevoir une commande, mais ne fait pas de traitement.
+//! 
+//! # Exemple
+//! 
+//! ```rust
+//! let misc_definition = cmd::Group::new("misc")
+//!     .set_help("Commande diverse, sans catégorie, ou de test")
+//!     .add_command(cmd::Command::new("concat")
+//!         .set_help("Permet de concaténer deux chaînes de caractères")
+//!         .add_argument(cmd::Argument::new("string1")
+//!             .set_help("Première chaîne de caractères à concaténer")
+//!             .set_required(true)
+//!         )
+//!         .add_argument(cmd::Argument::new("string2")
+//!             .set_help("Deuxième chaîne de caractères à concaténer")
+//!             .set_required(true)
+//!         )
+//! )
+//! ```
+//! **Utilisation**: `misc concat -string1 "Hello" -string2 " world"`
+//! 
+//! [`help`]: crate::component::components::help
+
+
 #![allow(dead_code)]
 use std::collections::VecDeque;
 
+/// Structures de retour d'une commande qui a match avec le parseur
 pub mod matching {
     use std::collections::VecDeque;
-
+    /// Information de paramètre de commande que le parseur a matché
     #[derive(Debug, PartialEq)]
     pub struct Parameter<'a> {
         pub name: &'a str,
         pub value: &'a str,
     }
+    /// Information de commande que le parseur a matché
     #[derive(Debug, PartialEq)]
     pub struct Command<'a> {
+        /// Chemin de la commande. Exemple : `["group", "subgroup", "command"]`
         pub path: VecDeque<&'a str>,
+        /// Paramètres de la commande. Exemple avec la commande concat : `[Parameter { name: "string1", value: "Hello" }, Parameter { name: "string2", value: " world" }]`
         pub params: Vec<Parameter<'a>>,
+        /// Role pouvant lancer la commande. Tout le monde si None.
         pub permission: Option<&'a str>
     }
     impl<'a> Command<'a> {
+        /// Retourne le nom de la commande. Exemple : `["group", "subgroup", "command"]` -> `command`
         pub fn get_command(&self) -> &'a str {
             self.path.as_slices().1[0]
         }
+        /// Retourne la suite de groupe. Exemple : `["group", "subgroup", "command"]` -> `["group", "subgroup"]`
         pub fn get_groups(&self) -> &[&'a str] {
             &self.path.as_slices().0
         }
     }
 }
 
+/// Trait d'objet nommé.
+/// 
+/// A la base, il devait forcer les groupes, les commandes et les composants à avoir un nom,
+/// puis d'être utilisé lu dynamiquement. 
+/// Mais au final, une approche static a été utilisé.
 pub trait Named {
     fn name(&self) -> &str;
 }
-
+/// Erreur de parsing
 #[derive(Debug, PartialEq)]
 pub enum ParseError<'a> {
+    /// La commande n'a pas matché
     NotMatched,
+    /// Le paramètre n'a est inconnu
     UnknownParameter(&'a str),
+    /// La valeur du paramètre est absente
     MissingParameterValue(&'a str),
+    /// Chemin attendu 
     ExpectedPath(&'a str),
+    /// Paramètres requis manquants
     RequiredParameters(String),
+    /// Erreur inconnue
     Todo
 }
 impl<'a> ToString for ParseError<'a> {
@@ -50,6 +107,7 @@ impl<'a> ToString for ParseError<'a> {
         }
     }
 }
+/// Convertit une chaine de caractère en groupe d'arguments 
 pub fn split_shell<'a>(txt: &'a str) -> Vec<&'a str> {
     let mut mode=false;
     txt.split(|c| {
@@ -66,11 +124,16 @@ pub fn split_shell<'a>(txt: &'a str) -> Vec<&'a str> {
     .collect()
 }
 
+///Argument de commande
 #[derive(Debug, Clone)]
 pub struct Argument {
+    /// Nom de l'argument
     pub name: String,
+    /// Description de l'argument
     pub help: Option<String>,
+    /// Type de valeur
     pub value_type: Option<String>,
+    /// L'argument requis si vrai
     pub required: bool
 }
 impl Named for Argument {
@@ -115,9 +178,13 @@ impl Argument {
 }
 #[derive(Debug, Clone)]
 pub struct Command {
+    /// Nom de la commande
     pub name: String,
-    pub permission: Option<String>,
+    /// Description de la commande
     pub help: Option<String>,
+    /// Role pouvant lancer la commande. Tout le monde si None.
+    pub permission: Option<String>,
+    /// Liste des arguments de la commande
     pub params: Vec<Argument>
 }
 impl Named for Command {
@@ -196,9 +263,13 @@ impl Command {
 }
 #[derive(Debug, Clone)]
 pub struct Group {
+    /// Nom du groupe
     name: String,
-    permission: Option<String>,
+    /// Description du groupe
     help: Option<String>,
+    /// Role pouvant accéder le groupe. Tout le monde si None.
+    permission: Option<String>,
+    /// Liste des sous groupes et des commandes du groupe
     node: Node
 }
 impl Group {
@@ -270,9 +341,13 @@ impl Named for Group {
         &self.name
     }
 }
+/// Noeud de l'arbre de commandes
+/// Un groupe peut contenir des sous groupes et des commandes, stockées dans ces noeuds.
 #[derive(Debug, Clone)]
 pub struct Node {
+    /// Liste des commandes
     pub commands: Container<Command>,
+    /// Liste des sous groupes
     pub groups: Container<Group>,
 }
 impl Node {
@@ -283,6 +358,7 @@ impl Node {
         }
     }
 }
+/// Conteneur de commandes ou de groupes
 #[derive(Debug, Clone)]
 pub struct Container<T: Named>(Vec<T>);
 

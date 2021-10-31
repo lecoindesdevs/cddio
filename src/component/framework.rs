@@ -1,39 +1,43 @@
 pub use serenity::client::Context;
 pub use serenity::model::channel::Message;
-use serenity::framework::Framework;
 use serenity::async_trait;
 
 use super::ArcComponent;
 
+/// Configuration du framework.
 pub struct FrameworkConfig {
     pub prefix: char
 }
-pub struct CDDFramework {
-    // node: Node,
+
+/// Command handler qui dispatche les commandes aux composants.
+/// 
+/// Les commandes sont envoyées à chaque composant jusqu'à ce que le composant reconnaisse la commande.
+pub struct Framework {
     components: Vec<ArcComponent>,
     config: FrameworkConfig
 }
 
-impl CDDFramework {
-    pub fn new(prefix: char) -> CDDFramework {
-        CDDFramework{
+impl Framework {
+    pub fn new(prefix: char) -> Framework {
+        Framework{
             components: Vec::new(),
             config: FrameworkConfig{ prefix }
         }
     }
+    /// Retourne la configuration du framework.
     pub fn config(&self) -> &FrameworkConfig {
         &self.config
     }
-    pub fn config_mut(&mut self) -> &mut FrameworkConfig {
-        &mut self.config
-    }
+    /// Ajoute un composant au framework.
     pub fn add_component(&mut self, mid: ArcComponent) {
         self.components.push(mid);
     }
 }
 
 #[async_trait]
-impl Framework for CDDFramework {
+impl serenity::framework::Framework for Framework {
+    /// Dispatch les commandes aux composants.
+    /// Le premier composant qui reconnait la commande est utilisé puis termine la fonction.
     async fn dispatch(&self, ctx: Context, msg: Message) {
         if !msg.content.starts_with(self.config.prefix) {
             return;

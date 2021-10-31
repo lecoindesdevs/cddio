@@ -1,6 +1,11 @@
+//! Module commmun au composant.
+//! 
+//! Contient notamment des fonctions utiles.
+
 use crate::component::{self as cmp, CommandMatch};
 use serenity::http::CacheHttp;
 
+/// Envoie un message d'erreur qui indique que l'envoyeur n'a pas la permission dans le channel.
 pub async fn send_no_perm(_ctx: &cmp::Context, msg: &cmp::Message) -> serenity::Result<()> {
     match msg.channel_id.send_message(&_ctx.http, |m|
         m.embed(|embed| {
@@ -14,6 +19,7 @@ pub async fn send_no_perm(_ctx: &cmp::Context, msg: &cmp::Message) -> serenity::
         Err(e) => Err(e),
     }
 }
+/// Envoie un message d'erreur dans le channel.
 pub async fn send_error_message<S: AsRef<str>>(_ctx: &cmp::Context, msg: &cmp::Message, error_message: S) -> serenity::Result<()> {
     match msg.channel_id.send_message(&_ctx.http, |m|
         m.embed(|embed| {
@@ -27,10 +33,12 @@ pub async fn send_error_message<S: AsRef<str>>(_ctx: &cmp::Context, msg: &cmp::M
         Err(e) => Err(e),
     }
 }
-
+/// Retourne vrai s'il sagit d'un message privé au bot
 pub fn is_dm(_ctx: &cmp::Context, msg: &cmp::Message) -> bool {
     msg.guild_id.is_none()
 }
+/// Retourne Ok(vrai) si membre a le role requis pour utiliser la commande.
+/// Peut retourner une erreur si la liste des roles du membre n'a pas pû être récupérée.
 pub async fn has_permission(ctx: &cmp::Context, msg: &cmp::Message, role: Option<&str>) -> Result<bool, CommandMatch>{
     let role = match role {
         Some(v) => v,
