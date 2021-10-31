@@ -6,7 +6,7 @@ fn command_parser() {
     let cmd = cmd::Command::new("command")
         .set_help("Une commande de test")
         .add_param(
-            cmd::CommandParameter::new("param")
+            cmd::Argument::new("param")
                 .set_help("Un paramètre")
                 .set_value_type("texte")
         );
@@ -25,8 +25,8 @@ fn group_parser() {
             cmd::Group::new("group2")
                 .add_command(cmd::Command::new("command1"))
                 .add_command(cmd::Command::new("command3")
-                    .add_param(cmd::CommandParameter::new("param"))
-                    .add_param(cmd::CommandParameter::new("param2")
+                    .add_param(cmd::Argument::new("param"))
+                    .add_param(cmd::Argument::new("param2")
                         .set_required(true)
                     )
                 )

@@ -67,20 +67,20 @@ pub fn split_shell<'a>(txt: &'a str) -> Vec<&'a str> {
 }
 
 #[derive(Debug, Clone)]
-pub struct CommandParameter {
+pub struct Argument {
     pub name: String,
     pub help: Option<String>,
     pub value_type: Option<String>,
     pub required: bool
 }
-impl Named for CommandParameter {
+impl Named for Argument {
     fn name(&self) -> &str {
         &self.name
     }
 }
-impl CommandParameter {
-    pub fn new<S: Into<String>>(name: S) -> CommandParameter {
-        CommandParameter {
+impl Argument {
+    pub fn new<S: Into<String>>(name: S) -> Argument {
+        Argument {
             name: name.into(),
             help: None,
             value_type: None,
@@ -88,7 +88,7 @@ impl CommandParameter {
         }
     }
     
-    pub fn set_help<S: Into<String>>(mut self, h: S) -> CommandParameter {
+    pub fn set_help<S: Into<String>>(mut self, h: S) -> Argument {
         self.help = Some(h.into());
         self
     }
@@ -98,7 +98,7 @@ impl CommandParameter {
             None => None,
         }
     }
-    pub fn set_value_type<S: Into<String>>(mut self, vt: S) -> CommandParameter {
+    pub fn set_value_type<S: Into<String>>(mut self, vt: S) -> Argument {
         self.value_type = Some(vt.into());
         self
     }
@@ -108,7 +108,7 @@ impl CommandParameter {
             None => None,
         }
     }
-    pub fn set_required(mut self, req: bool) -> CommandParameter {
+    pub fn set_required(mut self, req: bool) -> Argument {
         self.required = req;
         self
     }
@@ -118,7 +118,7 @@ pub struct Command {
     pub name: String,
     pub permission: Option<String>,
     pub help: Option<String>,
-    pub params: Vec<CommandParameter>
+    pub params: Vec<Argument>
 }
 impl Named for Command {
     fn name(&self) -> &str {
@@ -155,7 +155,7 @@ impl Command {
         }
     }
     
-    pub fn add_param(mut self, param: CommandParameter) -> Command {
+    pub fn add_param(mut self, param: Argument) -> Command {
         self.params.push(param);
         self
     }
