@@ -3,6 +3,7 @@ pub use serenity::model::channel::Message;
 use serenity::async_trait;
 
 use super::ArcComponent;
+use super::manager::{ArcManager, Manager};
 
 /// Configuration du framework.
 pub struct FrameworkConfig {
@@ -13,24 +14,20 @@ pub struct FrameworkConfig {
 /// 
 /// Les commandes sont envoyées à chaque composant jusqu'à ce que le composant reconnaisse la commande.
 pub struct Framework {
-    components: Vec<ArcComponent>,
+    components: ArcManager,
     config: FrameworkConfig
 }
 
 impl Framework {
-    pub fn new(prefix: char) -> Framework {
+    pub fn new(prefix: char, cmp_manager: ArcManager) -> Framework {
         Framework{
-            components: Vec::new(),
+            components: cmp_manager,
             config: FrameworkConfig{ prefix }
         }
     }
     /// Retourne la configuration du framework.
     pub fn config(&self) -> &FrameworkConfig {
         &self.config
-    }
-    /// Ajoute un composant au framework.
-    pub fn add_component(&mut self, mid: ArcComponent) {
-        self.components.push(mid);
     }
 }
 
@@ -43,8 +40,8 @@ impl serenity::framework::Framework for Framework {
             return;
         }
         
-        for mid in &self.components {
-            let mut mid = mid.lock().await;
+        for mid in self.components.read().await.get_components() {
+            let mut mid = mid.read().await;
             if match mid.command(self.config(), &ctx, &msg).await {
                 super::CommandMatch::Matched => true,
                 super::CommandMatch::NotMatched => false,

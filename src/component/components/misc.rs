@@ -21,7 +21,7 @@ impl Component for Misc {
     fn name(&self) -> &'static str {
         "misc"
     }
-    async fn command(&mut self, _: &FrameworkConfig, ctx: &Context, msg: &Message) -> CommandMatch {
+    async fn command(&self, _: &FrameworkConfig, ctx: &Context, msg: &Message) -> CommandMatch {
         let args = cmd::split_shell(&msg.content[1..]);
         let matched = match self.group_match.try_match(None, &args) {
             Ok(v) => v,
@@ -55,7 +55,7 @@ impl Component for Misc {
         }
     }
 
-    async fn event(&mut self, ctx: &Context, evt: &Event) -> Result<(), String> {
+    async fn event(&self, ctx: &Context, evt: &Event) -> Result<(), String> {
         if let Event::Ready(ReadyEvent{ready, ..}) = evt {
             let (username, invite) = { 
                 (ready.user.name.clone(), ready.user.invite_url(&ctx.http, Permissions::empty()).await)
