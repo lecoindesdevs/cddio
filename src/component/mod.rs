@@ -12,6 +12,7 @@ mod event;
 mod framework;
 pub mod command_parser;
 pub mod components;
+pub mod manager;
 
 pub use event::EventDispatcher;
 pub use framework::{Framework , FrameworkConfig};
