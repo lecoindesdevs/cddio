@@ -16,7 +16,6 @@ macro_rules! vdq {
         }
     };
 }
-#[derive()]
 pub struct ArcRw<T>(Arc<RwLock<T>>);
 pub type ArcRwBox<T> = ArcRw<Box<T>>;
 
@@ -29,5 +28,10 @@ impl<T> ArcRw<T> {
     }
     pub async fn write(&self) -> RwLockWriteGuard<T> {
         self.0.write().await
+    }
+}
+impl<T> Clone for ArcRw<T> {
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
     }
 }
