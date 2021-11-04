@@ -10,13 +10,13 @@ mod event;
 mod framework;
 pub mod command_parser;
 pub mod components;
-mod manager;
+pub mod manager;
 
 pub use event::EventDispatcher;
 pub use framework::{Framework , FrameworkConfig};
 pub use framework::{Context, Message};
 pub use serenity::model::event::Event;
-pub use manager::*;
+
 use crate::util::{ArcRw, ArcRwBox};
 
 pub type ArcComponent = ArcRwBox<dyn Component>;
