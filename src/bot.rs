@@ -1,10 +1,7 @@
 //! Core de l'application. 
 //! L'initialisation du bot et la gestion des composants se fait dans ce module.
-use std::sync::Arc;
-
-use futures_locks::RwLock;
 use serenity::{Client, client::bridge::gateway::GatewayIntents};
-use crate::{component::{self as cmp, manager::{self, ArcManager}}, config::Config, util::ArcRw};
+use crate::{component::{self as cmp, manager::{Manager, ArcManager}}, config::Config, util::ArcRw};
 use cmp::Component;
 type Result<T> = serenity::Result<T>;
 
@@ -26,7 +23,7 @@ pub struct Bot {
 impl Bot {
     /// Crée un nouveau bot et l'initialise.
     pub async fn new(config: &Config) -> Result<Bot> {
-        let manager = ArcRw::new(manager::Manager::new());
+        let manager = ArcRw::new(Manager::new());
         {
             use cmp::components::*;
             let mut manager_instance = manager.write().await;
