@@ -1,8 +1,5 @@
-use std::sync::{Arc};
-use futures_locks::RwLock;
-use serenity::async_trait;
-
 use super::ArcComponent;
+use crate::util::ArcRw;
 
 pub struct Manager {
     components: Vec<ArcComponent>,
@@ -22,4 +19,4 @@ impl Manager {
     }
 }
 
-pub type ArcManager = Arc<RwLock<Manager>>;
+pub type ArcManager = ArcRw<Manager>;

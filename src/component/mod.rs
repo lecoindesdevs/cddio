@@ -5,23 +5,21 @@
 //! Un composant est sensé s'autogérer mais Mais rien n'empêche la communication entre ces derniers.
 
 use serenity::async_trait;
-use std::sync::Arc;
-use futures_locks::RwLock;
 
 mod event;
 mod framework;
 pub mod command_parser;
 pub mod components;
-pub mod manager;
+mod manager;
 
 pub use event::EventDispatcher;
 pub use framework::{Framework , FrameworkConfig};
 pub use framework::{Context, Message};
 pub use serenity::model::event::Event;
+pub use manager::*;
+use crate::util::{ArcRw, ArcRwBox};
 
-pub type ArcRw<T> = Arc<RwLock<Box<T>>>;
-
-pub type ArcComponent = ArcRw<dyn Component>;
+pub type ArcComponent = ArcRwBox<dyn Component>;
 
 /// Retour d'une commande
 pub enum CommandMatch {
@@ -69,6 +67,6 @@ pub trait Component: Sync + Send
     fn to_arc(self) -> ArcComponent 
     where Self: Sized + 'static
     {
-        Arc::new(RwLock::new(Box::new(self)))
+        ArcRw::new(Box::new(self))
     }
 }
