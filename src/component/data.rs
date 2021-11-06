@@ -16,7 +16,7 @@ lazy_static! {
     static ref DATA_DIR: PathBuf = env::current_dir().unwrap().join("data");
 }
 
-struct Data<T> 
+pub struct Data<T> 
     where T: DeserializeOwned + Serialize 
 {
     pub name: String,
@@ -99,7 +99,7 @@ impl<T> Default for Data<T>
 /// Gère l'enregistrement des données d'un composant.
 /// 
 /// Dès que le [`DataGuard`] est détruit, les données sont enregistrées dans le fichier correspondant.
-struct DataGuard<'a, T>(&'a mut Data<T>)
+pub struct DataGuard<'a, T>(&'a mut Data<T>)
     where T:Serialize + DeserializeOwned;
 
 impl<T> Deref for DataGuard<'_, T> 
@@ -129,6 +129,12 @@ where T: DeserializeOwned + Serialize
                 return;
             }
         };
+        if !DATA_DIR.exists() {
+            if let Err(e) = fs::create_dir_all(DATA_DIR.as_path()) {
+                eprintln!("Saving {} - Unable to create the data directory: {}", self.0.name, e);
+                return;
+            }
+        }
         let path_file = DATA_DIR.join(format!("{}.ron", self.0.name));
 
         fs::write(path_file, &ron_content).unwrap_or_else(|err| {
