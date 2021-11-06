@@ -8,6 +8,7 @@ use serenity::async_trait;
 
 mod event;
 mod framework;
+mod data;
 pub mod command_parser;
 pub mod components;
 pub mod manager;
