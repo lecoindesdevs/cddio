@@ -4,6 +4,7 @@
 
 use crate::component::{self as cmp, CommandMatch};
 use serenity::http::CacheHttp;
+pub use super::super::data::*;
 
 /// Envoie un message d'erreur qui indique que l'envoyeur n'a pas la permission dans le channel.
 pub async fn send_no_perm(_ctx: &cmp::Context, msg: &cmp::Message) -> serenity::Result<()> {
