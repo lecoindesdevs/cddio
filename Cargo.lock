@@ -632,6 +632,7 @@ dependencies = [
  "chrono",
  "futures",
  "futures-locks",
+ "lazy_static",
  "ron",
  "serde",
  "serenity",
