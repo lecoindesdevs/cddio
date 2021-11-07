@@ -5,22 +5,22 @@
 //! Un composant est sensé s'autogérer mais Mais rien n'empêche la communication entre ces derniers.
 
 use serenity::async_trait;
-use std::sync::Arc;
-use futures::lock::Mutex;
 
 mod event;
 mod framework;
+mod data;
 pub mod command_parser;
 pub mod components;
+pub mod manager;
 
 pub use event::EventDispatcher;
 pub use framework::{Framework , FrameworkConfig};
 pub use framework::{Context, Message};
 pub use serenity::model::event::Event;
 
-pub type ArcMut<T> = Arc<Mutex<T>>;
+use crate::util::{ArcRw, ArcRwBox};
 
-pub type ArcComponent = ArcMut<dyn Component>;
+pub type ArcComponent = ArcRwBox<dyn Component>;
 
 /// Retour d'une commande
 pub enum CommandMatch {
@@ -49,14 +49,14 @@ pub trait Component: Sync + Send
     /// 
     /// [`Context`]: serenity::client::Context
     /// [`Message`]: serenity::model::channel::Message
-    async fn command(&mut self, fw_config: &FrameworkConfig, ctx: &Context, msg: &Message) -> CommandMatch;
+    async fn command(&self, fw_config: &FrameworkConfig, ctx: &Context, msg: &Message) -> CommandMatch;
     /// Event handler du composant.
     /// 
     /// Cette fonction est appelée lorsque le bot reçoit un évènement.
     /// 
     /// Si l'event s'est bien passé ou n'a pas été traité, elle doit retourner `Ok(())`.
     /// Sinon, un Err contenant le message d'erreur doit être retourné. Ce message d'erreur sera ensuite renvoyé à la sortie standard.
-    async fn event(&mut self, ctx: &Context, evt: &Event) -> Result<(), String>;
+    async fn event(&self, ctx: &Context, evt: &Event) -> Result<(), String>;
     /// Retournes le groupe de commandes lié au composant.
     /// 
     /// Le système d'aide du bot se repose sur ce groupe. 
@@ -64,8 +64,10 @@ pub trait Component: Sync + Send
     fn group_parser(&self) -> Option<&command_parser::Group> {
         None
     }
-}
-/// Convertir un composant en Arc mutex
-pub fn to_arc_mut<M>(mid: M) -> ArcMut<M> {
-    Arc::new(Mutex::new(mid))
+    /// Helper : convertir un composant en ArcComponent
+    fn to_arc(self) -> ArcComponent 
+    where Self: Sized + 'static
+    {
+        ArcRw::new(Box::new(self))
+    }
 }

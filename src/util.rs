@@ -1,5 +1,9 @@
 //! Fonctions utiles pour l'ensemble du projet
 
+use std::{ops::{Deref, DerefMut}, sync::Arc};
+
+use futures_locks::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+
 #[doc = "Macro pour créer un VecDeque de la même manière que vec!"]
 #[doc(alias = "std::collections::VecDeque")]
 #[macro_export]
@@ -11,4 +15,23 @@ macro_rules! vdq {
             v
         }
     };
+}
+pub struct ArcRw<T>(Arc<RwLock<T>>);
+pub type ArcRwBox<T> = ArcRw<Box<T>>;
+
+impl<T> ArcRw<T> {
+    pub fn new(v: T) -> Self {
+        ArcRw(Arc::new(RwLock::new(v)))
+    }
+    pub async fn read(&self) -> RwLockReadGuard<T> {
+        self.0.read().await
+    }
+    pub async fn write(&self) -> RwLockWriteGuard<T> {
+        self.0.write().await
+    }
+}
+impl<T> Clone for ArcRw<T> {
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
 }

@@ -3,10 +3,10 @@
 
 use serenity::{async_trait, utils::Colour};
 
-use crate::component::{self as cmp, command_parser::{self as cmd, Named}};
+use crate::component::{self as cmp, command_parser::{self as cmd, Named}, manager::{ArcManager}};
 
 pub struct Help {
-    components: Vec<cmp::ArcComponent>
+    manager: ArcManager
 }
 #[async_trait]
 impl cmp::Component for Help {
@@ -14,11 +14,11 @@ impl cmp::Component for Help {
         "help"
     }
 
-    async fn command(&mut self, fw_config: &cmp::FrameworkConfig, ctx: &cmp::Context, msg: &cmp::Message) -> cmp::CommandMatch {
+    async fn command(&self, fw_config: &cmp::FrameworkConfig, ctx: &cmp::Context, msg: &cmp::Message) -> cmp::CommandMatch {
         self.r_command(fw_config, ctx, msg).await
     }
 
-    async fn event(&mut self, _: &cmp::Context, _: &cmp::Event) -> Result<(), String> {
+    async fn event(&self, _: &cmp::Context, _: &cmp::Event) -> Result<(), String> {
         Ok(())
     }
 }
@@ -41,8 +41,8 @@ struct HelpInfo {
 }
 
 impl Help {
-    pub fn new(cmps: Vec<cmp::ArcComponent>) -> Help {
-        Help { components: cmps }
+    pub fn new(manager: ArcManager) -> Help {
+        Help { manager }
     }
     /// Si l'aide n'est pas trouvé, retourne une erreur en message embed
     async fn send_error(_ctx: &cmp::Context, msg: &cmp::Message) -> serenity::Result<()> {
@@ -105,7 +105,7 @@ impl Help {
     }
     /// Helper pour le language server.
     /// rust-analyzer n'aime pas les fonctions async dans les traits
-    async fn r_command(&mut self, _: &cmp::FrameworkConfig, ctx: &cmp::Context, msg: &cmp::Message) -> cmp::CommandMatch {
+    async fn r_command(&self, _: &cmp::FrameworkConfig, ctx: &cmp::Context, msg: &cmp::Message) -> cmp::CommandMatch {
         if msg.content[1..].starts_with("help") {
             let list_words = msg.content.split(' ').skip(1).filter(|s| !s.is_empty());
             let send_result = match self.help_components(list_words).await {
@@ -122,13 +122,15 @@ impl Help {
     }
     async fn help_components<'a, 'b>(&'a self, mut list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
         let mut components = Vec::new();
-        for cmp in &self.components {
-            components.push(cmp.lock().await.name().to_string());
+        let comps = self.manager.read().await;
+        let comps = comps.get_components();
+        for cmp in comps {
+            components.push(cmp.read().await.name().to_string());
         }
         match list_words.next() {
             Some(name) => {
-                for cmp in &self.components {
-                    let cmp = cmp.lock().await;
+                for cmp in comps {
+                    let cmp = cmp.read().await;
                     match (cmp.name(), cmp.group_parser()) {
                         (n, Some(grp)) if n == name => return Self::help_group(grp, None, list_words),
                         _ => ()
