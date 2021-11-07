@@ -1,7 +1,5 @@
 //! Module de gestion des données des composants.
 //! 
-//! La structure [`Data`] contient les données d'un composant. C'est cettte structure qui se charge de la lecture et de l'enregistrement des données.
-//! 
 
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
@@ -25,6 +23,10 @@ pub enum DataError {
 use DataError::*;
 
 pub type DataResult<T> = std::result::Result<T, DataError>;
+
+/// Gestionnaire de donnée.
+/// 
+/// La structure contient les données d'un composant. Elle se charge de la lecture et de l'enregistrement des données sur le disque dur.
 pub struct Data<T> 
     where T: DeserializeOwned + Serialize 
 {
@@ -88,6 +90,7 @@ impl<T> Data<T>
 {
     /// Charge une donnée depuis un fichier. 
     /// 
+    /// Si le fichier n'existe pas, une nouvelle donnée est créée avec [`Default::default()`].
     pub fn from_file_default<S: AsRef<str>>(name: S) -> DataResult<Data<T>> {
         match Self::from_file(name.as_ref()) {
             Err(DataError::MissingFileError) => Ok(Data::new(name.as_ref(), T::default())),
