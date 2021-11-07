@@ -4,12 +4,11 @@
 //! 
 
 use std::ops::{Deref, DerefMut};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::{fs, env};
 
 use lazy_static::lazy_static;
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 
 lazy_static! {
     /// Chemin du dossier contenant les données.
@@ -41,10 +40,10 @@ impl<T> Data<T>
         if !path_data.exists() {
             return Err(format!("Le fichier {} n'existe pas", path_data.display()));
         }
-        let file = fs::File::open(path_data).or_else(|e| Err("Loading {} - Unable to open the data file: {}".to_string()))?;
+        let file = fs::File::open(path_data).or_else(|e| Err(format!("Loading {} - Unable to open the data file: {}", name.as_ref(), e)))?;
         let data = Data { 
             name: name.as_ref().to_string(), 
-            value: ron::de::from_reader(file).or_else(|e| Err("Loading {} - Unable to deserialize the data file: {}".to_string()))?
+            value: ron::de::from_reader(file).or_else(|e| Err(format!("Loading {} - Unable to open the data file: {}", name.as_ref(), e)))?
         };
         
         Ok(data)
@@ -73,10 +72,10 @@ impl<T> Data<T>
         if !path_data.exists() {
             return Ok(Data::new(name.as_ref(), T::default()));
         }
-        let file = fs::File::open(path_data).or_else(|e| Err("Loading {} - Unable to open the data file: {}".to_string()))?;
+        let file = fs::File::open(path_data).or_else(|e| Err(format!("Loading {} - Unable to open the data file: {}", name.as_ref(), e)))?;
         let data = Data { 
             name: name.as_ref().to_string(), 
-            value: ron::de::from_reader(file).or_else(|e| Err("Loading {} - Unable to deserialize the data file: {}".to_string()))?
+            value: ron::de::from_reader(file).or_else(|e| Err(format!("Loading {} - Unable to open the data file: {}", name.as_ref(), e)))?
         };
         
         Ok(data)
