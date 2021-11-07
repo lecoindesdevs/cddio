@@ -14,7 +14,17 @@ lazy_static! {
     /// Chemin du dossier contenant les données.
     static ref DATA_DIR: PathBuf = env::current_dir().unwrap().join("data");
 }
+pub enum DataError {
+    /// Erreur lors de la lecture/écriture du fichier.
+    FileError(std::io::Error),
+    /// Erreur de sérialisation/déserialisation.
+    SerdeError(ron::error::Error),
+    /// Le fichier n'existe pas dans le dossier [`DATA_DIR`].
+    MissingFileError,
+}
+use DataError::*;
 
+pub type DataResult<T> = std::result::Result<T, DataError>;
 pub struct Data<T> 
     where T: DeserializeOwned + Serialize 
 {
@@ -35,18 +45,30 @@ impl<T> Data<T>
     /// Charge une donnée depuis un fichier. 
     /// 
     /// Si le fichier n'existe pas, une nouvelle donnée est créée.
-    pub fn from_file<S: AsRef<str>>(name: S) -> Result<Data<T>, String> {
+    pub fn from_file<S: AsRef<str>>(name: S) -> DataResult<Data<T>> {
         let path_data = DATA_DIR.join(format!("{}.ron", name.as_ref()));
         if !path_data.exists() {
-            return Err(format!("Le fichier {} n'existe pas", path_data.display()));
+            return Err(DataError::MissingFileError);
         }
-        let file = fs::File::open(path_data).or_else(|e| Err(format!("Loading {} - Unable to open the data file: {}", name.as_ref(), e)))?;
+        let file = fs::File::open(path_data).or_else(|e| Err(FileError(e)))?;
         let data = Data { 
             name: name.as_ref().to_string(), 
-            value: ron::de::from_reader(file).or_else(|e| Err(format!("Loading {} - Unable to open the data file: {}", name.as_ref(), e)))?
+            value: ron::de::from_reader(file).or_else(|e| Err(SerdeError(e)))?
         };
         
         Ok(data)
+    }
+    /// Charge une donnée depuis un fichier. 
+    /// 
+    /// Si le fichier n'existe pas, le paramètre `default` est utilisé pour initialiser la donnée.
+    /// 
+    /// Préférez la fonction [`from_file_default`](Data<T>::from_file_default()) si votre Le type de données implémente [`Default`].
+    /// 
+    pub fn from_file_or<S: AsRef<str>>(name: S, default: T) -> DataResult<Data<T>> {
+        match Self::from_file(name.as_ref()) {
+            Err(DataError::MissingFileError) => Ok(Data::new(name.as_ref(), default)),
+            v => v
+        }
     }
     /// Accède en lecture aux données. 
     /// 
@@ -66,31 +88,10 @@ impl<T> Data<T>
 {
     /// Charge une donnée depuis un fichier. 
     /// 
-    /// Si le fichier n'existe pas, une nouvelle donnée est créée.
-    pub fn from_file_default<S: AsRef<str>>(name: S) -> Result<Data<T>, String> {
-        let path_data = DATA_DIR.join(format!("{}.ron", name.as_ref()));
-        if !path_data.exists() {
-            return Ok(Data::new(name.as_ref(), T::default()));
-        }
-        let file = fs::File::open(path_data).or_else(|e| Err(format!("Loading {} - Unable to open the data file: {}", name.as_ref(), e)))?;
-        let data = Data { 
-            name: name.as_ref().to_string(), 
-            value: ron::de::from_reader(file).or_else(|e| Err(format!("Loading {} - Unable to open the data file: {}", name.as_ref(), e)))?
-        };
-        
-        Ok(data)
-    }
-}
-
-
-
-impl<T> Default for Data<T> 
-    where T: Default + DeserializeOwned + Serialize
-{
-    fn default() -> Self {
-        Data {
-            name: String::new(),
-            value: Default::default(),
+    pub fn from_file_default<S: AsRef<str>>(name: S) -> DataResult<Data<T>> {
+        match Self::from_file(name.as_ref()) {
+            Err(DataError::MissingFileError) => Ok(Data::new(name.as_ref(), T::default())),
+            v => v
         }
     }
 }
