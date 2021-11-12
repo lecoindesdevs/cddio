@@ -149,6 +149,12 @@ impl Tickets {
         use serenity::model::prelude::*;
 
         match evt {
+            Ready(_) => {
+                match self.update_message_components(ctx).await {
+                    Ok(_) => (),
+                    Err(e) => eprintln!("Error updating message components: {}", e)
+                }
+            },
             InteractionCreate(evt) => {
                 let msg_cmp = match evt.interaction.clone().message_component() {
                     Some(v) => v,
