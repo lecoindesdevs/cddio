@@ -14,8 +14,7 @@ use super::common::Data;
 #[derive(Serialize, Deserialize, Default, Debug)]
 struct DataTickets {
     tickets: Vec<String>,
-    msg_react: u64,
-    tickets_catergory: String,
+    msg_react: Option<(u64, u64)>,
 }
 
 pub struct Tickets {
@@ -84,7 +83,18 @@ impl Tickets {
         };
         cmp::CommandMatch::Matched
     }
-    pub async fn set_channel(&self, ctx: &Context, msg: &Message, matched: &cmd::matching::Command<'_>) -> cmp::CommandMatch {
+    async fn delete_old_creation_message(&self, ctx: &Context, msg: &Message) -> Result<(), serenity::Error> {
+        let old_msg = self.data.read().await.read().msg_react;
+        if let Some((channel_id, msg_id)) = old_msg {
+            ctx.http.delete_message(channel_id, msg_id).await
+        } else {
+            Ok(())
+        }
+    }
+    async fn set_channel(&self, ctx: &Context, msg: &Message, matched: &cmd::matching::Command<'_>) -> cmp::CommandMatch {
+        if let Err(e) =  self.delete_old_creation_message(ctx, msg).await {
+            eprintln!("tickets: unable to delete previous message.\n{:?}", e)
+        }
         let id: u64 = match matched.get_parameter("id").unwrap().value.parse() {
             Ok(v) => v,
             Err(e) => return cmp::CommandMatch::Error(format!("{:?}", e))
@@ -109,7 +119,7 @@ impl Tickets {
             match msg_tickets.react(ctx, '✅').await {
                 Ok(_) => {
                     common::send_success_message(ctx, msg, format!("Le message de création de ticket a été mis à jour dans le salon {}.", channel_name)).await;
-                    data.msg_react = msg_tickets.id.0;
+                    data.msg_react = Some((channel.0, msg_tickets.id.0));
                 },
                 Err(e) => {
                     common::send_error_message(ctx, msg, format!("{}", e.to_string())).await;
