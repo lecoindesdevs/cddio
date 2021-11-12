@@ -33,13 +33,13 @@ impl Bot {
             manager_instance.add_component(Help::new(manager.clone()).to_arc());
         };
         
-
         let framework = cmp::Framework::new(config.prefix, manager.clone());
         let event_container = cmp::EventDispatcher::new(manager.clone());
         let client = Client::builder(&config.token)
             .framework(framework)
             .intents(GatewayIntents::all())
             .raw_event_handler(event_container)
+            .application_id(config.app_id)
             .await?;
         Ok(Bot{
             client,
