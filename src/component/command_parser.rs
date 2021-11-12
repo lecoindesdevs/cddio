@@ -68,6 +68,10 @@ pub mod matching {
         pub fn get_groups(&self) -> &[&'a str] {
             &self.path.as_slices().0
         }
+
+        pub fn get_parameter(&self, name: &str) -> Option<&Parameter> {
+            self.params.iter().find(|p| p.name == name)
+        }
     }
 }
 
