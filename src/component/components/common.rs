@@ -78,14 +78,10 @@ pub async fn try_match<'a>(ctx: &cmp::Context, msg: &'a cmp::Message, group: &'a
         Ok(v) => Ok(v),
         Err(cmd::ParseError::NotMatched) => Err(CommandMatch::NotMatched),
         Err(e_parse) => {
-            match e_parse {
-                cmd::ParseError::ExpectedPath(_) => {
-                    match send_error_message(ctx, msg, "La commande que vous avez tapé est un module. Utilisez l'aide pour plus d'informations.").await {
-                        Ok(_) => Err(CommandMatch::Error(e_parse.to_string())),
-                        Err(e_send) => Err(CommandMatch::Error(e_send.to_string()))
-                    }
-                },
-                e_parse => Err(CommandMatch::Error(e_parse.to_string()))
+            let msg_parse = e_parse.to_string();
+            match send_error_message(ctx, msg, &msg_parse).await {
+                Ok(_) => Err(CommandMatch::Error(msg_parse)),
+                Err(e_send) => Err(CommandMatch::Error(format!("- {}\n- {}", msg_parse, e_send.to_string())))
             }
         }
     }

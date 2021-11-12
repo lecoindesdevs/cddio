@@ -102,11 +102,12 @@ pub enum ParseError<'a> {
 impl<'a> ToString for ParseError<'a> {
     fn to_string(&self) -> String {
         match &self {
-            ParseError::NotMatched => "Command not found".to_string(),
-            ParseError::UnknownParameter(v) => format!("Unknown parameter: {}", v),
-            ParseError::MissingParameterValue(v) => format!("Missing value for parameter {}", v),
-            ParseError::ExpectedPath(v) => format!("Expected group or command name after {}", v),
-            ParseError::RequiredParameters(v) => format!("Parameter required: {}", v),
+            ParseError::NotMatched => "Commande inconnue".to_string(),
+            ParseError::PartiallyNotMatched(v)=> format!("Groupe ou commande inconnu {}", v),
+            ParseError::UnknownParameter(v) => format!("Paramètre {} inconnu", v),
+            ParseError::MissingParameterValue(v) => format!("Valeur du paramètre {} manquant", v),
+            ParseError::RequiredParameters(v) => format!("Paramètre {} requis", v),
+            ParseError::ExpectedPath(v) => format!("Groupe ou commande attendu après {}", v),
             ParseError::Todo => "Unknown parser error".to_string(),
         }
     }
