@@ -10,8 +10,9 @@ use serde::{de::DeserializeOwned, Serialize};
 
 lazy_static! {
     /// Chemin du dossier contenant les données.
-    static ref DATA_DIR: PathBuf = env::current_dir().unwrap().join("data");
+    pub static ref DATA_DIR: PathBuf = env::current_dir().unwrap().join("data");
 }
+#[derive(Debug)]
 pub enum DataError {
     /// Erreur lors de la lecture/écriture du fichier.
     FileError(std::io::Error),

@@ -4,7 +4,7 @@
 
 use crate::component::{self as cmp, CommandMatch};
 use serenity::http::CacheHttp;
-pub use super::super::data::*;
+pub use crate::component::data::*;
 use crate::component::command_parser as cmd;
 
 /// Envoie un message d'erreur qui indique que l'envoyeur n'a pas la permission dans le channel.
