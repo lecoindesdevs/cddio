@@ -61,11 +61,7 @@ impl crate::component::Component for Tickets {
         self.r_command(fw_config, ctx, msg).await
     }
     async fn event(&self, ctx: &Context, evt: &Event) -> Result<(), String> {
-        match evt {
-            
-            _ => {}
-        } 
-        Ok(())
+        self.r_event(ctx, evt).await
     }
     fn group_parser(&self) -> Option<&cmd::Group> {
         Some(&self.group_match)
@@ -148,6 +144,100 @@ impl Tickets {
             _ => unreachable!()
         }
     }
+    async fn r_event(&self, ctx: &Context, evt: &Event) -> Result<(), String> {
+        use serenity::model::event::Event::*;
+        use serenity::model::prelude::*;
+
+        match evt {
+            InteractionCreate(evt) => {
+                let msg_cmp = match evt.interaction.clone().message_component() {
+                    Some(v) => v,
+                    None => return Ok(())
+                };
+                if msg_cmp.data.custom_id != "menu_type_crea_ticket" {
+                    return Ok(())
+                }
+                let value = &msg_cmp.data.values[0];
+                let data = self.data.read().await;
+                let data = data.read();
+                let cat = match data.categories.iter().find(|cat| cat.name == *value) {
+                    Some(v) => v,
+                    None => return Ok(())
+                };
+                let member = match &msg_cmp.member {
+                    Some(v) => v,
+                    None => return Ok(())
+                };
+                let username  = member.display_name().to_string();
+                let guild_id = match &msg_cmp.guild_id {
+                    Some(guild) => guild,
+                    None => return Ok(())
+                };
+                let roles = guild_id.roles(ctx).await.unwrap();
+                let modo = match roles.iter().find(|role| role.1.name == "Modérateur") {
+                    Some(v) => v.0.clone(),
+                    None => return Ok(())
+                };
+                let everyone = RoleId(guild_id.0);
+                let new_channel = match guild_id.create_channel(ctx, |ch| {
+                    let permissions = vec![
+                    // Personne ne peut voir le channel...
+                    PermissionOverwrite {
+                        allow: Default::default(),
+                        deny: Permissions::READ_MESSAGES,
+                        kind: PermissionOverwriteType::Role(everyone),
+                    },
+                    // ...excepté les modérateurs et au dessus...
+                    PermissionOverwrite {
+                        allow: Permissions::READ_MESSAGES,
+                        deny: Default::default(),
+                        kind: PermissionOverwriteType::Role(modo),
+                    },
+                    // ...et le creéateur du ticket
+                    PermissionOverwrite {
+                        allow: Permissions::READ_MESSAGES,
+                        deny: Default::default(),
+                        kind: PermissionOverwriteType::Member(member.user.id),
+                    }];
+                    ch
+                        .name(format!("{}_{}", cat.prefix, username))
+                        .category(cat.id)
+                        .permissions(permissions);
+                    
+                    ch
+                }).await {
+                    Ok(v) => Some(v),
+                    Err(e) => {
+                        println!("Erreur lors de la création du channel: {:?}", e);
+                        None
+                    }
+                };
+                match msg_cmp.create_interaction_response(ctx, |resp| 
+                    resp
+                        .interaction_response_data(|resp_data|
+                            resp_data
+                                .content(if let Some(v) = new_channel {
+                                    format!("Le ticket a bien été créé.\n\nVous pouvez le rejoindre en cliquant sur le lien suivant: {}", v.mention())
+                                } else {
+                                    "Erreur lors de la création du channel".to_string()
+                                })
+                                .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
+                        )
+                        .kind(InteractionResponseType::ChannelMessageWithSource)
+                ).await {
+                    Ok(_) => (),
+                    Err(e) => println!("Erreur lors de la création de la réponse: {:?}", e)
+                };
+                match self.update_message_components(ctx).await {
+                    Ok(_) => (),
+                    Err(e) => eprintln!("Error updating message components: {}", e)
+                }
+                
+            }
+            _ => {}
+        } 
+        Ok(())
+    }
     async fn delete_old_creation_message(&self, ctx: &Context, _msg: &Message) -> Result<(), serenity::Error> {
         let old_msg = self.data.read().await.read().msg_react;
         if let Some((channel_id, msg_id)) = old_msg {
@@ -202,30 +292,30 @@ impl Tickets {
         cmp::CommandMatch::Matched
     }
     fn create_components(&self, cmps: &mut serenity::builder::CreateComponents, categories: &Vec<CategoryTicket>) {
-            use serenity::builder::*;
-            let mut opts = CreateSelectMenuOptions::default();
+        use serenity::builder::*;
+        let mut opts = CreateSelectMenuOptions::default();
 
-            for cat in categories {
-                let mut opt = CreateSelectMenuOption::default();
-                opt.label(&cat.name).value(&cat.name);
-                if let Some(desc) = &cat.desc {
-                    opt.description(desc);
-                }
-                if let Some(emoji) = &cat.emoji {
-                    opt.emoji(emoji.clone());
-                }
-                opts.add_option(opt);
+        for cat in categories {
+            let mut opt = CreateSelectMenuOption::default();
+            opt.label(&cat.name).value(&cat.name);
+            if let Some(desc) = &cat.desc {
+                opt.description(desc);
             }
-            
-            let mut menus = CreateSelectMenu::default();
-            menus.options(|o| {
-                *o = opts;
-                o
-            });
-            menus.custom_id("menu_type_crea_ticket");
+            if let Some(emoji) = &cat.emoji {
+                opt.emoji(emoji.clone());
+            }
+            opts.add_option(opt);
+        }
+        
+        let mut menus = CreateSelectMenu::default();
+        menus.options(|o| {
+            *o = opts;
+            o
+        });
+        menus.custom_id("menu_type_crea_ticket");
 
-            let mut act = CreateActionRow::default();
-            act.add_select_menu(menus);
+        let mut act = CreateActionRow::default();
+        act.add_select_menu(menus);
         cmps.add_action_row(act);
     }
     async fn update_message_components(&self, ctx: &Context) -> serenity::Result<()> {
