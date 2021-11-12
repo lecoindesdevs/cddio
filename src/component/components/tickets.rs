@@ -163,6 +163,21 @@ impl Tickets {
                 if msg_cmp.data.custom_id != "menu_type_crea_ticket" {
                     return Ok(())
                 }
+                match self.on_click_menu(ctx, msg_cmp).await {
+                    Ok(_) => return Ok(()),
+                    Err(e) => {
+                        let err = format!("Error on click menu: {}", e);
+                        eprintln!("{}", err);
+                        return Err(err);
+                    }
+                }
+            }
+            _ => {}
+        } 
+        Ok(())
+    }
+    async fn on_click_menu(&self, ctx: &Context, msg_cmp: serenity::model::prelude::message_component::MessageComponentInteraction) -> serenity::Result<()> {
+        use serenity::model::prelude::*;
                 let value = &msg_cmp.data.values[0];
                 let data = self.data.read().await;
                 let data = data.read();
