@@ -88,6 +88,8 @@ pub trait Named {
 pub enum ParseError<'a> {
     /// La commande n'a pas matché
     NotMatched,
+    /// Un groupe a matché, mais pas la commande
+    PartiallyNotMatched(&'a str),
     /// Le paramètre n'a est inconnu
     UnknownParameter(&'a str),
     /// La valeur du paramètre est absente
@@ -335,7 +337,7 @@ impl Group {
             Some(cmd) => cmd.try_match(permission, &args[1..]),
             None => match self.node.groups.find(args[1]) {
                 Some(grp) => grp.try_match(permission, &args[1..]),
-                None => Err(ParseError::NotMatched),
+                None => Err(ParseError::PartiallyNotMatched(&args[1])),
             },
         }
         .and_then(|mut cmd| Ok({cmd.path.push_front(args[0]); cmd}))
