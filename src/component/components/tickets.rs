@@ -64,7 +64,7 @@ impl Tickets {
                     .set_help("Liste les tickets")
                 ),
             data: match Data::from_file_default("tickets") {
-                Ok(data) => data,
+                Ok(data) => RwLock::new(data),
                 Err(e) => panic!("Data tickets: {:?}", e)
             },
             archives_folder: common::DATA_DIR.join("archives"),
@@ -76,6 +76,48 @@ impl Tickets {
             Ok(v) => v,
             Err(e) => return e
         };
+        match (matched.get_groups(), matched.get_command()) {
+            (["tickets", "set"], "channel_msg") => return self.set_channel(ctx, msg, &matched).await,
+            (["tickets", "set"], "category") => todo!(),
+            (["tickets"], "list") => todo!(),
+            _ => unreachable!()
+        };
+        cmp::CommandMatch::Matched
+    }
+    pub async fn set_channel(&self, ctx: &Context, msg: &Message, matched: &cmd::matching::Command<'_>) -> cmp::CommandMatch {
+        let id: u64 = match matched.get_parameter("id").unwrap().value.parse() {
+            Ok(v) => v,
+            Err(e) => return cmp::CommandMatch::Error(format!("{:?}", e))
+        };
+        let mut data = self.data.write().await;
+        let mut data = data.write();
+        let guild_id = match msg.guild_id {
+            Some(guild_id) => guild_id,
+            None => {
+                common::send_error_message(ctx, msg, "Vous devez être dans un serveur pour utiliser cette commande.").await;
+                return cmp::CommandMatch::Matched;
+            },
+        };
+        let channel = guild_id.channels(ctx).await.unwrap().into_iter().find(|channel| channel.0.0 == id);
+        if let Some((channel, _)) = channel {
+            let msg_tickets= channel.say(ctx, "huehuehu").await.unwrap();
+            
+            let channel_name = match channel.name(ctx).await {
+                Some(name) => name,
+                None => "que vous avez renseigné".to_string()
+            };
+            match msg_tickets.react(ctx, '✅').await {
+                Ok(_) => {
+                    common::send_success_message(ctx, msg, format!("Le message de création de ticket a été mis à jour dans le salon {}.", channel_name)).await;
+                    data.msg_react = msg_tickets.id.0;
+                },
+                Err(e) => {
+                    common::send_error_message(ctx, msg, format!("{}", e.to_string())).await;
+                }
+            }
+        } else {
+            common::send_error_message(ctx, msg, "Le salon n'existe pas.").await;
+        }
         cmp::CommandMatch::Matched
     }
 }
