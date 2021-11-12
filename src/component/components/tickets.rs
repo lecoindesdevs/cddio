@@ -12,9 +12,16 @@ use super::common;
 use super::common::Data;
 
 #[derive(Serialize, Deserialize, Default, Debug)]
-struct DataTickets {
+struct CategoryTicket {
+    name: String, 
+    id: u64,
     tickets: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug)]
+struct DataTickets {
     msg_react: Option<(u64, u64)>,
+    categories: Vec<CategoryTicket>,
 }
 
 pub struct Tickets {
@@ -148,5 +155,32 @@ impl Tickets {
             common::send_error_message(ctx, msg, "Le salon n'existe pas.").await;
         }
         cmp::CommandMatch::Matched
+    }
+    async fn categories(&self, ctx: &Context, msg: &Message, matched: &cmd::matching::Command<'_>) -> cmp::CommandMatch {
+        match matched.get_command() {
+            "add" => {
+                let id: u64 = match matched.get_parameter("id").unwrap().value.parse() {
+                    Ok(v) => v,
+                    Err(e) => return cmp::CommandMatch::Error(format!("id: paramètre mal formé: {}", e.to_string()))
+                };
+                let name = matched.get_parameter("name").unwrap().value.to_string();
+                if let Err(e) = self.add_category(ctx, msg, name, id).await {
+                    return cmp::CommandMatch::Error(format!("add_category: {:?}", e));
+                }
+            },
+            "remove" => self.remove_category(ctx, msg, matched).await,
+            "list" => self.list_categories(ctx, msg, matched).await,
+            _ => unreachable!()
+        };
+        cmp::CommandMatch::Matched
+    }
+    async fn add_category(&self, ctx: &Context, msg: &Message, name: String, id: u64) -> serenity::Result<()> {
+        todo!()
+    }
+    async fn remove_category(&self, ctx: &Context, msg: &Message, name: String) -> serenity::Result<()> {
+        todo!()
+    }
+    async fn list_categories(&self, ctx: &Context, msg: &Message) -> serenity::Result<()> {
+        todo!()
     }
 }
