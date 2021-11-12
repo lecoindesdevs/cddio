@@ -1,5 +1,7 @@
+use std::io::Write;
 use std::path::PathBuf;
 
+use futures::StreamExt;
 use futures_locks::RwLock;
 use serde::{Deserialize, Serialize};
 use serenity::model::id::ChannelId;
@@ -255,7 +257,55 @@ impl Tickets {
         Ok(())
     }
     async fn on_close(&self, ctx: &Context, msg_cmp: MessageComponentInteraction) -> serenity::Result<()> {
-        msg_cmp.channel_id.delete(ctx).await.and(Ok(()))
+        use serenity::model::prelude::*;
+        match Self::archive_channel(ctx, msg_cmp.channel_id).await {
+            Ok(_) => msg_cmp.channel_id.delete(ctx).await.and(Ok(()))?,
+            Err(e) => eprintln!("Error archiving channel: {}", e)
+        }
+        Ok(())
+    }
+    fn get_archive_folder() -> Result<PathBuf, std::io::Error> {
+        let path = common::DATA_DIR.join("tickets/archives");
+        if !path.exists() {
+            println!("tickets: Création du dossier d'archives");
+            match std::fs::create_dir_all(&path) {
+                Ok(_) => println!("tickets: Dossier créé"),
+                Err(e) => return Err(e)
+            }
+        }
+        Ok(path)
+    }
+    async fn archive_channel(ctx: &Context, channel: ChannelId) -> Result<(), String> {
+        let archive_path = match Self::get_archive_folder() {
+            Ok(v) => v,
+            Err(_) => return Err("Impossible de créer le dossier d'archives".to_string())
+        };
+
+        let file_path = archive_path.join(format!("{}-{}.txt", channel.0, channel.name(ctx).await.unwrap()));
+        let mut file = match std::fs::File::create(&file_path) {
+            Ok(v) => v,
+            Err(e) => return Err(format!("Impossible de créer le fichier d'archive: {}", e))
+        };
+        let contents: Vec<String> = channel
+            .messages_iter(ctx)
+            .map(|v|{
+                match v {
+                    Ok(v) => {
+                        let content = v.content.as_str();
+                        let author = format!("{}#{:04}", v.author.name, v.author.discriminator);
+                        let date = v.timestamp.to_rfc3339();
+                        format!("[{}] {}: {}\n", date, author, content)
+                    },
+                    Err(e) => format!("Erreur lors de la récupération d'un message: {}\n", e)
+                }
+            }).collect().await;
+        contents.iter().rev().for_each(|v| {
+            match file.write_all(v.as_bytes()) {
+                Ok(_) => (),
+                Err(e) => eprintln!("Error writing to file: {}", e)
+            }
+        });
+        Ok(())
     }
     fn create_close_button<S: ToString>(&self, cmps: &mut serenity::builder::CreateComponents, label: S, style: ButtonStyle){
         use serenity::builder::*;
@@ -379,6 +429,7 @@ impl Tickets {
             msg
         }).await
     }
+    
     async fn categories(&self, ctx: &Context, msg: &Message, matched: &cmd::matching::Command<'_>) -> cmp::CommandMatch {
         match matched.get_command() {
             "add" => {
