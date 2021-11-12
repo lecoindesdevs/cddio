@@ -57,7 +57,9 @@ pub mod matching {
         /// Paramètres de la commande. Exemple avec la commande concat : `[Parameter { name: "string1", value: "Hello" }, Parameter { name: "string2", value: " world" }]`
         pub params: Vec<Parameter<'a>>,
         /// Role pouvant lancer la commande. Tout le monde si None.
-        pub permission: Option<&'a str>
+        pub permission: Option<&'a str>,
+        /// Arguments variadiques
+        pub arguments: Vec<&'a str>,
     }
     impl<'a> Command<'a> {
         /// Retourne le nom de la commande. Exemple : `["group", "subgroup", "command"]` -> `command`
@@ -187,6 +189,8 @@ impl Argument {
 pub struct Command {
     /// Nom de la commande
     pub name: String,
+    /// Type d'arguments variadique si besoin
+    pub arguments: Option<String>,
     /// Description de la commande
     pub help: Option<String>,
     /// Role pouvant lancer la commande. Tout le monde si None.
@@ -203,6 +207,7 @@ impl Command {
     pub fn new<S: Into<String>>(name: S) -> Command {
         Command {
             name: name.into(),
+            arguments: None,
             permission: None,
             help: None,
             params: Vec::new()
@@ -233,6 +238,10 @@ impl Command {
         self.params.push(param);
         self
     }
+    pub fn set_arguments(mut self, arg: String) -> Command {
+        self.arguments = Some(arg);
+        self
+    }
 
     pub fn try_match<'a>(&'a self, permission: Option<&'a str>, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>> {
         if args.is_empty() {
@@ -247,7 +256,16 @@ impl Command {
         };
         let mut params = Vec::new();
         let mut iter_args = args.iter().skip(1);
+        let mut arguments: Vec<&str> = Vec::new();
         while let Some(name) = iter_args.next() {
+            if !name.starts_with('-') {
+                if self.arguments.is_some() {
+                    arguments.push(name);
+                    continue;
+                } else {
+                    return Err(ParseError::UnknownParameter(name));
+                }
+            }
             if let None = self.params.iter().find(|cmdp| cmdp.name == name[1..]) {
                 return Err(ParseError::UnknownParameter(name));
             }
@@ -265,6 +283,7 @@ impl Command {
             path: {let mut v = VecDeque::new(); v.push_back(args[0]); v},
             permission,
             params,
+            arguments
         })
     }
 }
