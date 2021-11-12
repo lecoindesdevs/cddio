@@ -175,7 +175,11 @@ impl Tickets {
                     return cmp::CommandMatch::Error(format!("add_category: {:?}", e));
                 }
             },
-            "list" => todo!(),
+            "list" => {
+                if let Err(e) = self.list_categories(ctx, msg).await {
+                    return cmp::CommandMatch::Error(format!("list_category: {:?}", e));
+                }
+            },
             _ => unreachable!()
         };
         cmp::CommandMatch::Matched
@@ -214,6 +218,46 @@ impl Tickets {
         common::send_success_message(ctx, msg, format!("La catégorie {} a été supprimée.", name)).await
     }
     async fn list_categories(&self, ctx: &Context, msg: &Message) -> serenity::Result<()> {
-        todo!()
+        let guild_id = match msg.guild_id {
+            Some(guild_id) => guild_id,
+            None => return common::send_error_message(ctx, msg, "Vous devez être dans un serveur pour utiliser cette commande.").await
+        };
+        let data = self.data.read().await;
+        let data = data.read();
+        let categories = &data.categories;
+        if categories.is_empty() {
+            return common::send_error_message(ctx, msg, "Aucune catégorie de ticket n'a été créée.").await;
+        }
+        let mut cat = Vec::new();
+        let channels = match guild_id.channels(ctx).await {
+            Ok(channels) => Some(channels),
+            Err(_) => None
+        };
+        
+        for category in categories {
+            let channel_name = match channels {
+                Some(ref v) => match v.iter().find(|channel| channel.0.0 == category.id) {
+                    Some(channel) => Some(channel.1.mention().to_string()),
+                    None => None
+                },
+                None => None
+            };
+            match channel_name {
+                Some(name) => cat.push(format!("{} ({})", category.name, name)),
+                None => cat.push(format!("{} (id: {})", category.name, category.id)),
+            }
+        }
+        match msg.channel_id.send_message(ctx, |m|
+            m.embed(|embed| {
+                embed
+                    .title("Liste des catégories")
+                    .description( cat.join("\n") )
+                    .color(0x1ed760)
+            })
+        ).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        }
+
     }
 }
