@@ -34,6 +34,7 @@ macro_rules! err_println {
 #[derive(Serialize, Deserialize, Default, Debug)]
 struct CategoryTicket {
     name: String, 
+    prefix: String,
     id: u64,
     desc: Option<String>,
     emoji: Option<ReactionType>,
@@ -99,10 +100,15 @@ impl Tickets {
                             .set_required(true)
                             .set_help("Identifiant de la catégorie Discord")
                         )
+                        .add_param(cmd::Argument::new("prefix")
+                            .set_required(true)
+                            .set_help("Prefix du salon du ticket (ex: ticket)")
+                        )
                         .add_param(cmd::Argument::new("desc")
                             .set_required(false)
                             .set_help("Description de la catégorie de ticket")
                         )
+                        
                         // .add_param(cmd::Argument::new("emoji")
                         //     .set_required(false)
                         //     .set_help("Emoji décoration")
@@ -258,11 +264,12 @@ impl Tickets {
                     Err(e) => return cmp::CommandMatch::Error(format!("id: paramètre mal formé: {}", e.to_string()))
                 };
                 let name = matched.get_parameter("name").unwrap().value.to_string();
+                let prefix = matched.get_parameter("prefix").unwrap().value.to_string();
                 let desc = match matched.get_parameter("desc") {
                     Some(desc) => Some(desc.value.to_string()),
                     None => None
                 };
-                if let Err(e) = self.add_category(ctx, msg, name, desc, id).await {
+                if let Err(e) = self.add_category(ctx, msg, name, desc, id, prefix).await {
                     return cmp::CommandMatch::Error(format!("add_category: {:?}", e));
                 }
             },
@@ -281,7 +288,7 @@ impl Tickets {
         };
         cmp::CommandMatch::Matched
     }
-    async fn add_category(&self, ctx: &Context, msg: &Message, name: String, desc: Option<String>, id: u64) -> serenity::Result<()> {
+    async fn add_category(&self, ctx: &Context, msg: &Message, name: String, desc: Option<String>, id: u64, prefix: String) -> serenity::Result<()> {
         if let Some(_) = self.data.read().await.read().categories.iter().find(|v| v.name == name) {
             return common::send_error_message(ctx, msg, format!("La catégorie de ticket {} existe déjà.", name)).await;
         }
@@ -305,6 +312,7 @@ impl Tickets {
                 id,
                 tickets: Vec::new(),
                 desc,
+                prefix,
                 emoji: None,
             });
         }
