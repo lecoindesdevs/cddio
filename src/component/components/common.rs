@@ -5,6 +5,7 @@
 use crate::component::{self as cmp, CommandMatch};
 use serenity::http::CacheHttp;
 pub use super::super::data::*;
+use crate::component::command_parser as cmd;
 
 /// Envoie un message d'erreur qui indique que l'envoyeur n'a pas la permission dans le channel.
 pub async fn send_no_perm(_ctx: &cmp::Context, msg: &cmp::Message) -> serenity::Result<()> {
@@ -56,4 +57,22 @@ pub async fn has_permission(ctx: &cmp::Context, msg: &cmp::Message, role: Option
         None => return Ok(false),
     };
     Ok(roles.iter().any(|r| r.name == role))
+}
+
+pub async fn try_match<'a>(ctx: &cmp::Context, msg: &'a cmp::Message, group: &'a cmd::Group, args: Vec<&'a str>) -> Result<cmd::matching::Command<'a>, cmp::CommandMatch> {
+    match group.try_match(None, &args) {
+        Ok(v) => Ok(v),
+        Err(cmd::ParseError::NotMatched) => Err(CommandMatch::NotMatched),
+        Err(e_parse) => {
+            match e_parse {
+                cmd::ParseError::ExpectedPath(_) => {
+                    match send_error_message(ctx, msg, "La commande que vous avez tapé est un module. Utilisez l'aide pour plus d'informations.").await {
+                        Ok(_) => Err(CommandMatch::Error(e_parse.to_string())),
+                        Err(e_send) => Err(CommandMatch::Error(e_send.to_string()))
+                    }
+                },
+                e_parse => Err(CommandMatch::Error(e_parse.to_string()))
+            }
+        }
+    }
 }

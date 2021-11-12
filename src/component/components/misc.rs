@@ -30,20 +30,9 @@ impl Component for Misc {
     }
     async fn command(&self, _: &FrameworkConfig, ctx: &Context, msg: &Message) -> CommandMatch {
         let args = cmd::split_shell(&msg.content[1..]);
-        let matched = match self.group_match.try_match(None, &args) {
+        let matched = match common::try_match(ctx, msg, &self.group_match, args).await {
             Ok(v) => v,
-            Err(ParseError::NotMatched) => return CommandMatch::NotMatched,
-            Err(e_parse) => {
-                match e_parse {
-                    ParseError::ExpectedPath(_) => {
-                        match common::send_error_message(ctx, msg, "La commande que vous avez tapé est un module. Utilisez l'aide pour plus d'informations.").await {
-                            Ok(_) => return CommandMatch::Error(e_parse.to_string()),
-                            Err(e_send) => return CommandMatch::Error(e_send.to_string())
-                        }
-                    },
-                    e_parse => return CommandMatch::Error(e_parse.to_string())
-                }
-            }
+            Err(e) => return e
         };
         match matched.get_command() {
             "ping" => {
