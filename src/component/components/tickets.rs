@@ -12,6 +12,25 @@ use super::common;
 
 use super::common::Data;
 
+macro_rules! err_println {
+    (send_error($ctx: ident, $msg: ident, $txt:expr)) => {
+        err_println!(common::send_error_message($ctx, $msg, $txt).await, "Error sending error message: {}")
+    };
+    (send_success($ctx: ident, $msg: ident, $txt:expr)) => {
+        err_println!(common::send_success_message($ctx, $msg, $txt).await, "Error sending success message: {}")
+    };
+    ($result:expr,$msg_format:expr) => {
+        {
+            match $result {
+                Ok(_) => (),
+                Err(e) => eprintln!($msg_format, e)
+            }
+        }
+    };
+    
+    
+}
+
 #[derive(Serialize, Deserialize, Default, Debug)]
 struct CategoryTicket {
     name: String, 
@@ -121,10 +140,9 @@ impl Tickets {
             (["tickets", "categories"], _) => return self.categories(ctx, msg, &matched).await,
             (["tickets"], "list") => todo!(),
             _ => unreachable!()
-        };
-        cmp::CommandMatch::Matched
+        }
     }
-    async fn delete_old_creation_message(&self, ctx: &Context, msg: &Message) -> Result<(), serenity::Error> {
+    async fn delete_old_creation_message(&self, ctx: &Context, _msg: &Message) -> Result<(), serenity::Error> {
         let old_msg = self.data.read().await.read().msg_react;
         if let Some((channel_id, msg_id)) = old_msg {
             ctx.http.delete_message(channel_id, msg_id).await
@@ -144,7 +162,7 @@ impl Tickets {
         let guild_id = match msg.guild_id {
             Some(guild_id) => guild_id,
             None => {
-                common::send_error_message(ctx, msg, "Vous devez être dans un serveur pour utiliser cette commande.").await;
+                err_println!(send_error(ctx, msg, "Vous devez être dans un serveur pour utiliser cette commande."));
                 return cmp::CommandMatch::Matched;
             },
         };
@@ -168,18 +186,16 @@ impl Tickets {
                         Ok(_) => (),
                         Err(e) => eprintln!("tickets: unable to update message.\n{:?}", e)
                     };
-                    common::send_success_message(ctx, msg, format!("Le message de création de ticket a été mis à jour dans le salon {}.", channel_name)).await;
+                    err_println!(send_success(ctx, msg, format!("Le message de création de ticket a été mis à jour dans le salon {}.", channel_name)));
                 },
-                Err(e) => {
-                    common::send_error_message(ctx, msg, format!("{}", e.to_string())).await;
-                }
+                Err(e) => err_println!(send_error(ctx, msg, format!("{}", e.to_string())))
             }
         } else {
-            common::send_error_message(ctx, msg, "Le salon n'existe pas.").await;
+            err_println!(send_error(ctx, msg, "Le salon n'existe pas."));
         }
         cmp::CommandMatch::Matched
     }
-    async fn update_message_components(&self, ctx: &Context, msg: &Message) -> serenity::Result<()> {
+    async fn update_message_components(&self, ctx: &Context, _msg: &Message) -> serenity::Result<()> {
         let data = self.data.read().await;
         let data = data.read();
         let categories = &data.categories;
@@ -199,34 +215,40 @@ impl Tickets {
             if categories.is_empty() {
                 return msg;
             }
-            msg.components(|cmps|
-                cmps.create_action_row(|act|
-                    act.create_select_menu(|menus|
-                        menus
-                            .custom_id("menu_type_crea_ticket")
-                            .options(|opts| {
-                                for cat in categories {
-                                    opts.create_option(|opt| {
-                                        opt
-                                            .label(&cat.name)
-                                            .value(&cat.name);
-                                        if let Some(desc) = &cat.desc {
-                                            opt.description(desc);
-                                        }
-                                        if let Some(emoji) = &cat.emoji {
-                                            opt.emoji(emoji.clone());
-                                        }
-                                        opt
-                                    });
-                                }
-                                opts
-                            })
-                    )
-                )
-            )
-        }
+            use serenity::builder::*;
+
             
-        ).await
+            let mut opts = CreateSelectMenuOptions::default();
+
+            for cat in categories {
+                let mut opt = CreateSelectMenuOption::default();
+                opt.label(&cat.name).value(&cat.name);
+                if let Some(desc) = &cat.desc {
+                    opt.description(desc);
+                }
+                if let Some(emoji) = &cat.emoji {
+                    opt.emoji(emoji.clone());
+                }
+                opts.add_option(opt);
+            }
+            
+            let mut menus = CreateSelectMenu::default();
+            menus.options(|o| {
+                *o = opts;
+                o
+            });
+            menus.custom_id("menu_type_crea_ticket");
+
+            let mut act = CreateActionRow::default();
+            act.add_select_menu(menus);
+
+            msg.components(|cmps| {
+                cmps.add_action_row(act);
+                cmps
+            });
+
+            msg
+        }).await
     }
     async fn categories(&self, ctx: &Context, msg: &Message, matched: &cmd::matching::Command<'_>) -> cmp::CommandMatch {
         match matched.get_command() {
@@ -286,10 +308,7 @@ impl Tickets {
                 emoji: None,
             });
         }
-        match self.update_message_components(ctx, msg).await {
-            Ok(_) => (),
-            Err(e) => eprintln!("tickets: unable to update message after adding a category.\n{:?}", e)
-        };
+        err_println!(self.update_message_components(ctx, msg).await, "tickets: unable to update message after adding a category.\n{:?}");
         common::send_success_message(ctx, msg, format!("La catégorie {} a été ajoutée.", name)).await
     }
     async fn remove_category(&self, ctx: &Context, msg: &Message, name: String) -> serenity::Result<()> {
@@ -298,10 +317,7 @@ impl Tickets {
             None => return common::send_error_message(ctx, msg, format!("La catégorie {} n'existe pas.", name)).await
         };
         self.data.write().await.write().categories.swap_remove(i);
-        match self.update_message_components(ctx, msg).await {
-            Ok(_) => (),
-            Err(e) => eprintln!("tickets: unable to update message after deleting a category.\n{:?}", e)
-        };
+        err_println!(self.update_message_components(ctx, msg).await, "tickets: unable to update message after deleting a category.\n{:?}");
         common::send_success_message(ctx, msg, format!("La catégorie {} a été supprimée.", name)).await
     }
     async fn list_categories(&self, ctx: &Context, msg: &Message) -> serenity::Result<()> {
