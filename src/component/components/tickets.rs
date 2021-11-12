@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use futures_locks::RwLock;
 use serde::{Deserialize, Serialize};
+use serenity::model::id::ChannelId;
+use serenity::model::interactions::message_component::{ButtonStyle, MessageComponentInteraction};
 use serenity::prelude::Mentionable;
 use serenity::async_trait;
 use serenity::client::Context;
@@ -146,7 +148,6 @@ impl Tickets {
     }
     async fn r_event(&self, ctx: &Context, evt: &Event) -> Result<(), String> {
         use serenity::model::event::Event::*;
-        use serenity::model::prelude::*;
 
         match evt {
             Ready(_) => {
@@ -160,13 +161,15 @@ impl Tickets {
                     Some(v) => v,
                     None => return Ok(())
                 };
-                if msg_cmp.data.custom_id != "menu_type_crea_ticket" {
-                    return Ok(())
-                }
-                match self.on_click_menu(ctx, msg_cmp).await {
+                let res = match msg_cmp.data.custom_id.as_str() {
+                    "tickets_create" => self.on_create(ctx, msg_cmp).await,
+                    "tickets_close" => self.on_close(ctx, msg_cmp).await,
+                    _ => Ok(())
+                };
+                match res {
                     Ok(_) => return Ok(()),
                     Err(e) => {
-                        let err = format!("Error on click menu: {}", e);
+                        let err = format!("Error on message component: {}", e);
                         eprintln!("{}", err);
                         return Err(err);
                     }
@@ -176,90 +179,97 @@ impl Tickets {
         } 
         Ok(())
     }
-    async fn on_click_menu(&self, ctx: &Context, msg_cmp: serenity::model::prelude::message_component::MessageComponentInteraction) -> serenity::Result<()> {
+    async fn on_create(&self, ctx: &Context, msg_cmp: MessageComponentInteraction) -> serenity::Result<()> {
         use serenity::model::prelude::*;
-                let value = &msg_cmp.data.values[0];
-                let data = self.data.read().await;
-                let data = data.read();
-                let cat = match data.categories.iter().find(|cat| cat.name == *value) {
-                    Some(v) => v,
-                    None => return Ok(())
-                };
-                let member = match &msg_cmp.member {
-                    Some(v) => v,
-                    None => return Ok(())
-                };
-                let username  = member.display_name().to_string();
-                let guild_id = match &msg_cmp.guild_id {
-                    Some(guild) => guild,
-                    None => return Ok(())
-                };
-                let roles = guild_id.roles(ctx).await.unwrap();
-                let modo = match roles.iter().find(|role| role.1.name == "Modérateur") {
-                    Some(v) => v.0.clone(),
-                    None => return Ok(())
-                };
-                let everyone = RoleId(guild_id.0);
-                let new_channel = match guild_id.create_channel(ctx, |ch| {
-                    let permissions = vec![
-                    // Personne ne peut voir le channel...
-                    PermissionOverwrite {
-                        allow: Default::default(),
-                        deny: Permissions::READ_MESSAGES,
-                        kind: PermissionOverwriteType::Role(everyone),
-                    },
-                    // ...excepté les modérateurs et au dessus...
-                    PermissionOverwrite {
-                        allow: Permissions::READ_MESSAGES,
-                        deny: Default::default(),
-                        kind: PermissionOverwriteType::Role(modo),
-                    },
-                    // ...et le creéateur du ticket
-                    PermissionOverwrite {
-                        allow: Permissions::READ_MESSAGES,
-                        deny: Default::default(),
-                        kind: PermissionOverwriteType::Member(member.user.id),
-                    }];
-                    ch
-                        .name(format!("{}_{}", cat.prefix, username))
-                        .category(cat.id)
-                        .permissions(permissions);
-                    
-                    ch
-                }).await {
-                    Ok(v) => Some(v),
-                    Err(e) => {
-                        println!("Erreur lors de la création du channel: {:?}", e);
-                        None
-                    }
-                };
-                match msg_cmp.create_interaction_response(ctx, |resp| 
-                    resp
-                        .interaction_response_data(|resp_data|
-                            resp_data
-                                .content(if let Some(v) = new_channel {
-                                    format!("Le ticket a bien été créé.\n\nVous pouvez le rejoindre en cliquant sur le lien suivant: {}", v.mention())
-                                } else {
-                                    "Erreur lors de la création du channel".to_string()
-                                })
-                                .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
-                        )
-                        .kind(InteractionResponseType::ChannelMessageWithSource)
-                ).await {
-                    Ok(_) => (),
-                    Err(e) => println!("Erreur lors de la création de la réponse: {:?}", e)
-                };
-                match self.update_message_components(ctx).await {
-                    Ok(_) => (),
-                    Err(e) => eprintln!("Error updating message components: {}", e)
-                }
-                
+        let value = &msg_cmp.data.values[0];
+        let data = self.data.read().await;
+        let data = data.read();
+        let cat = match data.categories.iter().find(|cat| cat.name == *value) {
+            Some(v) => v,
+            None => return Ok(())
+        };
+        let member = match &msg_cmp.member {
+            Some(v) => v,
+            None => return Ok(())
+        };
+        let username  = member.display_name().to_string();
+        let guild_id = match &msg_cmp.guild_id {
+            Some(guild) => guild,
+            None => return Ok(())
+        };
+        let roles = guild_id.roles(ctx).await.unwrap();
+        let modo = match roles.iter().find(|role| role.1.name == "Modérateur") {
+            Some(v) => v.0.clone(),
+            None => return Ok(())
+        };
+        let everyone = RoleId(guild_id.0);
+        let new_channel = guild_id.create_channel(ctx, |ch| {
+            let permissions = vec![
+            // Personne ne peut voir le channel...
+            PermissionOverwrite {
+                allow: Default::default(),
+                deny: Permissions::READ_MESSAGES,
+                kind: PermissionOverwriteType::Role(everyone),
+            },
+            // ...excepté les modérateurs et au dessus...
+            PermissionOverwrite {
+                allow: Permissions::READ_MESSAGES,
+                deny: Default::default(),
+                kind: PermissionOverwriteType::Role(modo),
+            },
+            // ...et le creéateur du ticket
+            PermissionOverwrite {
+                allow: Permissions::READ_MESSAGES,
+                deny: Default::default(),
+                kind: PermissionOverwriteType::Member(member.user.id),
+            }];
+            ch
+                .name(format!("{}_{}", cat.prefix, username))
+                .category(cat.id)
+                .permissions(permissions);
+            
+            ch
+        }).await?;
+        self.update_message_components(ctx).await?;
+        match new_channel
+            .send_message(ctx, |msg|
+                msg
+                    .content(format!("Hey {}, par ici !\nDès que tu as fini avec le ticket, appuie sur le bouton \"Fermer le ticket\".", member.mention()))
+                    .components(|cmps| {
+                        self.create_close_button(cmps, "Fermer le ticket", ButtonStyle::Danger);
+                        cmps
+                    })
+            ).await {
+                Ok(_)=>(),
+                Err(e) => eprintln!("Error sending message to new channel: {}", e)
             }
-            _ => {}
-        } 
+        msg_cmp.create_interaction_response(ctx, |resp| 
+            resp
+                .interaction_response_data(|resp_data|
+                    resp_data
+                        .content(format!("Le ticket a bien été créé.\n\nVous pouvez le rejoindre en cliquant sur le lien suivant: {}", new_channel.mention()))
+                        .flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL)
+                )
+                .kind(InteractionResponseType::ChannelMessageWithSource)
+        ).await?;
         Ok(())
     }
-    async fn delete_old_creation_message(&self, ctx: &Context, _msg: &Message) -> Result<(), serenity::Error> {
+    async fn on_close(&self, ctx: &Context, msg_cmp: MessageComponentInteraction) -> serenity::Result<()> {
+        msg_cmp.channel_id.delete(ctx).await.and(Ok(()))
+    }
+    fn create_close_button<S: ToString>(&self, cmps: &mut serenity::builder::CreateComponents, label: S, style: ButtonStyle){
+        use serenity::builder::*;
+        
+        let mut button = CreateButton::default();
+        button.label(label.to_string())
+            .custom_id("tickets_close")
+            .style(style);
+
+        let mut act = CreateActionRow::default();
+        act.add_button(button);
+        cmps.add_action_row(act);
+    }
+    async fn delete_old_creation_message(&self, ctx: &Context, _msg: &Message) -> serenity::Result<()> {
         let old_msg = self.data.read().await.read().msg_react;
         if let Some((channel_id, msg_id)) = old_msg {
             ctx.http.delete_message(channel_id, msg_id).await
@@ -312,7 +322,7 @@ impl Tickets {
         }
         cmp::CommandMatch::Matched
     }
-    fn create_components(&self, cmps: &mut serenity::builder::CreateComponents, categories: &Vec<CategoryTicket>) {
+    fn create_select_menu(&self, cmps: &mut serenity::builder::CreateComponents, categories: &Vec<CategoryTicket>) {
         use serenity::builder::*;
         let mut opts = CreateSelectMenuOptions::default();
 
@@ -333,7 +343,7 @@ impl Tickets {
             *o = opts;
             o
         });
-        menus.custom_id("menu_type_crea_ticket");
+        menus.custom_id("tickets_create");
 
         let mut act = CreateActionRow::default();
         act.add_select_menu(menus);
@@ -362,7 +372,7 @@ impl Tickets {
             }
 
             msg.components(|cmps| {
-                self.create_components(cmps, categories);
+                self.create_select_menu(cmps, categories);
                 cmps
             });
 
