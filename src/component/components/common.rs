@@ -35,6 +35,20 @@ pub async fn send_error_message<S: AsRef<str>>(_ctx: &cmp::Context, msg: &cmp::M
         Err(e) => Err(e),
     }
 }
+/// Envoie un message d'erreur dans le channel.
+pub async fn send_success_message<S: AsRef<str>>(_ctx: &cmp::Context, msg: &cmp::Message, success_message: S) -> serenity::Result<()> {
+    match msg.channel_id.send_message(&_ctx.http, |m|
+        m.embed(|embed| {
+            embed
+                .title("Effectué")
+                .description( success_message.as_ref() )
+                .color(0x1ed760)
+        })
+    ).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e),
+    }
+}
 /// Retourne vrai s'il sagit d'un message privé au bot
 pub fn is_dm(_ctx: &cmp::Context, msg: &cmp::Message) -> bool {
     msg.guild_id.is_none()
