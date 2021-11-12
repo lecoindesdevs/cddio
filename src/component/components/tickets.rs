@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use futures_locks::RwLock;
 use serde::{Deserialize, Serialize};
+use serenity::prelude::Mentionable;
 use serenity::{async_trait, http};
 use serenity::client::Context;
 use serenity::model::channel::Message;
@@ -168,17 +169,49 @@ impl Tickets {
                     return cmp::CommandMatch::Error(format!("add_category: {:?}", e));
                 }
             },
-            "remove" => self.remove_category(ctx, msg, matched).await,
-            "list" => self.list_categories(ctx, msg, matched).await,
+            "remove" => {
+                let name = matched.get_parameter("name").unwrap().value.to_string();
+                if let Err(e) = self.remove_category(ctx, msg, name).await {
+                    return cmp::CommandMatch::Error(format!("add_category: {:?}", e));
+                }
+            },
+            "list" => todo!(),
             _ => unreachable!()
         };
         cmp::CommandMatch::Matched
     }
     async fn add_category(&self, ctx: &Context, msg: &Message, name: String, id: u64) -> serenity::Result<()> {
-        todo!()
+        if let Some(_) = self.data.read().await.read().categories.iter().find(|v| v.name == name) {
+            return common::send_error_message(ctx, msg, format!("La catégorie de ticket {} existe déjà.", name)).await;
+        }
+        let guild_id = match msg.guild_id {
+            Some(guild_id) => guild_id,
+            None => return common::send_error_message(ctx, msg, "Vous devez être dans un serveur pour utiliser cette commande.").await
+        };
+        let (_, guild_channel) = match guild_id.channels(ctx).await.unwrap().into_iter().find(|channel| channel.0.0 == id) {
+            Some(v) => v,
+            None => return common::send_error_message(ctx, msg, "Le salon n'existe pas.").await
+        };
+        match guild_channel.kind {
+            serenity::model::channel::ChannelType::Category => (),
+            _ => return common::send_error_message(ctx, msg, format!("L'id ne pointe pas sur une catégorie mais sur {} de type {:?}.", guild_channel.mention().to_string(), guild_channel.kind)).await
+        }
+        let mut data = self.data.write().await;
+        let mut data = data.write();
+        data.categories.push(CategoryTicket{
+            name: name.clone(),
+            id,
+            tickets: Vec::new(),
+        });
+        common::send_success_message(ctx, msg, format!("La catégorie {} a été ajoutée.", name)).await
     }
     async fn remove_category(&self, ctx: &Context, msg: &Message, name: String) -> serenity::Result<()> {
-        todo!()
+        let i = match self.data.read().await.read().categories.iter().position(|v| v.name == name) {
+            Some(i) => i,
+            None => return common::send_error_message(ctx, msg, format!("La catégorie {} n'existe pas.", name)).await
+        };
+        self.data.write().await.write().categories.swap_remove(i);
+        common::send_success_message(ctx, msg, format!("La catégorie {} a été supprimée.", name)).await
     }
     async fn list_categories(&self, ctx: &Context, msg: &Message) -> serenity::Result<()> {
         todo!()
