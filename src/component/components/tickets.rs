@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 use std::io::Write;
+use std::ops::RangeBounds;
 use std::path::PathBuf;
 
 use futures::StreamExt;
@@ -286,6 +288,11 @@ impl Tickets {
             Ok(v) => v,
             Err(e) => return Err(format!("Impossible de créer le fichier d'archive: {}", e))
         };
+        let mut users = HashMap::new();
+        struct UserData {
+            id: u64,
+            avatar: String
+        }
         let contents: Vec<String> = channel
             .messages_iter(ctx)
             .map(|v|{
@@ -294,11 +301,20 @@ impl Tickets {
                         let content = v.content.as_str();
                         let author = format!("{}#{:04}", v.author.name, v.author.discriminator);
                         let date = v.timestamp.to_rfc3339();
+                        if users.get(&author).is_none() {
+                            users.insert(author.clone(), UserData{
+                                id: v.author.id.0,
+                                avatar: v.author.avatar_url().unwrap_or("https://cdn.discordapp.com/embed/avatars/0.png".to_string())
+                            });
+                        }
                         format!("[{}] {}: {}\n", date, author, content)
                     },
                     Err(e) => format!("Erreur lors de la récupération d'un message: {}\n", e)
                 }
             }).collect().await;
+        users.iter().for_each(|(username, userdata)| {
+            file.write_all(format!("{}\navatar_url: {}\nid: {}\n", username, userdata.avatar, userdata.id).as_bytes()).unwrap();
+        });
         contents.iter().rev().for_each(|v| {
             match file.write_all(v.as_bytes()) {
                 Ok(_) => (),
