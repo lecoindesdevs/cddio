@@ -184,6 +184,9 @@ impl Argument {
         self.required = req;
         self
     }
+    pub fn required(&self) -> bool {
+        self.required
+    }
 }
 #[derive(Debug, Clone)]
 pub struct Command {
@@ -237,6 +240,9 @@ impl Command {
     pub fn add_param(mut self, param: Argument) -> Command {
         self.params.push(param);
         self
+    }
+    pub fn params(&self) -> &Vec<Argument> {
+        &self.params
     }
     pub fn set_arguments(mut self, arg: String) -> Command {
         self.arguments = Some(arg);
@@ -311,9 +317,15 @@ impl Group {
         self.node.groups.add(grp);
         self
     }
+    pub fn groups(&self) -> &Container<Group> {
+        &self.node.groups
+    }
     pub fn add_command(mut self, cmd: Command) -> Group {
         self.node.commands.add(cmd);
         self
+    }
+    pub fn commands(&self) -> &Container<Command> {
+        &self.node.commands
     }
     pub fn set_permission<S: Into<String>>(mut self, permission: S) -> Self {
         self.permission = Some(permission.into());
