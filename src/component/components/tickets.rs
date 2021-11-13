@@ -166,8 +166,8 @@ impl Tickets {
                     None => return Ok(())
                 };
                 let res = match msg_cmp.data.custom_id.as_str() {
-                    "tickets_create" => self.on_create(ctx, msg_cmp).await,
-                    "tickets_close" => self.on_close(ctx, msg_cmp).await,
+                    "tickets_create" => self.on_ticket_create(ctx, msg_cmp).await,
+                    "tickets_close" => self.on_ticket_close(ctx, msg_cmp).await,
                     _ => Ok(())
                 };
                 match res {
@@ -183,7 +183,7 @@ impl Tickets {
         } 
         Ok(())
     }
-    async fn on_create(&self, ctx: &Context, msg_cmp: MessageComponentInteraction) -> serenity::Result<()> {
+    async fn on_ticket_create(&self, ctx: &Context, msg_cmp: MessageComponentInteraction) -> serenity::Result<()> {
         use serenity::model::prelude::*;
         let value = &msg_cmp.data.values[0];
         let data = self.data.read().await;
@@ -258,7 +258,7 @@ impl Tickets {
         ).await?;
         Ok(())
     }
-    async fn on_close(&self, ctx: &Context, msg_cmp: MessageComponentInteraction) -> serenity::Result<()> {
+    async fn on_ticket_close(&self, ctx: &Context, msg_cmp: MessageComponentInteraction) -> serenity::Result<()> {
         use serenity::model::prelude::*;
         match Self::archive_channel(ctx, msg_cmp.channel_id).await {
             Ok(_) => msg_cmp.channel_id.delete(ctx).await.and(Ok(()))?,
