@@ -31,6 +31,7 @@ impl Bot {
             manager_instance.add_component(Misc::new().to_arc());
             manager_instance.add_component(Tickets::new().to_arc());
             manager_instance.add_component(Help::new(manager.clone()).to_arc());
+            manager_instance.add_component(SlashInit::new(manager.clone()).to_arc());
         };
         
         let framework = cmp::Framework::new(config.prefix, manager.clone());
