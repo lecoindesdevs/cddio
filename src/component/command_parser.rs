@@ -498,11 +498,10 @@ impl<T: Named> Container<T> {
     pub fn list(&self) -> impl Iterator<Item = &T> {
         self.0.iter()
     }
-    pub fn remove(&mut self, name: &str)  {
-        let id = self.0.iter().take_while(|v| v.name() == name).count();
-        if id>=self.0.len() {
-            panic!("Container remove: {} not found", name);
-        }
+    pub fn remove(&mut self, name: &str) {
+        let id = self.0.iter()
+            .take_while(|v| v.name() == name)
+            .count();
         self.0.remove(id);
     }
 }
