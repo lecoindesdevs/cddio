@@ -38,7 +38,7 @@
 
 
 #![allow(dead_code)]
-use std::collections::VecDeque;
+use std::{collections::{VecDeque, hash_map::DefaultHasher}, hash::{Hash, Hasher}};
 use serenity::model::interactions::application_command::ApplicationCommandOptionType;
 
 /// Structures de retour d'une commande qui a match avec le parseur
@@ -134,6 +134,12 @@ pub fn split_shell<'a>(txt: &'a str) -> Vec<&'a str> {
     .collect()
 }
 
+fn hash<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
+}
+
 ///Argument de commande
 #[derive(Debug, Clone)]
 pub struct Argument {
@@ -214,7 +220,9 @@ pub struct Command {
     /// Role pouvant lancer la commande. Tout le monde si None.
     pub permission: Option<String>,
     /// Liste des arguments de la commande
-    pub params: Vec<Argument>
+    pub params: Vec<Argument>,
+    /// ID de la commande
+    pub id: u64,
 }
 impl Named for Command {
     fn name(&self) -> &str {
@@ -228,7 +236,8 @@ impl Command {
             arguments: None,
             permission: None,
             help: None,
-            params: Vec::new()
+            params: Vec::new(),
+            id: 0
         }
     }
     pub fn set_permission<S: Into<String>>(mut self, permission: S) -> Self {
@@ -263,7 +272,31 @@ impl Command {
         self.arguments = Some(arg);
         self
     }
-
+    pub fn generate_id(&mut self, groups: Option<&[&str]>) {
+        self.id = match groups {
+            Some(g) => {
+                let nameid = g.iter()
+                    .map(|s| *s)
+                    .chain(std::iter::once(self.name.as_str()))
+                    .collect::<String>();
+                hash(&nameid)
+            },
+            None => hash(&self.name)
+        };
+    }
+    pub fn match_id(&self, id: u64) -> bool {
+        self.id == id
+    }
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+    pub fn try_match_slash<'a>(&'a self, args: &[&'a str]) -> Result<(), ()> {
+        if args.is_empty() || args[0] != self.name{
+            Err(())
+        } else {
+            Ok(())
+        }
+    }
     pub fn try_match<'a>(&'a self, permission: Option<&'a str>, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>> {
         if args.is_empty() {
             return Err(ParseError::Todo);
@@ -365,6 +398,33 @@ impl Group {
     pub fn node(&self) -> &Node {
         &self.node
     }
+    pub fn generate_id(&mut self, groups: Option<&[&str]>) {
+        let groups = groups.unwrap_or(&[])
+            .iter()
+            .map(|s| *s)
+            .chain(std::iter::once(self.name.as_str()))
+            .collect::<Vec<_>>();
+        self.node.generate_id(&groups);
+    }
+    pub fn match_id(&self, id: u64) -> bool {
+        self.node.match_id(id)
+    }
+    pub fn try_match_slash<'a>(&'a self, args: &[&'a str]) -> Result<(), ()> {
+        if args.is_empty() || args[0] != self.name{
+            return Err(());
+        }
+        for grp in self.node.groups.list() {
+            if grp.try_match_slash(&args[1..]).is_ok() {
+                return Ok(());
+            }
+        }
+        for cmd in self.node.commands.list() {
+            if cmd.try_match_slash(&args[1..]).is_ok() {
+                return Ok(());
+            }
+        }
+        Err(())
+    }
     pub fn try_match<'a>(&'a self, permission: Option<&'a str>, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>> {
         if args[0] != self.name {
             return Err(ParseError::NotMatched);
@@ -409,6 +469,13 @@ impl Node {
             commands: Container::new(), 
             groups: Container::new() 
         }
+    }
+    pub fn generate_id(&mut self, groups: &[&str]) {
+        self.groups.0.iter_mut().for_each(|grp| grp.generate_id(Some(&groups)));
+        self.commands.0.iter_mut().for_each(|cmd| cmd.generate_id(Some(&groups)));
+    }
+    pub fn match_id(&self, id: u64) -> bool {
+        self.commands.0.iter().find(|c| c.match_id(id)).is_some() || self.groups.0.iter().find(|g| g.match_id(id)).is_some()
     }
 }
 /// Conteneur de commandes ou de groupes
