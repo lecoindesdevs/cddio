@@ -76,6 +76,7 @@ impl crate::component::Component for Tickets {
 
 impl Tickets {
     pub fn new() -> Self {
+        use serenity::model::interactions::application_command::ApplicationCommandOptionType;
         Tickets{
             group_match: cmd::Group::new("tickets")
                 .set_help("Gestion des tickets")
@@ -85,6 +86,7 @@ impl Tickets {
                     .add_command(cmd::Command::new("set")
                         .set_help("Change le salon")
                         .add_param(cmd::Argument::new("id")
+                            .set_value_type(ApplicationCommandOptionType::Channel)
                             .set_required(true)
                             .set_help("Identifiant du message")
                         )
@@ -95,10 +97,12 @@ impl Tickets {
                     .add_command(cmd::Command::new("add")
                         .set_help("Ajoute une catégorie de ticket. À ne pas confondre avec les catégories discord")
                         .add_param(cmd::Argument::new("name")
+                            .set_value_type(ApplicationCommandOptionType::String)
                             .set_required(true)
                             .set_help("Nom de la catégorie")
                         )
                         .add_param(cmd::Argument::new("id")
+                            .set_value_type(ApplicationCommandOptionType::Channel)
                             .set_required(true)
                             .set_help("Identifiant de la catégorie Discord")
                         )

@@ -39,6 +39,7 @@
 
 #![allow(dead_code)]
 use std::collections::VecDeque;
+use serenity::model::interactions::application_command::ApplicationCommandOptionType;
 
 /// Structures de retour d'une commande qui a match avec le parseur
 pub mod matching {
@@ -141,7 +142,7 @@ pub struct Argument {
     /// Description de l'argument
     pub help: Option<String>,
     /// Type de valeur
-    pub value_type: Option<String>,
+    pub value_type: ApplicationCommandOptionType,
     /// L'argument requis si vrai
     pub required: bool
 }
@@ -155,7 +156,7 @@ impl Argument {
         Argument {
             name: name.into(),
             help: None,
-            value_type: None,
+            value_type: ApplicationCommandOptionType::String,
             required: false
         }
     }
@@ -170,14 +171,28 @@ impl Argument {
             None => None,
         }
     }
-    pub fn set_value_type<S: Into<String>>(mut self, vt: S) -> Argument {
-        self.value_type = Some(vt.into());
+    pub fn set_value_type(mut self, vt: ApplicationCommandOptionType) -> Argument {
+        match vt {
+            ApplicationCommandOptionType::SubCommand => panic!("Commande non supporté pour les arguments, utilisez les commandes natives"),
+            ApplicationCommandOptionType::SubCommandGroup => panic!("Groupe de commande non supporté pour les arguments, utilisez les groupes de commande natifs"),
+            _ => self.value_type = vt
+        }
         self
     }
-    pub fn value_type(&self) -> Option<&str> {
-        match &self.value_type {
-            Some(v) => Some(&v),
-            None => None,
+    pub fn value_type(&self) -> ApplicationCommandOptionType {
+        self.value_type
+    }
+    pub fn value_type_str(&self) -> &'static str {
+        match self.value_type {
+            ApplicationCommandOptionType::String => "string",
+            ApplicationCommandOptionType::Integer => "integer",
+            ApplicationCommandOptionType::Boolean => "boolean",
+            ApplicationCommandOptionType::User => "user",
+            ApplicationCommandOptionType::Channel => "channel",
+            ApplicationCommandOptionType::Role => "role",
+            ApplicationCommandOptionType::Mentionable => "mentionable",
+            ApplicationCommandOptionType::Number => "number",
+            _ => "unknown"
         }
     }
     pub fn set_required(mut self, req: bool) -> Argument {

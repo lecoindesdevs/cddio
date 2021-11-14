@@ -193,10 +193,7 @@ impl Help {
             None => {
                 let mut params = Vec::new();
                 for param in &command.params {
-                    let name = match param.value_type() {
-                        Some(vt) => format!("{} <{}>", param.name(), vt),
-                        None => param.name().to_string(),
-                    };
+                    let name = format!("{} <{}>", param.name(), param.value_type_str());
                     params.push((name, param.help().and_then(|v| Some(v.to_string()))));
                 }
                 Ok(HelpInfo{
