@@ -172,34 +172,7 @@ impl Tickets {
             Interaction::MessageComponent(v) => self.on_msg_component(ctx, v).await,
         }
     }
-    fn get_app_command_name(app_command: &ApplicationCommandInteraction) -> String {
-        let mut names = vec![app_command.data.name.as_str()];
-        let mut cmd = app_command.data.options.first();
-        // s'inspirer de la fonction en dessous pour produire le nom
-        println!("names: {:?}", names);
-        names.join(".")
-    }
-    fn get_command<'a>(app_command: &'a ApplicationCommandInteraction) -> &'a ApplicationCommandInteractionDataOption {
-        use serenity::model::interactions::application_command::{ApplicationCommandOptionType};
         
-        let mut cmd = app_command.data.options.first();
-        loop {
-            if let Some(&ApplicationCommandInteractionDataOption{ref kind, ref options, ..}) = cmd {
-                if kind == &ApplicationCommandOptionType::SubCommand {
-                    return cmd.unwrap();
-                }
-                if options.is_empty() {
-                    panic!("No subcommand found.\n{:?}", app_command);
-                }
-                cmd = options.first();
-            } else {
-                return app_command.data.options.first().unwrap();
-            }
-        }
-    }
-    fn get_command_argument<'a>(app_command: &'a ApplicationCommandInteraction, name: &str) {
-        
-    }
     async fn on_app_command(&self, ctx: &Context, app_command: &ApplicationCommandInteraction) -> Result<(), String> {
         
         let app_cmd_name = Self::get_app_command_name(app_command);
