@@ -222,7 +222,7 @@ pub struct Command {
     /// Liste des arguments de la commande
     pub params: Vec<Argument>,
     /// ID de la commande
-    pub id: u64,
+    pub id: Option<String>,
 }
 impl Named for Command {
     fn name(&self) -> &str {
@@ -237,7 +237,7 @@ impl Command {
             permission: None,
             help: None,
             params: Vec::new(),
-            id: 0
+            id: None
         }
     }
     pub fn set_permission<S: Into<String>>(mut self, permission: S) -> Self {
@@ -275,20 +275,17 @@ impl Command {
     pub fn generate_id(&mut self, groups: Option<&[&str]>) {
         self.id = match groups {
             Some(g) => {
-                let nameid = g.iter()
-                    .map(|s| *s)
-                    .chain(std::iter::once(self.name.as_str()))
-                    .collect::<String>();
-                hash(&nameid)
+                let nameid = format!("{}.{}",g.join("."), self.name);
+                Some(nameid)
             },
-            None => hash(&self.name)
+            None => Some(self.name.clone())
         };
     }
-    pub fn match_id(&self, id: u64) -> bool {
-        self.id == id
-    }
-    pub fn id(&self) -> u64 {
-        self.id
+    pub fn id(&self) -> Option<&str> {
+        match self.id {
+            Some(ref v) => Some(&v),
+            None => None,
+        }
     }
     pub fn try_match_slash<'a>(&'a self, args: &[&'a str]) -> Result<(), ()> {
         if args.is_empty() || args[0] != self.name{
@@ -354,7 +351,7 @@ pub struct Group {
 }
 impl Group {
     pub fn new<S: Into<String>>(name: S) -> Group {
-        Group { 
+        Group {
             name: name.into(), 
             permission: None,
             help: None, 
@@ -404,16 +401,13 @@ impl Group {
     pub fn node(&self) -> &Node {
         &self.node
     }
-    pub fn generate_id(&mut self, groups: Option<&[&str]>) {
+    pub fn generate_ids(&mut self, groups: Option<&[&str]>) {
         let groups = groups.unwrap_or(&[])
             .iter()
             .map(|s| *s)
             .chain(std::iter::once(self.name.as_str()))
             .collect::<Vec<_>>();
-        self.node.generate_id(&groups);
-    }
-    pub fn match_id(&self, id: u64) -> bool {
-        self.node.match_id(id)
+        self.node.generate_ids(&groups);
     }
     pub fn try_match_slash<'a>(&'a self, args: &[&'a str]) -> Result<(), ()> {
         if args.is_empty() || args[0] != self.name{
@@ -476,12 +470,9 @@ impl Node {
             groups: Container::new() 
         }
     }
-    pub fn generate_id(&mut self, groups: &[&str]) {
-        self.groups.0.iter_mut().for_each(|grp| grp.generate_id(Some(&groups)));
+    pub fn generate_ids(&mut self, groups: &[&str]) {
+        self.groups.0.iter_mut().for_each(|grp| grp.generate_ids(Some(&groups)));
         self.commands.0.iter_mut().for_each(|cmd| cmd.generate_id(Some(&groups)));
-    }
-    pub fn match_id(&self, id: u64) -> bool {
-        self.commands.0.iter().find(|c| c.match_id(id)).is_some() || self.groups.0.iter().find(|g| g.match_id(id)).is_some()
     }
 }
 /// Conteneur de commandes ou de groupes
