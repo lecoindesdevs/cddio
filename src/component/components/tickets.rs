@@ -172,16 +172,19 @@ impl Tickets {
             Interaction::MessageComponent(v) => self.on_msg_component(ctx, v).await,
         }
     }
-        
+    
     async fn on_app_command(&self, ctx: &Context, app_command: &ApplicationCommandInteraction) -> Result<(), String> {
         
-        let app_cmd_name = Self::get_app_command_name(app_command);
-        let command = Self::get_command(app_command);
-        println!("app_cmd_name: {}", app_cmd_name);
-        match app_cmd_name.as_str() {
+        let app_cmd = utils::app_command::ApplicationCommand::new(app_command);
+        let name = app_cmd.fullname();
+        let command = app_cmd.get_command();
+        println!("app_cmd_name: {}", name);
+        match name.as_str() {
             "tickets.list" => println!("yes"),
             "tickets.categories.add" => {
-                println!("{:?}", command);
+                println!("{}", name);
+                println!("name: {:?}", app_cmd.get_argument("name"));
+                println!("id: {:?}", app_cmd.get_argument("id"));
                 // command.options.iter().find(|v| v.name == "name").unwrap().value.unwrap().as_str();
             }
             _ => ()
