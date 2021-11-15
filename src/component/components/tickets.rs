@@ -7,6 +7,8 @@ use futures::StreamExt;
 use futures_locks::RwLock;
 use serde::{Deserialize, Serialize};
 use serenity::model::id::ChannelId;
+use serenity::model::interactions::Interaction;
+use serenity::model::interactions::application_command::ApplicationCommandInteraction;
 use serenity::model::interactions::message_component::{ButtonStyle, MessageComponentInteraction};
 use serenity::prelude::Mentionable;
 use serenity::async_trait;
@@ -77,63 +79,65 @@ impl crate::component::Component for Tickets {
 impl Tickets {
     pub fn new() -> Self {
         use serenity::model::interactions::application_command::ApplicationCommandOptionType;
+
+        let mut group_match = cmd::Group::new("tickets")
+        .set_help("Gestion des tickets")
+        .set_permission("owners")
+        .add_group(cmd::Group::new("create_channel")
+            .set_help("Salon de création de tickets")
+            .add_command(cmd::Command::new("set")
+                .set_help("Change le salon")
+                .add_param(cmd::Argument::new("id")
+                    .set_value_type(ApplicationCommandOptionType::Channel)
+                    .set_required(true)
+                    .set_help("Identifiant du message")
+                )
+            )
+        )
+        .add_group(cmd::Group::new("categories")
+            .set_help("Gestion des catégories de tickets.")
+            .add_command(cmd::Command::new("add")
+                .set_help("Ajoute une catégorie de ticket. À ne pas confondre avec les catégories discord")
+                .add_param(cmd::Argument::new("name")
+                    .set_value_type(ApplicationCommandOptionType::String)
+                    .set_required(true)
+                    .set_help("Nom de la catégorie")
+                )
+                .add_param(cmd::Argument::new("id")
+                    .set_value_type(ApplicationCommandOptionType::Channel)
+                    .set_required(true)
+                    .set_help("Identifiant de la catégorie Discord")
+                )
+                .add_param(cmd::Argument::new("prefix")
+                    .set_required(true)
+                    .set_help("Prefix du salon du ticket (ex: ticket)")
+                )
+                .add_param(cmd::Argument::new("desc")
+                    .set_required(false)
+                    .set_help("Description de la catégorie de ticket")
+                )
+                
+                // .add_param(cmd::Argument::new("emoji")
+                //     .set_required(false)
+                //     .set_help("Emoji décoration")
+                // )
+            )
+            .add_command(cmd::Command::new("remove")
+                .set_help("Supprime une catégorie de ticket")
+                .add_param(cmd::Argument::new("name")
+                    .set_required(true)
+                    .set_help("Nom de la catégorie")
+                )
+            )
+            .add_command(cmd::Command::new("list")
+                .set_help("Liste les catégories de tickets")
+            )
+        )
+        .add_command(cmd::Command::new("list")
+            .set_help("Liste les tickets")
+        );
         Tickets{
-            group_match: cmd::Group::new("tickets")
-                .set_help("Gestion des tickets")
-                .set_permission("owners")
-                .add_group(cmd::Group::new("create_channel")
-                    .set_help("Salon de création de tickets")
-                    .add_command(cmd::Command::new("set")
-                        .set_help("Change le salon")
-                        .add_param(cmd::Argument::new("id")
-                            .set_value_type(ApplicationCommandOptionType::Channel)
-                            .set_required(true)
-                            .set_help("Identifiant du message")
-                        )
-                    )
-                )
-                .add_group(cmd::Group::new("categories")
-                    .set_help("Gestion des catégories de tickets.")
-                    .add_command(cmd::Command::new("add")
-                        .set_help("Ajoute une catégorie de ticket. À ne pas confondre avec les catégories discord")
-                        .add_param(cmd::Argument::new("name")
-                            .set_value_type(ApplicationCommandOptionType::String)
-                            .set_required(true)
-                            .set_help("Nom de la catégorie")
-                        )
-                        .add_param(cmd::Argument::new("id")
-                            .set_value_type(ApplicationCommandOptionType::Channel)
-                            .set_required(true)
-                            .set_help("Identifiant de la catégorie Discord")
-                        )
-                        .add_param(cmd::Argument::new("prefix")
-                            .set_required(true)
-                            .set_help("Prefix du salon du ticket (ex: ticket)")
-                        )
-                        .add_param(cmd::Argument::new("desc")
-                            .set_required(false)
-                            .set_help("Description de la catégorie de ticket")
-                        )
-                        
-                        // .add_param(cmd::Argument::new("emoji")
-                        //     .set_required(false)
-                        //     .set_help("Emoji décoration")
-                        // )
-                    )
-                    .add_command(cmd::Command::new("remove")
-                        .set_help("Supprime une catégorie de ticket")
-                        .add_param(cmd::Argument::new("name")
-                            .set_required(true)
-                            .set_help("Nom de la catégorie")
-                        )
-                    )
-                    .add_command(cmd::Command::new("list")
-                        .set_help("Liste les catégories de tickets")
-                    )
-                )
-                .add_command(cmd::Command::new("list")
-                    .set_help("Liste les tickets")
-                ),
+            group_match,
             data: match Data::from_file_default("tickets") {
                 Ok(data) => RwLock::new(data),
                 Err(e) => panic!("Data tickets: {:?}", e)
@@ -158,36 +162,64 @@ impl Tickets {
         use serenity::model::event::Event::*;
 
         match evt {
-            Ready(_) => {
-                match self.update_message_components(ctx).await {
-                    Ok(_) => (),
-                    Err(e) => eprintln!("Error updating message components: {}", e)
-                }
-            },
-            InteractionCreate(evt) => {
-                let msg_cmp = match evt.interaction.clone().message_component() {
-                    Some(v) => v,
-                    None => return Ok(())
-                };
-                let res = match msg_cmp.data.custom_id.as_str() {
-                    "tickets_create" => self.on_ticket_create(ctx, msg_cmp).await,
-                    "tickets_close" => self.on_ticket_close(ctx, msg_cmp).await,
-                    _ => Ok(())
-                };
-                match res {
-                    Ok(_) => return Ok(()),
-                    Err(e) => {
-                        let err = format!("Error on message component: {}", e);
-                        eprintln!("{}", err);
-                        return Err(err);
-                    }
-                }
-            }
-            _ => {}
+            Ready(_) => self.on_ready(ctx).await,
+            InteractionCreate(evt) => self.on_interaction(ctx, &evt.interaction).await,
+            _ => Ok(())
         } 
+    }
+    async fn on_interaction(&self, ctx: &Context, interaction: &Interaction) -> Result<(), String> {
+        match interaction {
+            Interaction::Ping(_) => Ok(()),
+            Interaction::ApplicationCommand(v) => self.on_app_command(ctx, v).await,
+            Interaction::MessageComponent(v) => self.on_msg_component(ctx, v).await,
+        }
+    }
+    fn get_app_command_name(app_command: &ApplicationCommandInteraction) -> String {
+        let mut names = vec![app_command.data.name.as_str()];
+        let mut cmd = app_command.data.options.first();
+        while let Some(option) = cmd {
+            let name = option.name.as_str();
+            println!("name: {}", name);
+            names.push(name);
+            cmd = option.options.first();
+        }
+        println!("names: {:?}", names);
+        names.join(".")
+    }
+    async fn on_app_command(&self, ctx: &Context, app_command: &ApplicationCommandInteraction) -> Result<(), String> {
+        
+        let app_cmd_name = Self::get_app_command_name(app_command);
+        println!("app_cmd_name: {}", app_cmd_name);
+        match app_cmd_name.as_str() {
+            "tickets.list" => println!("yes"),
+            _ => ()
+        }
         Ok(())
     }
-    async fn on_ticket_create(&self, ctx: &Context, msg_cmp: MessageComponentInteraction) -> serenity::Result<()> {
+    async fn on_msg_component(&self, ctx: &Context, msg_component: &MessageComponentInteraction) -> Result<(), String> {
+        let res = match msg_component.data.custom_id.as_str() {
+            "tickets_create" => self.on_ticket_create(ctx, msg_component).await,
+            "tickets_close" => self.on_ticket_close(ctx, msg_component).await,
+            _ => Ok(())
+        };
+        match res {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                let err = format!("Error on message component: {}", e);
+                eprintln!("{}", err);
+                Err(err)
+            }
+        }
+    }
+    
+    async fn on_ready(&self, ctx: &Context) -> Result<(), String> {
+        match self.update_message_components(ctx).await {
+            Ok(_) => (),
+            Err(e) => eprintln!("Error updating message components: {}", e)
+        };
+        Ok(())
+    }
+    async fn on_ticket_create(&self, ctx: &Context, msg_cmp: &MessageComponentInteraction) -> serenity::Result<()> {
         use serenity::model::prelude::*;
         let value = &msg_cmp.data.values[0];
         let data = self.data.read().await;
@@ -262,7 +294,7 @@ impl Tickets {
         ).await?;
         Ok(())
     }
-    async fn on_ticket_close(&self, ctx: &Context, msg_cmp: MessageComponentInteraction) -> serenity::Result<()> {
+    async fn on_ticket_close(&self, ctx: &Context, msg_cmp: &MessageComponentInteraction) -> serenity::Result<()> {
         use serenity::model::prelude::*;
         match Self::archive_channel(ctx, msg_cmp.channel_id).await {
             Ok(_) => msg_cmp.channel_id.delete(ctx).await.and(Ok(()))?,
