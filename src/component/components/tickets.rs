@@ -481,7 +481,6 @@ impl Tickets {
             msg
         }).await
     }
-    
     async fn categories(&self, ctx: &Context, msg: &Message, matched: &cmd::matching::Command<'_>) -> cmp::CommandMatch {
         match matched.get_command() {
             "add" => {
@@ -495,18 +494,18 @@ impl Tickets {
                     Some(desc) => Some(desc.value.to_string()),
                     None => None
                 };
-                if let Err(e) = self.add_category(ctx, msg, name, desc, id, prefix).await {
+                if let Err(e) = self.category_add(ctx, msg, name, desc, id, prefix).await {
                     return cmp::CommandMatch::Error(format!("add_category: {:?}", e));
                 }
             },
             "remove" => {
                 let name = matched.get_parameter("name").unwrap().value.to_string();
-                if let Err(e) = self.remove_category(ctx, msg, name).await {
+                if let Err(e) = self.category_remove(ctx, msg, name).await {
                     return cmp::CommandMatch::Error(format!("add_category: {:?}", e));
                 }
             },
             "list" => {
-                if let Err(e) = self.list_categories(ctx, msg).await {
+                if let Err(e) = self.categories_list(ctx, msg).await {
                     return cmp::CommandMatch::Error(format!("list_category: {:?}", e));
                 }
             },
@@ -514,7 +513,7 @@ impl Tickets {
         };
         cmp::CommandMatch::Matched
     }
-    async fn add_category(&self, ctx: &Context, msg: &Message, name: String, desc: Option<String>, id: u64, prefix: String) -> serenity::Result<()> {
+    async fn category_add(&self, ctx: &Context, msg: &Message, name: String, desc: Option<String>, id: u64, prefix: String) -> serenity::Result<()> {
         if let Some(_) = self.data.read().await.read().categories.iter().find(|v| v.name == name) {
             return common::send_error_message(ctx, msg, format!("La catégorie de ticket {} existe déjà.", name)).await;
         }
@@ -545,7 +544,7 @@ impl Tickets {
         err_println!(self.update_message_components(ctx).await, "tickets: unable to update message after adding a category.\n{:?}");
         common::send_success_message(ctx, msg, format!("La catégorie {} a été ajoutée.", name)).await
     }
-    async fn remove_category(&self, ctx: &Context, msg: &Message, name: String) -> serenity::Result<()> {
+    async fn category_remove(&self, ctx: &Context, msg: &Message, name: String) -> serenity::Result<()> {
         let i = match self.data.read().await.read().categories.iter().position(|v| v.name == name) {
             Some(i) => i,
             None => return common::send_error_message(ctx, msg, format!("La catégorie {} n'existe pas.", name)).await
@@ -554,7 +553,7 @@ impl Tickets {
         err_println!(self.update_message_components(ctx).await, "tickets: unable to update message after deleting a category.\n{:?}");
         common::send_success_message(ctx, msg, format!("La catégorie {} a été supprimée.", name)).await
     }
-    async fn list_categories(&self, ctx: &Context, msg: &Message) -> serenity::Result<()> {
+    async fn categories_list(&self, ctx: &Context, msg: &Message) -> serenity::Result<()> {
         let guild_id = match msg.guild_id {
             Some(guild_id) => guild_id,
             None => return common::send_error_message(ctx, msg, "Vous devez être dans un serveur pour utiliser cette commande.").await
