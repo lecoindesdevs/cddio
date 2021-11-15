@@ -511,3 +511,61 @@ impl<T: Named> Default for Container<T> {
         Self::new()
     }
 }
+
+pub enum Type<'a> {
+    Group(&'a Group),
+    Command(&'a Command),
+}
+
+enum IterType<'a> {
+    Group(std::slice::Iter<'a, Group>, std::slice::Iter<'a, Command>),
+    Command(std::slice::Iter<'a, Command>),
+}
+pub struct Iter<'a>(&'a Node, Vec<IterType<'a>>);
+
+impl<'a> Iter<'a> {
+    fn new(node: &'a Node) -> Self {
+        Self(node, vec![IterType::Group(node.groups.0.iter(), node.commands.0.iter())])
+    }
+}
+impl<'a> Iterator for Iter<'a> {
+    type Item = &'a Command;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.1.is_empty() {
+            return None;
+        } 
+        loop {
+            let iter = match self.1.pop() {
+                Some(v) => v,
+                None => return None,
+            };
+            match iter {
+                IterType::Group(mut iter_group, iter_comm) => {
+                    if let Some(grp) = iter_group.next() {
+                        self.1.push(IterType::Group(iter_group, iter_comm));
+                        self.1.push(IterType::Group(grp.node.groups.0.iter(), grp.node.commands.0.iter()));
+                    } else {
+                        self.1.push(IterType::Command(iter_comm));
+                    }
+                },
+                IterType::Command(mut iter_comm) => {
+                    if let Some(cmd) = iter_comm.next() {
+                        self.1.push(IterType::Command(iter_comm));
+                        return Some(cmd);
+                    }
+                },
+            } 
+        }
+    }
+}
+
+impl Node {
+    pub fn iter(&self) -> Iter {
+        Iter::new(self)
+    }
+}
+impl Group {
+    pub fn iter(&self) -> Iter {
+        self.node.iter()
+    }
+}
