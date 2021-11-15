@@ -10,7 +10,7 @@ use serenity::model::channel::Message;
 use serenity::model::{Permissions, event::{Event, ReadyEvent}};
 use super::super::{CommandMatch, Component, FrameworkConfig};
 use crate::component::command_parser::{self as cmd, ParseError};
-use super::{common};
+use super::{utils};
 
 
 pub struct Misc {
@@ -30,16 +30,16 @@ impl Component for Misc {
     }
     async fn command(&self, _: &FrameworkConfig, ctx: &Context, msg: &Message) -> CommandMatch {
         let args = cmd::split_shell(&msg.content[1..]);
-        let matched = match common::try_match(ctx, msg, &self.group_match, args).await {
+        let matched = match utils::try_match(ctx, msg, &self.group_match, args).await {
             Ok(v) => v,
             Err(e) => return e
         };
         match matched.get_command() {
             "ping" => {
-                match common::has_permission(ctx, msg, matched.permission).await {
+                match utils::has_permission(ctx, msg, matched.permission).await {
                     Ok(true) => Self::send_message(ctx, msg, "Pong!").await,
                     Ok(false) => {
-                        match common::send_no_perm(ctx, msg).await {
+                        match utils::send::no_perm(ctx, msg).await {
                             Ok(_) => CommandMatch::Matched,
                             Err(e) => return CommandMatch::Error(e.to_string())
                         }
@@ -48,7 +48,7 @@ impl Component for Misc {
                 }
             },
             "data" => {
-                let mut data = common::Data::new("misc", DataTest{ don1: "yes".to_string(), don2: 32 });
+                let mut data = utils::Data::new("misc", DataTest{ don1: "yes".to_string(), don2: 32 });
                 let mut guard = data.write();
                 guard.don1 = "no".to_string();
                 CommandMatch::Matched

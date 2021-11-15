@@ -7,48 +7,8 @@ use serenity::http::CacheHttp;
 pub use crate::component::data::*;
 use crate::component::command_parser as cmd;
 
-/// Envoie un message d'erreur qui indique que l'envoyeur n'a pas la permission dans le channel.
-pub async fn send_no_perm(_ctx: &cmp::Context, msg: &cmp::Message) -> serenity::Result<()> {
-    match msg.channel_id.send_message(&_ctx.http, |m|
-        m.embed(|embed| {
-            embed
-                .title("Attention")
-                .description(format!("Vous n'avez pas la permission d'utiliser cette commande"))
-                .color(0xFF0000)
-        })
-    ).await {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e),
-    }
-}
-/// Envoie un message d'erreur dans le channel.
-pub async fn send_error_message<S: AsRef<str>>(_ctx: &cmp::Context, msg: &cmp::Message, error_message: S) -> serenity::Result<()> {
-    match msg.channel_id.send_message(&_ctx.http, |m|
-        m.embed(|embed| {
-            embed
-                .title("Attention")
-                .description( error_message.as_ref() )
-                .color(0xFF0000)
-        })
-    ).await {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e),
-    }
-}
-/// Envoie un message d'erreur dans le channel.
-pub async fn send_success_message<S: AsRef<str>>(_ctx: &cmp::Context, msg: &cmp::Message, success_message: S) -> serenity::Result<()> {
-    match msg.channel_id.send_message(&_ctx.http, |m|
-        m.embed(|embed| {
-            embed
-                .title("Effectué")
-                .description( success_message.as_ref() )
-                .color(0x1ed760)
-        })
-    ).await {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e),
-    }
-}
+pub mod send;
+pub mod app_command;
 /// Retourne vrai s'il sagit d'un message privé au bot
 pub fn is_dm(_ctx: &cmp::Context, msg: &cmp::Message) -> bool {
     msg.guild_id.is_none()
@@ -79,7 +39,7 @@ pub async fn try_match<'a>(ctx: &cmp::Context, msg: &'a cmp::Message, group: &'a
         Err(cmd::ParseError::NotMatched) => Err(CommandMatch::NotMatched),
         Err(e_parse) => {
             let msg_parse = e_parse.to_string();
-            match send_error_message(ctx, msg, &msg_parse).await {
+            match send::error_message(ctx, msg, &msg_parse).await {
                 Ok(_) => Err(CommandMatch::Error(msg_parse)),
                 Err(e_send) => Err(CommandMatch::Error(format!("- {}\n- {}", msg_parse, e_send.to_string())))
             }

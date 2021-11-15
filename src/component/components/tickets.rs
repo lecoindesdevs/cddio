@@ -16,16 +16,16 @@ use serenity::client::Context;
 use serenity::model::channel::{Message, ReactionType};
 use serenity::model::event::Event;
 use crate::component::{self as cmp, FrameworkConfig, command_parser as cmd};
-use super::common;
+use super::utils;
 
-use super::common::Data;
+use super::utils::Data;
 
 macro_rules! err_println {
     (send_error($ctx: ident, $msg: ident, $txt:expr)) => {
-        err_println!(common::send_error_message($ctx, $msg, $txt).await, "Error sending error message: {}")
+        err_println!(utils::send::error_message($ctx, $msg, $txt).await, "Error sending error message: {}")
     };
     (send_success($ctx: ident, $msg: ident, $txt:expr)) => {
-        err_println!(common::send_success_message($ctx, $msg, $txt).await, "Error sending success message: {}")
+        err_println!(utils::send::success_message($ctx, $msg, $txt).await, "Error sending success message: {}")
     };
     ($result:expr,$msg_format:expr) => {
         {
@@ -35,8 +35,6 @@ macro_rules! err_println {
             }
         }
     };
-    
-    
 }
 
 #[derive(Serialize, Deserialize, Default, Debug)]
@@ -142,12 +140,12 @@ impl Tickets {
                 Ok(data) => RwLock::new(data),
                 Err(e) => panic!("Data tickets: {:?}", e)
             },
-            archives_folder: common::DATA_DIR.join("archives"),
+            archives_folder: utils::DATA_DIR.join("archives"),
         }
     }
     async fn r_command(&self, fw_config: &FrameworkConfig, ctx: &Context, msg: &Message) -> cmp::CommandMatch {
         let args = cmd::split_shell(&msg.content[1..]);
-        let matched = match common::try_match(ctx, msg, &self.group_match, args).await {
+        let matched = match utils::try_match(ctx, msg, &self.group_match, args).await {
             Ok(v) => v,
             Err(e) => return e
         };
@@ -324,7 +322,7 @@ impl Tickets {
         Ok(())
     }
     fn get_archive_folder() -> Result<PathBuf, std::io::Error> {
-        let path = common::DATA_DIR.join("tickets/archives");
+        let path = utils::DATA_DIR.join("tickets/archives");
         if !path.exists() {
             println!("tickets: Création du dossier d'archives");
             match std::fs::create_dir_all(&path) {
@@ -536,19 +534,19 @@ impl Tickets {
     }
     async fn category_add(&self, ctx: &Context, msg: &Message, name: String, desc: Option<String>, id: u64, prefix: String) -> serenity::Result<()> {
         if let Some(_) = self.data.read().await.read().categories.iter().find(|v| v.name == name) {
-            return common::send_error_message(ctx, msg, format!("La catégorie de ticket {} existe déjà.", name)).await;
+            return utils::send::error_message(ctx, msg, format!("La catégorie de ticket {} existe déjà.", name)).await;
         }
         let guild_id = match msg.guild_id {
             Some(guild_id) => guild_id,
-            None => return common::send_error_message(ctx, msg, "Vous devez être dans un serveur pour utiliser cette commande.").await
+            None => return utils::send::error_message(ctx, msg, "Vous devez être dans un serveur pour utiliser cette commande.").await
         };
         let (_, guild_channel) = match guild_id.channels(ctx).await.unwrap().into_iter().find(|channel| channel.0.0 == id) {
             Some(v) => v,
-            None => return common::send_error_message(ctx, msg, "Le salon n'existe pas.").await
+            None => return utils::send::error_message(ctx, msg, "Le salon n'existe pas.").await
         };
         match guild_channel.kind {
             serenity::model::channel::ChannelType::Category => (),
-            _ => return common::send_error_message(ctx, msg, format!("L'id ne pointe pas sur une catégorie mais sur {} de type {:?}.", guild_channel.mention().to_string(), guild_channel.kind)).await
+            _ => return utils::send::error_message(ctx, msg, format!("L'id ne pointe pas sur une catégorie mais sur {} de type {:?}.", guild_channel.mention().to_string(), guild_channel.kind)).await
         }
         {
             let mut data = self.data.write().await;
@@ -563,27 +561,27 @@ impl Tickets {
             });
         }
         err_println!(self.update_message_components(ctx).await, "tickets: unable to update message after adding a category.\n{:?}");
-        common::send_success_message(ctx, msg, format!("La catégorie {} a été ajoutée.", name)).await
+        utils::send::success_message(ctx, msg, format!("La catégorie {} a été ajoutée.", name)).await
     }
     async fn category_remove(&self, ctx: &Context, msg: &Message, name: String) -> serenity::Result<()> {
         let i = match self.data.read().await.read().categories.iter().position(|v| v.name == name) {
             Some(i) => i,
-            None => return common::send_error_message(ctx, msg, format!("La catégorie {} n'existe pas.", name)).await
+            None => return utils::send::error_message(ctx, msg, format!("La catégorie {} n'existe pas.", name)).await
         };
         self.data.write().await.write().categories.swap_remove(i);
         err_println!(self.update_message_components(ctx).await, "tickets: unable to update message after deleting a category.\n{:?}");
-        common::send_success_message(ctx, msg, format!("La catégorie {} a été supprimée.", name)).await
+        utils::send::success_message(ctx, msg, format!("La catégorie {} a été supprimée.", name)).await
     }
     async fn categories_list(&self, ctx: &Context, msg: &Message) -> serenity::Result<()> {
         let guild_id = match msg.guild_id {
             Some(guild_id) => guild_id,
-            None => return common::send_error_message(ctx, msg, "Vous devez être dans un serveur pour utiliser cette commande.").await
+            None => return utils::send::error_message(ctx, msg, "Vous devez être dans un serveur pour utiliser cette commande.").await
         };
         let data = self.data.read().await;
         let data = data.read();
         let categories = &data.categories;
         if categories.is_empty() {
-            return common::send_error_message(ctx, msg, "Aucune catégorie de ticket n'a été créée.").await;
+            return utils::send::error_message(ctx, msg, "Aucune catégorie de ticket n'a été créée.").await;
         }
         let mut cat = Vec::new();
         let channels = match guild_id.channels(ctx).await {

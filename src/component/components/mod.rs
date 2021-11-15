@@ -11,4 +11,4 @@ mod slash;
 pub use slash::*;
 
 // Fonctions utiles pour les composants
-mod common;
+mod utils;
