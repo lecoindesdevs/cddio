@@ -368,12 +368,18 @@ impl Group {
     pub fn groups(&self) -> &Container<Group> {
         &self.node.groups
     }
+    pub fn get_group(&self, name: &str) -> Option<&Group> {
+        self.node.groups.find(name)
+    }
     pub fn add_command(mut self, cmd: Command) -> Group {
         self.node.commands.add(cmd);
         self
     }
     pub fn commands(&self) -> &Container<Command> {
         &self.node.commands
+    }
+    pub fn get_command(&self, name: &str) -> Option<&Command> {
+        self.node.commands.find(name)
     }
     pub fn set_permission<S: Into<String>>(mut self, permission: S) -> Self {
         self.permission = Some(permission.into());
