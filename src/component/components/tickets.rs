@@ -6,7 +6,8 @@ use std::path::PathBuf;
 use futures::StreamExt;
 use futures_locks::RwLock;
 use serde::{Deserialize, Serialize};
-use serenity::model::id::ChannelId;
+use serenity::builder::CreateMessage;
+use serenity::model::id::{ChannelId, GuildId};
 use serenity::model::interactions::Interaction;
 use serenity::model::interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption};
 use serenity::model::interactions::message_component::{ButtonStyle, MessageComponentInteraction};
@@ -149,10 +150,18 @@ impl Tickets {
             Ok(v) => v,
             Err(e) => return e
         };
-        match (matched.get_groups(), matched.get_command()) {
-            (["tickets", "create_channel"], "set") => return self.set_channel(ctx, msg, &matched).await,
-            (["tickets", "categories"], _) => return self.categories(ctx, msg, &matched).await,
-            (["tickets"], "list") => todo!(),
+        let id = if let Some(id) = matched.id {
+            id.to_string()
+        } else {
+            [matched.get_groups().join("."), matched.get_command().to_string()].join(".")
+        };
+        
+        match id.as_str() {
+            "tickets.create_channel.set" => return self.set_channel(ctx, msg, &matched).await,
+            "tickets.categories.add" => todo!(),
+            "tickets.categories.remove" => todo!(),
+            "tickets.categories.list" => todo!(),
+            "tickets.list" => todo!(),
             _ => unreachable!()
         }
     }
@@ -174,19 +183,28 @@ impl Tickets {
     }
     
     async fn on_app_command(&self, ctx: &Context, app_command: &ApplicationCommandInteraction) -> Result<(), String> {
-        
+        use utils::app_command::{unwrap_argument, unwrap_optional_argument};
         let app_cmd = utils::app_command::ApplicationCommand::new(app_command);
         let name = app_cmd.fullname();
+        let guild_id = match app_cmd.guild_id();
         let command = app_cmd.get_command();
         println!("app_cmd_name: {}", name);
         match name.as_str() {
-            "tickets.list" => println!("yes"),
+            "tickets.list" => todo!(),
             "tickets.categories.add" => {
-                println!("{}", name);
-                println!("name: {:?}", app_cmd.get_argument("name"));
-                println!("id: {:?}", app_cmd.get_argument("id"));
+                let name = unwrap_argument!(&app_cmd, "name", String);
+                let id = unwrap_argument!(&app_cmd, "id", Channel);
+                let prefix = unwrap_argument!(&app_cmd, "prefix", String);
+                let desc = unwrap_optional_argument!(&app_cmd, "desc", String);
+
+                let c_msg = self.category_add(ctx, &name, &id, &prefix, &desc).await;
+                
+                // /tickets categories add name: nom catégorie id: #📁 - Tickets prefix: cat_test desc: Description de la catégorie
                 // command.options.iter().find(|v| v.name == "name").unwrap().value.unwrap().as_str();
             }
+            "tickets.categories.remove" => todo!(),
+            "tickets.categories.list" => todo!(),
+            "tickets.list" => todo!(),
             _ => ()
         }
         Ok(())
@@ -208,7 +226,7 @@ impl Tickets {
     }
     
     async fn on_ready(&self, ctx: &Context) -> Result<(), String> {
-        match self.update_message_components(ctx).await {
+        match self.update_select_menu(ctx).await {
             Ok(_) => (),
             Err(e) => eprintln!("Error updating message components: {}", e)
         };
@@ -265,7 +283,7 @@ impl Tickets {
             
             ch
         }).await?;
-        self.update_message_components(ctx).await?;
+        self.update_select_menu(ctx).await?;
         match new_channel
             .send_message(ctx, |msg|
                 msg
@@ -406,7 +424,7 @@ impl Tickets {
                         let mut data = data.write();
                         data.msg_react = Some((channel.0, msg_sent.id.0));
                     }
-                    match self.update_message_components(ctx).await {
+                    match self.update_select_menu(ctx).await {
                         Ok(_) => (),
                         Err(e) => eprintln!("tickets: unable to update message.\n{:?}", e)
                     };
@@ -446,8 +464,7 @@ impl Tickets {
         act.add_select_menu(menus);
         cmps.add_action_row(act);
     }
-    async fn update_message_components(&self, ctx: &Context) -> serenity::Result<()> {
-        
+    async fn update_select_menu(&self, ctx: &Context) -> serenity::Result<()> {
         let data = self.data.read().await;
         let data = data.read();
         let categories = &data.categories;
@@ -508,21 +525,17 @@ impl Tickets {
         };
         cmp::CommandMatch::Matched
     }
-    async fn category_add(&self, ctx: &Context, msg: &Message, name: String, desc: Option<String>, id: u64, prefix: String) -> serenity::Result<()> {
+    async fn category_add(&self, ctx: &Context, guild_id: GuildId, name: String, desc: Option<String>, id: u64, prefix: String) -> CreateMessage<'static> {
         if let Some(_) = self.data.read().await.read().categories.iter().find(|v| v.name == name) {
-            return utils::send::error_message(ctx, msg, format!("La catégorie de ticket {} existe déjà.", name)).await;
+            return utils::message::error(format!("La catégorie de ticket {} existe déjà.", name));
         }
-        let guild_id = match msg.guild_id {
-            Some(guild_id) => guild_id,
-            None => return utils::send::error_message(ctx, msg, "Vous devez être dans un serveur pour utiliser cette commande.").await
-        };
         let (_, guild_channel) = match guild_id.channels(ctx).await.unwrap().into_iter().find(|channel| channel.0.0 == id) {
             Some(v) => v,
-            None => return utils::send::error_message(ctx, msg, "Le salon n'existe pas.").await
+            None => return utils::message::error("Le salon n'existe pas.")
         };
         match guild_channel.kind {
             serenity::model::channel::ChannelType::Category => (),
-            _ => return utils::send::error_message(ctx, msg, format!("L'id ne pointe pas sur une catégorie mais sur {} de type {:?}.", guild_channel.mention().to_string(), guild_channel.kind)).await
+            _ => return utils::message::error(format!("L'id ne pointe pas sur une catégorie mais sur {} de type {:?}.", guild_channel.mention().to_string(), guild_channel.kind))
         }
         {
             let mut data = self.data.write().await;
@@ -536,28 +549,28 @@ impl Tickets {
                 emoji: None,
             });
         }
-        err_println!(self.update_message_components(ctx).await, "tickets: unable to update message after adding a category.\n{:?}");
-        utils::send::success_message(ctx, msg, format!("La catégorie {} a été ajoutée.", name)).await
+        err_println!(self.update_select_menu(ctx).await, "tickets: unable to update message after adding a category.\n{:?}");
+        utils::message::success(format!("La catégorie {} a été ajoutée.", name))
     }
     async fn category_remove(&self, ctx: &Context, msg: &Message, name: String) -> serenity::Result<()> {
         let i = match self.data.read().await.read().categories.iter().position(|v| v.name == name) {
             Some(i) => i,
-            None => return utils::send::error_message(ctx, msg, format!("La catégorie {} n'existe pas.", name)).await
+            None => return utils::send::error(ctx, msg.channel_id, format!("La catégorie {} n'existe pas.", name)).await
         };
         self.data.write().await.write().categories.swap_remove(i);
-        err_println!(self.update_message_components(ctx).await, "tickets: unable to update message after deleting a category.\n{:?}");
+        err_println!(self.update_select_menu(ctx).await, "tickets: unable to update message after deleting a category.\n{:?}");
         utils::send::success_message(ctx, msg, format!("La catégorie {} a été supprimée.", name)).await
     }
-    async fn categories_list(&self, ctx: &Context, msg: &Message) -> serenity::Result<()> {
+    async fn categories_list(&self, ctx: &Context, msg: &Message) -> Result<CreateMessage> {
         let guild_id = match msg.guild_id {
             Some(guild_id) => guild_id,
-            None => return utils::send::error_message(ctx, msg, "Vous devez être dans un serveur pour utiliser cette commande.").await
+            None => return utils::send::error(ctx, msg.channel_id, "Vous devez être dans un serveur pour utiliser cette commande.").await
         };
         let data = self.data.read().await;
         let data = data.read();
         let categories = &data.categories;
         if categories.is_empty() {
-            return utils::send::error_message(ctx, msg, "Aucune catégorie de ticket n'a été créée.").await;
+            return utils::send::error(ctx, msg.channel_id, "Aucune catégorie de ticket n'a été créée.").await;
         }
         let mut cat = Vec::new();
         let channels = match guild_id.channels(ctx).await {
@@ -578,17 +591,13 @@ impl Tickets {
                 None => cat.push(format!("{} (id: {})", category.name, category.id)),
             }
         }
-        match msg.channel_id.send_message(ctx, |m|
-            m.embed(|embed| {
-                embed
-                    .title("Liste des catégories")
-                    .description( cat.join("\n") )
-                    .color(0x1ed760)
-            })
-        ).await {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e),
-        }
-
+        let m = CreateMessage::default();
+        m.embed(|embed| {
+            embed
+                .title("Liste des catégories")
+                .description( cat.join("\n") )
+                .color(0x1ed760)
+        };
+        Ok(m)
     }
 }
