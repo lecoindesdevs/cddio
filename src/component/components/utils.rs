@@ -8,6 +8,8 @@ pub use crate::component::data::*;
 use crate::component::command_parser as cmd;
 
 pub mod send;
+pub mod message;
+#[macro_use]
 pub mod app_command;
 /// Retourne vrai s'il sagit d'un message privé au bot
 pub fn is_dm(_ctx: &cmp::Context, msg: &cmp::Message) -> bool {
@@ -39,7 +41,7 @@ pub async fn try_match<'a>(ctx: &cmp::Context, msg: &'a cmp::Message, group: &'a
         Err(cmd::ParseError::NotMatched) => Err(CommandMatch::NotMatched),
         Err(e_parse) => {
             let msg_parse = e_parse.to_string();
-            match send::error_message(ctx, msg, &msg_parse).await {
+            match send::error(ctx, msg.channel_id, &msg_parse).await {
                 Ok(_) => Err(CommandMatch::Error(msg_parse)),
                 Err(e_send) => Err(CommandMatch::Error(format!("- {}\n- {}", msg_parse, e_send.to_string())))
             }

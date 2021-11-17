@@ -39,7 +39,7 @@ impl Component for Misc {
                 match utils::has_permission(ctx, msg, matched.permission).await {
                     Ok(true) => Self::send_message(ctx, msg, "Pong!").await,
                     Ok(false) => {
-                        match utils::send::no_perm(ctx, msg).await {
+                        match utils::send::no_perm(ctx, msg.channel_id).await {
                             Ok(_) => CommandMatch::Matched,
                             Err(e) => return CommandMatch::Error(e.to_string())
                         }
