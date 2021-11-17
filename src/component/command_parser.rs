@@ -61,6 +61,8 @@ pub mod matching {
         pub permission: Option<&'a str>,
         /// Arguments variadiques
         pub arguments: Vec<&'a str>,
+        /// ID de la commande. Sous la forme "group1.group2.command"
+        pub id: Option<&'a str>,
     }
     impl<'a> Command<'a> {
         /// Retourne le nom de la commande. Exemple : `["group", "subgroup", "command"]` -> `command`
@@ -334,7 +336,8 @@ impl Command {
             path: {let mut v = VecDeque::new(); v.push_back(args[0]); v},
             permission,
             params,
-            arguments
+            arguments,
+            id: self.id.as_ref().map(|v| v.as_str())
         })
     }
 }
