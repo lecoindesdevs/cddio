@@ -1,4 +1,4 @@
-use serenity::model::interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandOptionType};
+use serenity::model::{id::GuildId, interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandOptionType}};
 
 
 pub struct ApplicationCommand<'a>(&'a ApplicationCommandInteraction);
@@ -19,6 +19,9 @@ impl<'a> ApplicationCommand<'a> {
             cmd = opt.options.first();
         }
         names.join(".")
+    }
+    pub fn get_guild_id(&self) -> Option<GuildId> {
+        self.0.guild_id
     }
     pub fn get_command(&'a self) -> &'a ApplicationCommandInteractionDataOption {
         let mut cmd = self.0.data.options.first();
