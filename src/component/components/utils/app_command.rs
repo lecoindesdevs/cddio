@@ -41,3 +41,41 @@ impl<'a> ApplicationCommand<'a> {
         command.options.iter().find(|opt| opt.name.as_str() == name)
     }
 }
+
+macro_rules! unwrap_argument {
+    ($app_command:expr, $name:expr, $typ:ident) => {
+        match $app_command.get_argument($name) {
+            Some(ref v) => {
+                match v.resolved {
+                    Some(ref v) => {
+                        match v {
+                            serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::$typ (v) => v,
+                            _ => return Err(format!("{}: Mauvais type d'argument. {} attendu", $name, stringify!($typ)))
+                        }
+                    },
+                    None => return Err("Erreur de syntaxe".to_string())
+                }
+            },
+            None => return Err(format!("{}: Paramètre requis manquant", $name))
+        };
+    };
+}
+macro_rules! unwrap_optional_argument {
+    ($app_command:expr, $name:expr, $typ:ident) => {
+        match $app_command.get_argument($name) {
+            Some(ref v) => {
+                match v.resolved {
+                    Some(ref v) => {
+                        match v {
+                            serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::$typ (v) => Some(v),
+                            _ => return Err(format!("{}: Mauvais type d'argument. {} attendu", $name, stringify!($typ)))
+                        }
+                    },
+                    None => return Err(format!("{}: Impossible à résoudre l'objet", $name))
+                }
+            },
+            None => None
+        };
+    };
+}
+pub(crate) use {unwrap_argument, unwrap_optional_argument};
