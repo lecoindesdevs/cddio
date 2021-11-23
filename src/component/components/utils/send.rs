@@ -8,7 +8,7 @@ pub async fn no_perm<Ch: Into<ChannelId>>(ctx: &cmp::Context, channel: Ch) -> se
 /// Envoie un message d'erreur dans le channel.
 pub async fn error<Ch: Into<ChannelId> ,S: ToString>(ctx: &cmp::Context, channel: Ch, error_message: S) -> serenity::Result<()> {
     match channel.into().send_message(ctx, |m| {
-        *m = message::error(error_message);
+        *m = message::error(error_message).into();
         m
     }).await {
         Ok(_) => Ok(()),
@@ -18,7 +18,17 @@ pub async fn error<Ch: Into<ChannelId> ,S: ToString>(ctx: &cmp::Context, channel
 /// Envoie un message d'erreur dans le channel.
 pub async fn success<Ch: Into<ChannelId> ,S: ToString>(ctx: &cmp::Context, channel: Ch, success_message: S) -> serenity::Result<()> {
     match channel.into().send_message(ctx, |m| {
-        *m = message::success(success_message);
+        *m = message::success(success_message).into();
+        m
+    }).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e),
+    }
+}
+/// Envoie un message personnalisé dans le channel.
+pub async fn custom<Ch: Into<ChannelId>>(ctx: &cmp::Context, channel: Ch, message: message::Message) -> serenity::Result<()> {
+    match channel.into().send_message(ctx, |m| {
+        *m = message.into();
         m
     }).await {
         Ok(_) => Ok(()),
