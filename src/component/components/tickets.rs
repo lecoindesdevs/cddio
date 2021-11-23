@@ -1,15 +1,13 @@
 use std::collections::HashMap;
 use std::io::Write;
-use std::ops::RangeBounds;
 use std::path::PathBuf;
 
 use futures::StreamExt;
 use futures_locks::RwLock;
 use serde::{Deserialize, Serialize};
-use serenity::builder::CreateMessage;
 use serenity::model::id::{ChannelId, GuildId};
 use serenity::model::interactions::Interaction;
-use serenity::model::interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption};
+use serenity::model::interactions::application_command::ApplicationCommandInteraction;
 use serenity::model::interactions::message_component::{ButtonStyle, MessageComponentInteraction};
 use serenity::prelude::Mentionable;
 use serenity::async_trait;
@@ -18,7 +16,7 @@ use serenity::model::channel::{Message, ReactionType};
 use serenity::model::event::Event;
 use crate::component::{self as cmp, FrameworkConfig, command_parser as cmd};
 use super::utils;
-
+use super::utils::message;
 use super::utils::Data;
 
 macro_rules! err_println {
@@ -82,7 +80,7 @@ impl Tickets {
         let mut group_match = cmd::Group::new("tickets")
         .set_help("Gestion des tickets")
         .set_permission("owners")
-        .add_group(cmd::Group::new("create_channel")
+        .add_group(cmd::Group::new("channel")
             .set_help("Salon de création de tickets")
             .add_command(cmd::Command::new("set")
                 .set_help("Change le salon")
@@ -150,19 +148,44 @@ impl Tickets {
             Ok(v) => v,
             Err(e) => return e
         };
-        let id = if let Some(id) = matched.id {
-            id.to_string()
-        } else {
-            [matched.get_groups().join("."), matched.get_command().to_string()].join(".")
+        let command_id = match matched.id {
+            Some(id) => id.to_string(),
+            None => [matched.get_groups().join("."), matched.get_command().to_string()].join("."),
+        };
+        let guild_id = match msg.guild_id {
+            Some(id) => id,
+            None => return cmp::CommandMatch::Error("Cette commande n'est pas disponible en message privé.".to_string())
         };
         
-        match id.as_str() {
-            "tickets.create_channel.set" => return self.set_channel(ctx, msg, &matched).await,
-            "tickets.categories.add" => todo!(),
-            "tickets.categories.remove" => todo!(),
-            "tickets.categories.list" => todo!(),
-            "tickets.list" => todo!(),
-            _ => unreachable!()
+        let c_msg = match command_id.as_str() {
+            "tickets.channel.set" => {
+                let id: u64 = match matched.get_parameter("id").unwrap().value.parse() {
+                    Ok(v) => v,
+                    Err(e) => return cmp::CommandMatch::Error(format!("id: paramètre mal formé: {}", e.to_string()))
+                };
+                self.set_channel(ctx, guild_id, id).await
+            },
+            "tickets.categories.add" => {
+                let id: u64 = match matched.get_parameter("id").unwrap().value.parse() {
+                    Ok(v) => v,
+                    Err(e) => return cmp::CommandMatch::Error(format!("id: paramètre mal formé: {}", e.to_string()))
+                };
+                let name = matched.get_parameter("name").unwrap().value.to_string();
+                let prefix = matched.get_parameter("prefix").unwrap().value.to_string();
+                let desc = matched.get_parameter("desc").and_then(|param| Some(param.value.to_string()));
+                self.category_add(ctx, guild_id, name, desc, id, prefix).await
+            },
+            "tickets.categories.remove" => {
+                let name = matched.get_parameter("name").unwrap().value.to_string();
+                self.category_remove(ctx, name).await
+            },
+            "tickets.categories.list" => self.categories_list(ctx, guild_id).await,
+            "tickets.list" => message::error("Non supporté"),
+            _ => return cmp::CommandMatch::NotMatched
+        };
+        match utils::send::custom(ctx, msg.channel_id, c_msg).await {
+            Ok(_) => cmp::CommandMatch::Matched,
+            Err(e) => cmp::CommandMatch::Error(format!("Erreur lors de l'envoi du message de réponse: {}", e.to_string()))
         }
     }
     async fn r_event(&self, ctx: &Context, evt: &Event) -> Result<(), String> {
@@ -170,7 +193,10 @@ impl Tickets {
 
         match evt {
             Ready(_) => self.on_ready(ctx).await,
-            InteractionCreate(evt) => self.on_interaction(ctx, &evt.interaction).await,
+            InteractionCreate(evt) => self.on_interaction(ctx, &evt.interaction).await.or_else(|e| {
+                eprintln!("Erreur lors de la création d'une interaction: {}", e);
+                Err(e)
+            }),
             _ => Ok(())
         } 
     }
@@ -185,29 +211,42 @@ impl Tickets {
     async fn on_app_command(&self, ctx: &Context, app_command: &ApplicationCommandInteraction) -> Result<(), String> {
         use utils::app_command::{unwrap_argument, unwrap_optional_argument};
         let app_cmd = utils::app_command::ApplicationCommand::new(app_command);
-        let name = app_cmd.fullname();
-        let guild_id = match app_cmd.guild_id();
-        let command = app_cmd.get_command();
-        println!("app_cmd_name: {}", name);
-        match name.as_str() {
-            "tickets.list" => todo!(),
+        let command_id = app_cmd.fullname();
+        let guild_id = match app_cmd.get_guild_id() {
+            Some(v) => v,
+            None => return Err("Vous devez être dans un serveur pour utiliser cette commande.".into())
+        };
+        let c_msg = match command_id.as_str() {
+            "tickets.channel.set" => {
+                let channel = unwrap_argument!(&app_cmd, "id", Channel);
+                self.set_channel(ctx, guild_id, channel.id.0).await
+            },
+            "tickets.list" => message::error("Non supporté"),
             "tickets.categories.add" => {
-                let name = unwrap_argument!(&app_cmd, "name", String);
-                let id = unwrap_argument!(&app_cmd, "id", Channel);
-                let prefix = unwrap_argument!(&app_cmd, "prefix", String);
-                let desc = unwrap_optional_argument!(&app_cmd, "desc", String);
-
-                let c_msg = self.category_add(ctx, &name, &id, &prefix, &desc).await;
+                let name = unwrap_argument!(&app_cmd, "name", String).into();
+                let channel = unwrap_argument!(&app_cmd, "id", Channel);
+                let prefix = unwrap_argument!(&app_cmd, "prefix", String).into();
+                let desc = unwrap_optional_argument!(&app_cmd, "desc", String).cloned();
+                
+                self.category_add(ctx, guild_id, name, desc, channel.id.0, prefix).await
                 
                 // /tickets categories add name: nom catégorie id: #📁 - Tickets prefix: cat_test desc: Description de la catégorie
                 // command.options.iter().find(|v| v.name == "name").unwrap().value.unwrap().as_str();
             }
-            "tickets.categories.remove" => todo!(),
-            "tickets.categories.list" => todo!(),
-            "tickets.list" => todo!(),
-            _ => ()
-        }
-        Ok(())
+            "tickets.categories.remove" => {
+                let name = unwrap_argument!(&app_cmd, "name", String).into();
+                self.category_remove(ctx, name).await
+            },
+            "tickets.categories.list" => self.categories_list(ctx, guild_id).await,
+            _ => unreachable!()
+        };
+        app_command.create_interaction_response(ctx, |resp|{
+            *resp = c_msg.into();
+            resp
+        }).await.or_else(|e| {
+            eprintln!("Cannot create response: {}", e);
+            Err(e.to_string())
+        })
     }
     async fn on_msg_component(&self, ctx: &Context, msg_component: &MessageComponentInteraction) -> Result<(), String> {
         let res = match msg_component.data.custom_id.as_str() {
@@ -308,7 +347,6 @@ impl Tickets {
         Ok(())
     }
     async fn on_ticket_close(&self, ctx: &Context, msg_cmp: &MessageComponentInteraction) -> serenity::Result<()> {
-        use serenity::model::prelude::*;
         match Self::archive_channel(ctx, msg_cmp.channel_id).await {
             Ok(_) => msg_cmp.channel_id.delete(ctx).await.and(Ok(()))?,
             Err(e) => eprintln!("Error archiving channel: {}", e)
@@ -384,7 +422,7 @@ impl Tickets {
         act.add_button(button);
         cmps.add_action_row(act);
     }
-    async fn delete_old_creation_message(&self, ctx: &Context, _msg: &Message) -> serenity::Result<()> {
+    async fn delete_old_creation_message(&self, ctx: &Context) -> serenity::Result<()> {
         let old_msg = self.data.read().await.read().msg_react;
         if let Some((channel_id, msg_id)) = old_msg {
             ctx.http.delete_message(channel_id, msg_id).await
@@ -392,22 +430,10 @@ impl Tickets {
             Ok(())
         }
     }
-    async fn set_channel(&self, ctx: &Context, msg: &Message, matched: &cmd::matching::Command<'_>) -> cmp::CommandMatch {
-        if let Err(e) =  self.delete_old_creation_message(ctx, msg).await {
+    async fn set_channel(&self, ctx: &Context, guild_id: GuildId, id: u64) -> message::Message {
+        if let Err(e) =  self.delete_old_creation_message(ctx).await {
             eprintln!("tickets: unable to delete previous message.\n{:?}", e)
         }
-        let id: u64 = match matched.get_parameter("id").unwrap().value.parse() {
-            Ok(v) => v,
-            Err(e) => return cmp::CommandMatch::Error(format!("{:?}", e))
-        };
-        
-        let guild_id = match msg.guild_id {
-            Some(guild_id) => guild_id,
-            None => {
-                err_println!(send_error(ctx, msg, "Vous devez être dans un serveur pour utiliser cette commande."));
-                return cmp::CommandMatch::Matched;
-            },
-        };
         let channel = guild_id.channels(ctx).await.unwrap().into_iter().find(|channel| channel.0.0 == id);
         if let Some((channel, _)) = channel {
             let msg_tickets= channel.send_message(ctx, |msg| 
@@ -424,18 +450,14 @@ impl Tickets {
                         let mut data = data.write();
                         data.msg_react = Some((channel.0, msg_sent.id.0));
                     }
-                    match self.update_select_menu(ctx).await {
-                        Ok(_) => (),
-                        Err(e) => eprintln!("tickets: unable to update message.\n{:?}", e)
-                    };
-                    err_println!(send_success(ctx, msg, format!("Le message de création de ticket a été mis à jour dans le salon {}.", channel_name)));
+                    err_println!(self.update_select_menu(ctx).await, "tickets: unable to update message after adding a category.\n{:?}");
+                    message::success(format!("Le message de création de ticket a été mis à jour dans le salon {}.", channel_name))
                 },
-                Err(e) => err_println!(send_error(ctx, msg, format!("{}", e.to_string())))
+                Err(e) => message::error(format!("{}", e.to_string()))
             }
         } else {
-            err_println!(send_error(ctx, msg, "Le salon n'existe pas."));
+            message::error("Le salon n'existe pas.")
         }
-        cmp::CommandMatch::Matched
     }
     fn create_select_menu(&self, cmps: &mut serenity::builder::CreateComponents, categories: &Vec<CategoryTicket>) {
         use serenity::builder::*;
@@ -495,54 +517,28 @@ impl Tickets {
     }
     async fn categories(&self, ctx: &Context, msg: &Message, matched: &cmd::matching::Command<'_>) -> cmp::CommandMatch {
         match matched.get_command() {
-            "add" => {
-                let id: u64 = match matched.get_parameter("id").unwrap().value.parse() {
-                    Ok(v) => v,
-                    Err(e) => return cmp::CommandMatch::Error(format!("id: paramètre mal formé: {}", e.to_string()))
-                };
-                let name = matched.get_parameter("name").unwrap().value.to_string();
-                let prefix = matched.get_parameter("prefix").unwrap().value.to_string();
-                let desc = match matched.get_parameter("desc") {
-                    Some(desc) => Some(desc.value.to_string()),
-                    None => None
-                };
-                if let Err(e) = self.category_add(ctx, msg, name, desc, id, prefix).await {
-                    return cmp::CommandMatch::Error(format!("add_category: {:?}", e));
-                }
-            },
-            "remove" => {
-                let name = matched.get_parameter("name").unwrap().value.to_string();
-                if let Err(e) = self.category_remove(ctx, msg, name).await {
-                    return cmp::CommandMatch::Error(format!("add_category: {:?}", e));
-                }
-            },
-            "list" => {
-                if let Err(e) = self.categories_list(ctx, msg).await {
-                    return cmp::CommandMatch::Error(format!("list_category: {:?}", e));
-                }
-            },
+            
             _ => unreachable!()
-        };
-        cmp::CommandMatch::Matched
-    }
-    async fn category_add(&self, ctx: &Context, guild_id: GuildId, name: String, desc: Option<String>, id: u64, prefix: String) -> CreateMessage<'static> {
-        if let Some(_) = self.data.read().await.read().categories.iter().find(|v| v.name == name) {
-            return utils::message::error(format!("La catégorie de ticket {} existe déjà.", name));
         }
-        let (_, guild_channel) = match guild_id.channels(ctx).await.unwrap().into_iter().find(|channel| channel.0.0 == id) {
+    }
+    async fn category_add(&self, ctx: &Context, guild_id: GuildId, name: String, desc: Option<String>, channel_id: u64, prefix: String) -> message::Message {
+        if let Some(_) = self.data.read().await.read().categories.iter().find(|v| v.name == name) {
+            return message::error(format!("La catégorie de ticket {} existe déjà.", name));
+        }
+        let (_, guild_channel) = match guild_id.channels(ctx).await.unwrap().into_iter().find(|channel| channel.0.0 == channel_id) {
             Some(v) => v,
-            None => return utils::message::error("Le salon n'existe pas.")
+            None => return message::error("Le salon n'existe pas.")
         };
         match guild_channel.kind {
             serenity::model::channel::ChannelType::Category => (),
-            _ => return utils::message::error(format!("L'id ne pointe pas sur une catégorie mais sur {} de type {:?}.", guild_channel.mention().to_string(), guild_channel.kind))
+            _ => return message::error(format!("L'id ne pointe pas sur une catégorie mais sur {} de type {:?}.", guild_channel.mention().to_string(), guild_channel.kind))
         }
         {
             let mut data = self.data.write().await;
             let mut data = data.write();
             data.categories.push(CategoryTicket{
-                name: name.clone(),
-                id,
+                name,
+                id: channel_id,
                 tickets: Vec::new(),
                 desc,
                 prefix,
@@ -550,27 +546,25 @@ impl Tickets {
             });
         }
         err_println!(self.update_select_menu(ctx).await, "tickets: unable to update message after adding a category.\n{:?}");
-        utils::message::success(format!("La catégorie {} a été ajoutée.", name))
+        let data = self.data.read().await;
+        let category = data.read().categories.last().unwrap();
+        message::success(format!("La catégorie {} a été ajoutée.", category.name))
     }
-    async fn category_remove(&self, ctx: &Context, msg: &Message, name: String) -> serenity::Result<()> {
+    async fn category_remove(&self, ctx: &Context, name: String) -> message::Message {
         let i = match self.data.read().await.read().categories.iter().position(|v| v.name == name) {
             Some(i) => i,
-            None => return utils::send::error(ctx, msg.channel_id, format!("La catégorie {} n'existe pas.", name)).await
+            None => return message::error(format!("La catégorie {} n'existe pas.", name))
         };
         self.data.write().await.write().categories.swap_remove(i);
         err_println!(self.update_select_menu(ctx).await, "tickets: unable to update message after deleting a category.\n{:?}");
-        utils::send::success_message(ctx, msg, format!("La catégorie {} a été supprimée.", name)).await
+        message::success(format!("La catégorie {} a été supprimée.", name))
     }
-    async fn categories_list(&self, ctx: &Context, msg: &Message) -> Result<CreateMessage> {
-        let guild_id = match msg.guild_id {
-            Some(guild_id) => guild_id,
-            None => return utils::send::error(ctx, msg.channel_id, "Vous devez être dans un serveur pour utiliser cette commande.").await
-        };
+    async fn categories_list(&self, ctx: &Context, guild_id: GuildId) -> message::Message {
         let data = self.data.read().await;
         let data = data.read();
         let categories = &data.categories;
         if categories.is_empty() {
-            return utils::send::error(ctx, msg.channel_id, "Aucune catégorie de ticket n'a été créée.").await;
+            return message::error("Aucune catégorie de ticket n'a été créée.")
         }
         let mut cat = Vec::new();
         let channels = match guild_id.channels(ctx).await {
@@ -591,13 +585,16 @@ impl Tickets {
                 None => cat.push(format!("{} (id: {})", category.name, category.id)),
             }
         }
-        let m = CreateMessage::default();
-        m.embed(|embed| {
+        let mut msg = message::Message::default();
+        msg.embed = Some({
+            use serenity::builder::CreateEmbed;
+            let mut embed = CreateEmbed::default();
             embed
                 .title("Liste des catégories")
                 .description( cat.join("\n") )
-                .color(0x1ed760)
-        };
-        Ok(m)
+                .color(0x1ed760);
+            embed
+        });
+        msg
     }
 }
