@@ -238,7 +238,7 @@ impl Tickets {
                 self.category_remove(ctx, name).await
             },
             "tickets.categories.list" => self.categories_list(ctx, guild_id).await,
-            _ => unreachable!()
+            _ => return Ok(())
         };
         app_command.create_interaction_response(ctx, |resp|{
             *resp = c_msg.into();
