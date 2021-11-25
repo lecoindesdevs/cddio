@@ -38,7 +38,7 @@
 
 
 #![allow(dead_code)]
-use std::{collections::{VecDeque, hash_map::DefaultHasher}, hash::{Hash, Hasher}};
+use std::{collections::{VecDeque, hash_map::DefaultHasher}, hash::{Hash, Hasher}, sync::Arc};
 use serenity::model::interactions::application_command::ApplicationCommandOptionType;
 
 /// Structures de retour d'une commande qui a match avec le parseur
@@ -152,7 +152,9 @@ pub struct Argument {
     /// Type de valeur
     pub value_type: ApplicationCommandOptionType,
     /// L'argument requis si vrai
-    pub required: bool
+    pub required: bool,
+    /// Autocompletion
+    pub autocomplete: Option<Arc<Vec<String>>>,
 }
 impl Named for Argument {
     fn name(&self) -> &str {
@@ -165,12 +167,17 @@ impl Argument {
             name: name.into(),
             help: None,
             value_type: ApplicationCommandOptionType::String,
-            required: false
+            required: false,
+            autocomplete: None,
         }
     }
     
     pub fn set_help<S: Into<String>>(mut self, h: S) -> Argument {
         self.help = Some(h.into());
+        self
+    }
+    pub fn set_autocomplete(mut self, a: Arc<Vec<String>>) -> Argument {
+        self.autocomplete = Some(a);
         self
     }
     pub fn help(&self) -> Option<&str> {
