@@ -80,7 +80,7 @@ macro_rules! unwrap_optional_argument {
 }
 macro_rules! get_argument {
     ($app_command:expr, $name:expr, $typ:ident) => {
-        match $app_command.data.options.iter().find(|opt| opt.name == $name) {
+        match $app_command.get_argument($name) {
             Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
                 resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::$typ(s)),
                 ..
