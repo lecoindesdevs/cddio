@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use futures_locks::RwLock;
-use serenity::{async_trait, builder::CreateApplicationCommands, client::Context, http::CacheHttp, model::{event::InteractionCreateEvent, id::GuildId, interactions::application_command::{ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandInteractionDataOptionValue, ApplicationCommandPermissionType}}};
+use serenity::{async_trait, builder::CreateApplicationCommands, client::Context, http::CacheHttp, model::{event::InteractionCreateEvent, id::GuildId, interactions::application_command::{ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandInteractionDataOptionValue, ApplicationCommandOption, ApplicationCommandPermissionType}}};
 use crate::component::{self as cmp, command_parser::{self as cmd, Named}, components::utils::{self, app_command::{get_argument, unwrap_argument}}, manager::{ArcManager}};
 
 use crate::component::slash;
@@ -125,30 +125,32 @@ impl SlashInit {
             return Ok(());
         }
         let commands = self.commands.read().await;
-        let list_commands = commands.iter().find(|(g, _)| *g == guild_id);
-        let list_commands = match list_commands {
+        let (_, commands) = match commands.iter().find(|(g, _)| *g == guild_id) {
             Some(list_commands) => list_commands,
             None => return Ok(())
         };
-        let opt_command = match get_argument!(app_cmd, "command", String) {
+        let opt_command = match get_argument!(app_command, "command", String) {
             Some(opt_command) => opt_command,
             None => return Ok(())
         };
-        let opt_type = match get_argument!(app_cmd, "type", String).and_then(|s| Some(s.as_str())) {
-            Some("allow") => true,
-            Some("deny") => false,
-            _ => return Ok(())
-        };
-        let command = match list_commands.1.iter().find(|c| &c.name == opt_command) {
-            Some(command) => command,
+        println!("{:?}", opt_command);
+        let command_id = match commands.iter().find(|c| &c.name == opt_command) {
+            Some(command) => command.id,
             None => return Ok(())
         };
+        let opt_type = get_argument!(app_command, "type", String);
+        let opt_type = match opt_type {
+            Some(s) if s == "allow" => true,
+            Some(s) if s == "deny" => false,
+            _ => return Ok(())
+        };
+        println!("{:?}", opt_type);
         
         let opt_who = {
-            let who = app_cmd.data.options.iter().find(|opt| opt.name == "id");
+            let who = app_command.get_argument("id");
             match who {
                 Some(ApplicationCommandInteractionDataOption{
-                    resolved: Some(ApplicationCommandInteractionDataOptionValue::User(user, member)),
+                    resolved: Some(ApplicationCommandInteractionDataOptionValue::User(user, _)),
                     ..
                 }) => (user.id.0, ApplicationCommandPermissionType::User),
                 Some(ApplicationCommandInteractionDataOption{
@@ -158,11 +160,12 @@ impl SlashInit {
                 _ => return Ok(())
             }
         };
-        let old_perms = match list_commands.0.get_application_command_permissions(ctx, command.id).await {
+        println!("{:?}", opt_who);
+        let old_perms = match guild_id.get_application_command_permissions(ctx, command_id).await {
             Ok(v) => v.permissions,
             Err(_) => Vec::new()
         };
-        list_commands.0.create_application_command_permission(ctx, command.id, |perm| {
+        match guild_id.create_application_command_permission(ctx, command_id, |perm| {
             old_perms.iter().for_each(|p| {
                 perm.create_permission(|new_perm| new_perm
                     .id(p.id.0)
@@ -177,7 +180,16 @@ impl SlashInit {
             );
             println!("{:?}", perm);
             perm
-        }).await;
+        }).await {
+            Ok(_) => {
+                let name = guild_id.name(ctx).await.unwrap_or(guild_id.to_string());
+                println!("Permission for command {} setted on guild {}.", command_name, name);
+            },
+            Err(why) => {
+                let name = guild_id.name(ctx).await.unwrap_or(guild_id.to_string());
+                eprintln!("Could not set permission for command {} on guild {}: {:?}", command_name, name, why);
+            }
+        }
 
         Ok(())
     }
