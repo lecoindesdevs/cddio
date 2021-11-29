@@ -1,6 +1,6 @@
 //! Core de l'application. 
 //! L'initialisation du bot et la gestion des composants se fait dans ce module.
-use serenity::{Client, client::bridge::gateway::GatewayIntents};
+use serenity::{Client, client::bridge::gateway::GatewayIntents, model::id::{ApplicationId, UserId}};
 use crate::{component::{self as cmp, manager::{Manager, ArcManager}}, config::Config, util::ArcRw};
 use cmp::Component;
 type Result<T> = serenity::Result<T>;
@@ -24,6 +24,12 @@ impl Bot {
     /// Crée un nouveau bot et l'initialise.
     pub async fn new(config: &Config) -> Result<Bot> {
         let manager = ArcRw::new(Manager::new());
+        let owners_id = config.owners
+            .iter()
+            .map(|id| id.parse::<u64>().unwrap())
+            .map(|id| UserId(id))
+            .collect::<Vec<_>>();
+        let app_id = ApplicationId(config.app_id);
         {
             use cmp::components::*;
             let mut manager_instance = manager.write().await;
@@ -31,7 +37,7 @@ impl Bot {
             manager_instance.add_component(Misc::new().to_arc());
             manager_instance.add_component(Tickets::new().to_arc());
             manager_instance.add_component(Help::new(manager.clone()).to_arc());
-            manager_instance.add_component(SlashInit::new(manager.clone()).to_arc());
+            manager_instance.add_component(SlashInit::new(manager.clone(), owners_id, app_id).to_arc());
         };
         
         let framework = cmp::Framework::new(config.prefix, manager.clone());
