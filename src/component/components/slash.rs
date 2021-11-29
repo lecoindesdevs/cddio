@@ -1,14 +1,17 @@
 use std::sync::Arc;
 
 use futures_locks::RwLock;
-use serenity::{async_trait, builder::CreateApplicationCommands, client::Context, http::CacheHttp, model::{event::InteractionCreateEvent, id::GuildId, interactions::application_command::{ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandInteractionDataOptionValue, ApplicationCommandOption, ApplicationCommandPermissionType}}};
-use crate::component::{self as cmp, command_parser::{self as cmd, Named}, components::utils::{self, app_command::{get_argument, unwrap_argument}}, manager::{ArcManager}};
-
+use serenity::{async_trait, builder::CreateApplicationCommands, client::Context, http::CacheHttp, model::{event::InteractionCreateEvent, id::{ApplicationId, GuildId, UserId}, interactions::application_command::{ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandInteractionDataOptionValue, ApplicationCommandOption, ApplicationCommandPermissionType}}};
+use crate::component::{self as cmp, command_parser::{self as cmd, Named}, components::utils::{self, app_command::{ApplicationCommandEmbed, get_argument, unwrap_argument}}, manager::{ArcManager}};
+use super::utils::message;
 use crate::component::slash;
+
 pub struct SlashInit {
     manager: ArcManager,
+    owners: Vec<UserId>,
     group_match: cmd::Group,
-    commands: RwLock<Vec<(GuildId, Vec<ApplicationCommand>)>>
+    commands: RwLock<Vec<(GuildId, Vec<ApplicationCommand>)>>,
+    app_id: ApplicationId,
 }
 #[async_trait]
 impl cmp::Component for SlashInit {
@@ -29,12 +32,12 @@ impl cmp::Component for SlashInit {
 }
 
 impl SlashInit {
-    pub fn new(manager: ArcManager) -> Self {
+    pub fn new(manager: ArcManager, owners: Vec<UserId>, app_id: ApplicationId) -> Self {
         use serenity::model::interactions::application_command::ApplicationCommandOptionType;
         let autocomplete_commands = Arc::new(Vec::new());
         let command = cmd::Command::new("")
             .set_help("Change le salon")
-            .add_param(cmd::Argument::new("id")
+            .add_param(cmd::Argument::new("who")
                 .set_value_type(ApplicationCommandOptionType::Mentionable)
                 .set_required(true)
                 .set_help("Qui est affecté")
@@ -70,12 +73,16 @@ impl SlashInit {
                     cmd.name = "add".into();
                     cmd
                 })
+                .add_command(cmd::Command::new("list")
+                    .set_help("Liste les permissions des commandes sur le serveur."))
             );
         group_match.generate_ids(None);
         SlashInit {
             commands: RwLock::new(Vec::new()),
             group_match,
-            manager
+            manager,
+            owners,
+            app_id
         }
     }
     async fn r_event(&self, ctx: &cmp::Context, evt: &cmp::Event) -> Result<(), String> {
@@ -115,52 +122,68 @@ impl SlashInit {
         Ok(())
     }
     async fn on_applications_command(&self, ctx: &Context, app_cmd: &ApplicationCommandInteraction) -> Result<(), String> {
-        let app_command = utils::app_command::ApplicationCommand::new(app_cmd);
-        let command_name = app_command.fullname();
+        if app_cmd.application_id != self.app_id {
+            // La commande n'est pas destiné à ce bot
+            return Ok(());
+        }
+        let app_command = ApplicationCommandEmbed::new(app_cmd);
         let guild_id = match app_command.get_guild_id() {
             Some(v) => v,
             None => return Err("Vous devez être dans un serveur pour utiliser cette commande.".into())
         };
-        if !command_name.starts_with("slash.permissions") {
-            return Ok(());
-        }
-        let commands = self.commands.read().await;
-        let (_, commands) = match commands.iter().find(|(g, _)| *g == guild_id) {
-            Some(list_commands) => list_commands,
-            None => return Ok(())
-        };
-        let opt_command = match get_argument!(app_command, "command", String) {
-            Some(opt_command) => opt_command,
-            None => return Ok(())
-        };
-        println!("{:?}", opt_command);
-        let command_id = match commands.iter().find(|c| &c.name == opt_command) {
-            Some(command) => command.id,
-            None => return Ok(())
-        };
-        let opt_type = get_argument!(app_command, "type", String);
-        let opt_type = match opt_type {
-            Some(s) if s == "allow" => true,
-            Some(s) if s == "deny" => false,
+        let command_name = app_command.fullname();
+        let msg = match command_name.as_str() {
+            "slash.permissions.add" => self.slash_perms_add(ctx, guild_id, app_command).await,
+            "slash.permissions.list" => self.slash_perms_list(ctx, guild_id).await,
             _ => return Ok(())
         };
-        println!("{:?}", opt_type);
-        
-        let opt_who = {
-            let who = app_command.get_argument("id");
-            match who {
-                Some(ApplicationCommandInteractionDataOption{
-                    resolved: Some(ApplicationCommandInteractionDataOptionValue::User(user, _)),
-                    ..
-                }) => (user.id.0, ApplicationCommandPermissionType::User),
-                Some(ApplicationCommandInteractionDataOption{
-                    resolved: Some(ApplicationCommandInteractionDataOptionValue::Role(role)),
-                    ..
-                }) => (role.id.0, ApplicationCommandPermissionType::Role),
-                _ => return Ok(())
+        app_cmd.create_interaction_response(ctx, |resp|{
+            *resp = msg.into();
+            resp
+        }).await.or_else(|e| {
+            eprintln!("Cannot create response: {}", e);
+            Err(e.to_string())
+        })
+    }
+    async fn slash_perms_add<'a>(&self, ctx: &Context, guild_id: GuildId, app_cmd: ApplicationCommandEmbed<'a>) -> message::Message {
+        let user_id = app_cmd.0.member.as_ref().unwrap().user.id;
+        if !self.owners.contains(&user_id) {
+            return message::error("Cette commande est reservée aux owners");
+        }
+
+        let opt_command = match get_argument!(app_cmd, "command", String) {
+            Some(opt_command) => opt_command,
+            None => return message::error("L'identifiant de la commande est requis.")
+        };
+        let opt_type = match get_argument!(app_cmd, "type", String).and_then(|v| Some(v.as_str())) {
+            Some("allow") => true,
+            Some("deny") => false,
+            Some(s) => return message::error(format!("Type: mot clé `{}` non reconnu. `allow` ou `deny` attendus.", s)),
+            None => return message::error("Le type de permission est requis."), 
+        };
+        let opt_who = match app_cmd.get_argument("who") {
+            Some(ApplicationCommandInteractionDataOption{
+                resolved: Some(ApplicationCommandInteractionDataOptionValue::User(user, _)),
+                ..
+            }) => (user.id.0, ApplicationCommandPermissionType::User),
+            Some(ApplicationCommandInteractionDataOption{
+                resolved: Some(ApplicationCommandInteractionDataOptionValue::Role(role)),
+                ..
+            }) => (role.id.0, ApplicationCommandPermissionType::Role),
+            None => return message::error("L'identifiant de l'utilisateur ou du rôle est requis."),
+            _ => return message::error("L'identifiant de l'utilisateur ou du rôle n'est pas reconnu."),
+        };
+        let command_id = {
+            let commands = self.commands.read().await;
+            let (_, commands) = match commands.iter().find(|(g, _)| *g == guild_id) {
+                Some(list_commands) => list_commands,
+                None => return message::error("Le serveur n'est pas reconnu.")
+            };
+            match commands.iter().find(|c| &c.name == opt_command) {
+                Some(command) => command.id,
+                None => return message::error("Commande non trouvé.")
             }
         };
-        println!("{:?}", opt_who);
         let old_perms = match guild_id.get_application_command_permissions(ctx, command_id).await {
             Ok(v) => v.permissions,
             Err(_) => Vec::new()
@@ -181,16 +204,47 @@ impl SlashInit {
             println!("{:?}", perm);
             perm
         }).await {
-            Ok(_) => {
-                let name = guild_id.name(ctx).await.unwrap_or(guild_id.to_string());
-                println!("Permission for command {} setted on guild {}.", command_name, name);
-            },
-            Err(why) => {
-                let name = guild_id.name(ctx).await.unwrap_or(guild_id.to_string());
-                eprintln!("Could not set permission for command {} on guild {}: {:?}", command_name, name, why);
-            }
+            Ok(_) => message::success(format!("La permission de la commande `{}` est prise en compte.", opt_command)),
+            Err(why) => message::error(format!("La permission pour la commande {} n'a pas pu être assigné: {:?}", opt_command, why))
         }
+    }
+    async fn slash_perms_list<'a>(&self, ctx: &Context, guild_id: GuildId) -> message::Message {
+        let commands = match guild_id.get_application_commands(ctx).await {
+            Ok(v) => v,
+            Err(_) => Vec::new()
+        }.into_iter().filter(|c| c.application_id == self.app_id).collect::<Vec<_>>();
+        let perms = match guild_id.get_application_commands_permissions(ctx).await {
+            Ok(v) => v,
+            Err(_) => Vec::new()
+        }.into_iter().filter(|c| c.application_id == self.app_id).collect::<Vec<_>>();
 
-        Ok(())
+        let perms = perms
+            .into_iter()
+            .filter_map(|v| {
+                match commands.iter().find(|c| c.id == v.id) {
+                    Some(command) => Some((command.name.clone(), v.permissions)),
+                    None => None
+                }
+            })
+            .map(|info_perms| {
+                let list_perm = info_perms.1
+                    .into_iter()
+                    .map(|perm| {
+                        let user = match perm.kind {
+                            ApplicationCommandPermissionType::User => format!("<@{}>", perm.id),
+                            ApplicationCommandPermissionType::Role => format!("<@&{}>", perm.id),
+                            _ => "*unknown*".to_string(),
+                        };
+                        let permission = match perm.permission {
+                            true => "est autorisé",
+                            false => "est refusé",
+                        };
+                        format!("{} {}.\n", user, permission)
+                    })
+                    .collect::<String>();
+                format!("*Commande __{}__*\n\n{}", info_perms.0, list_perm)
+            })
+            .collect::<String>();
+        message::success(perms)
     }
 }
