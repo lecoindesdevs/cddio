@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use futures_locks::RwLock;
-use serenity::{async_trait, builder::CreateApplicationCommands, client::Context, http::CacheHttp, model::{event::InteractionCreateEvent, id::{ApplicationId, GuildId, UserId}, interactions::application_command::{ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandInteractionDataOptionValue, ApplicationCommandOption, ApplicationCommandPermissionType}}};
+use serenity::{async_trait, builder::CreateApplicationCommands, client::Context, http::CacheHttp, model::{event::InteractionCreateEvent, id::{ApplicationId, GuildId, UserId}, interactions::application_command::{ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandInteractionDataOptionValue, ApplicationCommandOption, ApplicationCommandPermissionData, ApplicationCommandPermissionType}}};
 use crate::component::{self as cmp, command_parser::{self as cmd, Named}, components::utils::{self, app_command::{ApplicationCommandEmbed, get_argument, unwrap_argument}}, manager::{ArcManager}};
 use super::utils::message;
 use crate::component::slash;
@@ -184,28 +184,39 @@ impl SlashInit {
                 None => return message::error("Commande non trouvé.")
             }
         };
-        let old_perms = match guild_id.get_application_command_permissions(ctx, command_id).await {
+        let mut old_perms = match guild_id.get_application_command_permissions(ctx, command_id).await {
             Ok(v) => v.permissions,
             Err(_) => Vec::new()
+        }.into_iter().map(|v| (v.id.0, v.kind, v.permission)).collect::<Vec<_>>();
+        let updated = match old_perms.iter_mut().find(|v| v.0 == opt_who.0 && v.1 == opt_who.1) {
+            Some(v) => {
+                if v.2 == opt_type {
+                    return message::success("La permission est déjà attribué tel quel.");
+                }
+                v.2 = opt_type;
+                true
+                
+            },
+            None => {
+                old_perms.push((opt_who.0, opt_who.1, opt_type));
+                false
+            },
         };
-        match guild_id.create_application_command_permission(ctx, command_id, |perm| {
+        
+        let result = guild_id.create_application_command_permission(ctx, command_id, |perm| {
             old_perms.iter().for_each(|p| {
                 perm.create_permission(|new_perm| new_perm
-                    .id(p.id.0)
-                    .kind(p.kind)
-                    .permission(p.permission)
+                    .id(p.0)
+                    .kind(p.1)
+                    .permission(p.2)
                 );
             });
-            perm.create_permission(|new_perm| new_perm
-                .id(opt_who.0)
-                .kind(opt_who.1)
-                .permission(opt_type)
-            );
-            println!("{:?}", perm);
             perm
-        }).await {
-            Ok(_) => message::success(format!("La permission de la commande `{}` est prise en compte.", opt_command)),
-            Err(why) => message::error(format!("La permission pour la commande {} n'a pas pu être assigné: {:?}", opt_command, why))
+        }).await;
+        match (updated, result) {
+            (true, Ok(_)) => message::success(format!("La permission de la commande `{}` a été mise a jour.", opt_command)),
+            (false, Ok(_)) => message::success(format!("La permission de la commande `{}` a été ajoutée.", opt_command)),
+            (_, Err(why)) => message::error(format!("La permission pour la commande {} n'a pas pu être assigné: {:?}", opt_command, why))
         }
     }
     async fn slash_perms_list<'a>(&self, ctx: &Context, guild_id: GuildId) -> message::Message {
