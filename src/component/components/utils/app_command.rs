@@ -1,11 +1,11 @@
 use serenity::model::{id::GuildId, interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandOptionType}};
 
 
-pub struct ApplicationCommand<'a>(&'a ApplicationCommandInteraction);
+pub struct ApplicationCommandEmbed<'a>(pub &'a ApplicationCommandInteraction);
 
-impl<'a> ApplicationCommand<'a> {
+impl<'a> ApplicationCommandEmbed<'a> {
     pub fn new(interaction: &'a ApplicationCommandInteraction) -> Self {
-        ApplicationCommand(interaction)
+        ApplicationCommandEmbed(interaction)
     }
     pub fn fullname(&self) -> String {
         let mut names = vec![self.0.data.name.as_str()];

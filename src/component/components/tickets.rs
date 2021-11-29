@@ -210,7 +210,7 @@ impl Tickets {
     
     async fn on_app_command(&self, ctx: &Context, app_command: &ApplicationCommandInteraction) -> Result<(), String> {
         use utils::app_command::{unwrap_argument, unwrap_optional_argument};
-        let app_cmd = utils::app_command::ApplicationCommand::new(app_command);
+        let app_cmd = utils::app_command::ApplicationCommandEmbed::new(app_command);
         let command_id = app_cmd.fullname();
         let guild_id = match app_cmd.get_guild_id() {
             Some(v) => v,
