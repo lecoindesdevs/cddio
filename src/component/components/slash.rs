@@ -306,6 +306,14 @@ impl SlashInit {
             Err(why) => message::error(format!("une erreurs'est produite lors de la suppression de la permission: {:?}", why))
         }
     }
+    async fn slash_perms_reset<'a>(&self, ctx: &Context, guild_id: GuildId, app_cmd: ApplicationCommandEmbed<'a>) -> message::Message {
+        let user_id = app_cmd.0.member.as_ref().unwrap().user.id;
+        if !self.owners.contains(&user_id) {
+            return message::error("Cette commande est reservée aux owners");
+        }
+        slash_argument!(app_cmd, command: (self, guild_id, opt_command, command_id));
+        
+    }
     async fn slash_perms_list<'a>(&self, ctx: &Context, guild_id: GuildId) -> message::Message {
         let commands = match guild_id.get_application_commands(ctx).await {
             Ok(v) => v,
