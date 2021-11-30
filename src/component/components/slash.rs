@@ -83,44 +83,43 @@ impl SlashInit {
     pub fn new(manager: ArcManager, owners: Vec<UserId>, app_id: ApplicationId) -> Self {
         use serenity::model::interactions::application_command::ApplicationCommandOptionType;
         let autocomplete_commands = Arc::new(Vec::new());
-        let command = cmd::Command::new("")
-            .set_help("Change le salon")
-            .add_param(cmd::Argument::new("who")
-                .set_value_type(ApplicationCommandOptionType::Mentionable)
-                .set_required(true)
-                .set_help("Qui est affecté")
-            )
-            .add_param(cmd::Argument::new("command")
-                .set_value_type(ApplicationCommandOptionType::String)
-                .set_required(true)
-                .set_help("Quel commande est affecté")
-                .set_autocomplete(autocomplete_commands.clone())
-            )
-            .add_param(cmd::Argument::new("type")
-                .set_value_type(ApplicationCommandOptionType::String)
-                .set_required(true)
-                .set_help("Type d'autorisation")
-                .set_autocomplete(Arc::new(vec![
-                    "allow".to_string(),
-                    "deny".to_string()
-                ]))
-            );
+        let arg_command = cmd::Argument::new("command")
+            .set_value_type(ApplicationCommandOptionType::String)
+            .set_required(true)
+            .set_help("Quel commande est affecté")
+            .set_autocomplete(autocomplete_commands.clone());
+        let arg_who = cmd::Argument::new("who")
+            .set_value_type(ApplicationCommandOptionType::User)
+            .set_required(true)
+            .set_help("Qui est affecté");
             
         let mut group_match = cmd::Group::new("slash")
             .set_help("Gestion des commandes slash")
             .set_permission("owners")
             .add_group(cmd::Group::new("permissions")
                 .set_help("Gérer les permissions des commandes")
-                .add_command({
-                    let mut cmd = command.clone();
-                    cmd.name = "set".into();
-                    cmd
-                })
-                .add_command({
-                    let mut cmd = command.clone();
-                    cmd.name = "add".into();
-                    cmd
-                })
+                .add_command(cmd::Command::new("set")
+                    .set_help("Change le salon")
+                    .add_param(arg_who.clone())
+                    .add_param(arg_command.clone())
+                    .add_param(cmd::Argument::new("type")
+                        .set_value_type(ApplicationCommandOptionType::String)
+                        .set_required(true)
+                        .set_help("Type d'autorisation")
+                        .set_autocomplete(Arc::new(vec![
+                            "allow".to_string(),
+                            "deny".to_string()
+                        ]))
+                    ))
+                .add_command(cmd::Command::new("reset")
+                    .set_help("Retire toutes les permissions d'une commande.")
+                    .add_param(arg_command.clone())
+                )
+                .add_command(cmd::Command::new("remove")
+                    .set_help("Retire la permission d'un membre ou d'un rôle à une commande.")
+                    .add_param(arg_command.clone())
+                    .add_param(arg_who.clone())
+                )
                 .add_command(cmd::Command::new("list")
                     .set_help("Liste les permissions des commandes sur le serveur."))
             );
@@ -182,6 +181,8 @@ impl SlashInit {
         let command_name = app_command.fullname();
         let msg = match command_name.as_str() {
             "slash.permissions.add" => self.slash_perms_add(ctx, guild_id, app_command).await,
+            "slash.permissions.remove" => self.slash_perms_remove(ctx, guild_id, app_command).await,
+            "slash.permissions.reset" => todo!(),
             "slash.permissions.list" => self.slash_perms_list(ctx, guild_id).await,
             _ => return Ok(())
         };
@@ -265,6 +266,44 @@ impl SlashInit {
             (true, Ok(_)) => message::success(format!("La permission de la commande `{}` a été mise a jour.", opt_command)),
             (false, Ok(_)) => message::success(format!("La permission de la commande `{}` a été ajoutée.", opt_command)),
             (_, Err(why)) => message::error(format!("La permission pour la commande {} n'a pas pu être assigné: {:?}", opt_command, why))
+        }
+    }
+    async fn slash_perms_remove<'a>(&self, ctx: &Context, guild_id: GuildId, app_cmd: ApplicationCommandEmbed<'a>) -> message::Message {
+        let user_id = app_cmd.0.member.as_ref().unwrap().user.id;
+        if !self.owners.contains(&user_id) {
+            return message::error("Cette commande est reservée aux owners");
+        }
+        slash_argument!(app_cmd, command: (self, guild_id, opt_command, command_id), who: opt_who);
+        
+        let mut found = false;
+        let old_perms = match guild_id.get_application_command_permissions(ctx, command_id).await {
+                Ok(v) => v.permissions,
+                Err(_) => Vec::new()
+            }
+            .into_iter()
+            .filter(|v| {
+                let result = v.id.0 == opt_who.0 && v.kind == opt_who.1;
+                found |= result;
+                !result
+            })
+            .map(|v| (v.id.0, v.kind, v.permission))
+            .collect::<Vec<_>>();
+        if !found {
+            return message::error("La permission n'a pas été trouvé.");
+        }
+        let result = guild_id.create_application_command_permission(ctx, command_id, |perm| {
+            old_perms.iter().for_each(|p| {
+                perm.create_permission(|new_perm| new_perm
+                    .id(p.0)
+                    .kind(p.1)
+                    .permission(p.2)
+                );
+            });
+            perm
+        }).await;
+        match result {
+            Ok(_) => message::success(format!("La permission de <@{}{}> pour la commande `{}` a été retiré.", if opt_who.1 == ApplicationCommandPermissionType::Role {"&"} else {""}, opt_who.0, opt_command)),
+            Err(why) => message::error(format!("une erreurs'est produite lors de la suppression de la permission: {:?}", why))
         }
     }
     async fn slash_perms_list<'a>(&self, ctx: &Context, guild_id: GuildId) -> message::Message {
