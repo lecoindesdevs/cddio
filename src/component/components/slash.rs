@@ -31,6 +31,54 @@ impl cmp::Component for SlashInit {
     }
 }
 
+macro_rules! slash_argument {
+    
+    ($app_cmd:ident, command: ($self: ident, $in_guild_id:ident, $out_opt_command: ident, $out_command_id:ident)) => {
+        let $out_opt_command = match get_argument!($app_cmd, "command", String) {
+            Some(v) => v,
+            None => return message::error("L'identifiant de la commande est requis.")
+        };
+        let $out_command_id = {
+            let commands = $self.commands.read().await;
+            let (_, commands) = match commands.iter().find(|(g, _)| *g == $in_guild_id) {
+                Some(list_commands) => list_commands,
+                None => return message::error("Le serveur n'est pas reconnu.")
+            };
+            match commands.iter().find(|c| &c.name == $out_opt_command) {
+                Some(command) => command.id,
+                None => return message::error("Commande non trouvé.")
+            }
+        };
+    };
+    ($app_cmd:ident, who: $opt_name:ident) => {
+        let $opt_name = match $app_cmd.get_argument("who") {
+            Some(ApplicationCommandInteractionDataOption{
+                resolved: Some(ApplicationCommandInteractionDataOptionValue::User(user, _)),
+                ..
+            }) => (user.id.0, ApplicationCommandPermissionType::User),
+            Some(ApplicationCommandInteractionDataOption{
+                resolved: Some(ApplicationCommandInteractionDataOptionValue::Role(role)),
+                ..
+            }) => (role.id.0, ApplicationCommandPermissionType::Role),
+            None => return message::error("L'identifiant de l'utilisateur ou du rôle est requis."),
+            _ => return message::error("L'identifiant de l'utilisateur ou du rôle n'est pas reconnu."),
+        };
+    };
+    ($app_cmd:ident, type: $opt_name:ident) => {
+        let $opt_name = match get_argument!($app_cmd, "type", String).and_then(|v| Some(v.as_str())) {
+            Some("allow") => true,
+            Some("deny") => false,
+            Some(s) => return message::error(format!("Type: mot clé `{}` non reconnu. `allow` ou `deny` attendus.", s)),
+            None => return message::error("Le type de permission est requis."), 
+        };
+    };
+    ($app_cmd:ident, $($name:ident: $var_name:tt),+) => {
+        $(
+            slash_argument!($app_cmd, $name: $var_name);
+        )*
+    };
+}
+
 impl SlashInit {
     pub fn new(manager: ArcManager, owners: Vec<UserId>, app_id: ApplicationId) -> Self {
         use serenity::model::interactions::application_command::ApplicationCommandOptionType;
