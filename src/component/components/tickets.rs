@@ -221,24 +221,32 @@ impl Tickets {
         };
         let c_msg = match command_id.as_str() {
             "tickets.channel.set" => {
-                let channel = get_argument_result!(&app_cmd, "id", Channel)?;
-                self.set_channel(ctx, guild_id, channel.id.0).await
+                match || -> Result<_, String> {Ok(
+                    get_argument_result!(&app_cmd, "id", Channel)?
+                )}() {
+                    Ok(channel) => self.set_channel(ctx, guild_id, channel.id.0).await,
+                    Err(e) => message::error(e)
+                }
             },
             "tickets.list" => message::error("Non supporté"),
             "tickets.categories.add" => {
-                let name = get_argument_result!(&app_cmd, "name", String)?.into();
-                let channel = get_argument_result!(&app_cmd, "id", Channel)?;
-                let prefix = get_argument_result!(&app_cmd, "prefix", String)?.into();
-                let desc = get_optional_argument_result!(&app_cmd, "desc", String)?.cloned();
-                
-                self.category_add(ctx, guild_id, name, desc, channel.id.0, prefix).await
-                
-                // /tickets categories add name: nom catégorie id: #📁 - Tickets prefix: cat_test desc: Description de la catégorie
-                // command.options.iter().find(|v| v.name == "name").unwrap().value.unwrap().as_str();
+                match || -> Result<_, String> {Ok((
+                    get_argument_result!(&app_cmd, "name", String)?.into(),
+                    get_argument_result!(&app_cmd, "prefix", String)?.into(),
+                    get_optional_argument_result!(&app_cmd, "desc", String)?.cloned(),
+                    get_argument_result!(&app_cmd, "id", Channel)?
+                ))}() {
+                    Ok((name, prefix, desc, channel)) => self.category_add(ctx, guild_id, name, desc, channel.id.0, prefix).await,
+                    Err(e) => message::error(e)
+                }
             }
             "tickets.categories.remove" => {
-                let name = get_argument_result!(&app_cmd, "name", String)?.into();
-                self.category_remove(ctx, name).await
+                match || -> Result<_, String> {Ok(
+                    get_argument_result!(&app_cmd, "name", String)?.into()
+                )}() {
+                    Ok(name) => self.category_remove(ctx, name).await,
+                    Err(e) => message::error(e)
+                }
             },
             "tickets.categories.list" => self.categories_list(ctx, guild_id).await,
             _ => return Ok(())
