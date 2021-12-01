@@ -37,27 +37,56 @@ macro_rules! err_println {
     };
 }
 
-#[derive(Serialize, Deserialize, Default, Debug)]
-struct CategoryTicket {
-    name: String, 
-    prefix: String,
-    id: u64,
-    desc: Option<String>,
-    emoji: Option<ReactionType>,
-    tickets: Vec<String>,
+/// Le composant de gestion des tickets
+pub struct Tickets {
+    /// Données persistantes
+    data: RwLock<Data<DataTickets>>,
+    /// Configuration des commandes
+    node: cmd::Node,
+    /// Dossier de sauvegarde des tickets
+    /// 
+    /// Dès que les tickets sont supprimés, ils sont enregistrés dans ce dossier.
+    archives_folder: PathBuf
 }
-
+/// Données persistantes du composant
+/// 
+/// A chaque écriture dans le fichier de données, le fichier est sauvegardé
 #[derive(Serialize, Deserialize, Default, Debug)]
 struct DataTickets {
-    msg_react: Option<(u64, u64)>,
+    /// Identifiants du channel et du message pour choisir le type de ticket
+    /// Ces identifiants est enregistré pour pouvoir le remplacer si nécessaire
+    msg_choose: Option<(u64, u64)>,
+    /// [Catégories] de tickets
+    /// 
+    /// [Catégories]: CategoryTicket
     categories: Vec<CategoryTicket>,
 }
 
-pub struct Tickets {
-    data: RwLock<Data<DataTickets>>,
-    node: cmd::Node,
-    archives_folder: PathBuf
+/// Catégorie de tickets
+#[derive(Serialize, Deserialize, Default, Debug)]
+struct CategoryTicket {
+    /// Nom de la catégorie
+    name: String, 
+    /// Préfix de ticket
+    /// 
+    /// Le préfix est utilisé pour créer le titre d'un ticket tel que 
+    /// `<prefix>_<username>`
+    prefix: String,
+    /// Identifiant de la catégorie Discord
+    id: u64,
+    /// Description de la catégorie
+    desc: Option<String>,
+    /// Emoji décorateur de la catégorie
+    /// 
+    /// Pas encore en place
+    emoji: Option<ReactionType>,
+    /// Tickets créés dans cette catégorie
+    tickets: Vec<String>,
 }
+
+
+
+
 #[async_trait]
 impl crate::component::Component for Tickets {
     fn name(&self) -> &str {
@@ -145,6 +174,7 @@ impl Tickets {
             archives_folder: utils::DATA_DIR.join("archives"),
         }
     }
+    /// Execute les commandes du composant __non slash__
     async fn r_command(&self, fw_config: &FrameworkConfig, ctx: &Context, msg: &Message) -> cmp::CommandMatch {
         let args = cmd::split_shell(&msg.content[1..]);
         let matched = match utils::try_match(ctx, msg, &self.node, args).await {
@@ -191,6 +221,7 @@ impl Tickets {
             Err(e) => cmp::CommandMatch::Error(format!("Erreur lors de l'envoi du message de réponse: {}", e.to_string()))
         }
     }
+    /// Dispatch un enevement reçu par le bot
     async fn r_event(&self, ctx: &Context, evt: &Event) -> Result<(), String> {
         use serenity::model::event::Event::*;
 
@@ -203,6 +234,7 @@ impl Tickets {
             _ => Ok(())
         } 
     }
+    /// Dispatch une intération reçue par le bot
     async fn on_interaction(&self, ctx: &Context, interaction: &Interaction) -> Result<(), String> {
         match interaction {
             Interaction::Ping(_) => Ok(()),
@@ -210,7 +242,7 @@ impl Tickets {
             Interaction::MessageComponent(v) => self.on_msg_component(ctx, v).await,
         }
     }
-    
+    /// Dispatch les commandes slash reçu par le bot
     async fn on_app_command(&self, ctx: &Context, app_command: &ApplicationCommandInteraction) -> Result<(), String> {
         use utils::app_command::{get_argument_result};
         let app_cmd = utils::app_command::ApplicationCommandEmbed::new(app_command);
@@ -259,6 +291,7 @@ impl Tickets {
             Err(e.to_string())
         })
     }
+    /// Dispatch les composants de message (boutons, menu déroulant) reçu par le bot
     async fn on_msg_component(&self, ctx: &Context, msg_component: &MessageComponentInteraction) -> Result<(), String> {
         let res = match msg_component.data.custom_id.as_str() {
             "tickets_create" => self.on_ticket_create(ctx, msg_component).await,
@@ -274,14 +307,20 @@ impl Tickets {
             }
         }
     }
-    
+    /// Méthode éxécuté sur l'evenement Ready du bot
+    /// 
+    /// Met à jour le menu déroulant des catégories
     async fn on_ready(&self, ctx: &Context) -> Result<(), String> {
         match self.update_select_menu(ctx).await {
             Ok(_) => (),
-            Err(e) => eprintln!("Error updating message components: {}", e)
+            Err(e) => eprintln!("ticket: Error updating message components: {}", e)
         };
         Ok(())
     }
+    /// Créer un ticket
+    /// 
+    /// Lorsque l'on sélectionne le menu déroulant, la méthode créer un nouveau ticket 
+    /// avec les permissions requise et informe l'utilisateur de la création du ticket
     async fn on_ticket_create(&self, ctx: &Context, msg_cmp: &MessageComponentInteraction) -> serenity::Result<()> {
         use serenity::model::prelude::*;
         let value = &msg_cmp.data.values[0];
@@ -357,6 +396,11 @@ impl Tickets {
         ).await?;
         Ok(())
     }
+    /// Fermer un ticket
+    /// 
+    /// Lorsque l'on clique sur le bouton de fermeture, la méthode [archive] puis ferme le ticket
+    /// 
+    /// [archive]: Self::archive_channel
     async fn on_ticket_close(&self, ctx: &Context, msg_cmp: &MessageComponentInteraction) -> serenity::Result<()> {
         match Self::archive_channel(ctx, msg_cmp.channel_id).await {
             Ok(_) => msg_cmp.channel_id.delete(ctx).await.and(Ok(()))?,
@@ -364,6 +408,9 @@ impl Tickets {
         }
         Ok(())
     }
+    /// Retourne le chemin du dossier de stockage des tickets
+    /// 
+    /// Le dossier est créé s'il n'existe pas
     fn get_archive_folder() -> Result<PathBuf, std::io::Error> {
         let path = utils::DATA_DIR.join("tickets/archives");
         if !path.exists() {
@@ -375,6 +422,9 @@ impl Tickets {
         }
         Ok(path)
     }
+    /// Archive un ticket
+    /// 
+    /// Le nom et l'avatar des utilisateur liés au tickets sont enregistrés ainsi que leurs messages
     async fn archive_channel(ctx: &Context, channel: ChannelId) -> Result<(), String> {
         let archive_path = match Self::get_archive_folder() {
             Ok(v) => v,
@@ -421,6 +471,9 @@ impl Tickets {
         });
         Ok(())
     }
+    /// Créer un bouton de fermeture de ticket
+    /// 
+    /// Ce bouton ets attaché au message d'ouverture du ticket
     fn create_close_button<S: ToString>(&self, cmps: &mut serenity::builder::CreateComponents, label: S, style: ButtonStyle){
         use serenity::builder::*;
         
@@ -433,8 +486,9 @@ impl Tickets {
         act.add_button(button);
         cmps.add_action_row(act);
     }
+    /// Supprime l'ancien message de création de ticket, celui contenant le menu de sélection de catégorie
     async fn delete_old_creation_message(&self, ctx: &Context) -> serenity::Result<()> {
-        let old_msg = self.data.read().await.read().msg_react;
+        let old_msg = self.data.read().await.read().msg_choose;
         if let Some((channel_id, msg_id)) = old_msg {
             ctx.http.delete_message(channel_id, msg_id).await
         } else {
@@ -459,7 +513,7 @@ impl Tickets {
                     {
                         let mut data = self.data.write().await;
                         let mut data = data.write();
-                        data.msg_react = Some((channel.0, msg_sent.id.0));
+                        data.msg_choose = Some((channel.0, msg_sent.id.0));
                     }
                     err_println!(self.update_select_menu(ctx).await, "tickets: unable to update message after adding a category.\n{:?}");
                     message::success(format!("Le message de création de ticket a été mis à jour dans le salon {}.", channel_name))
@@ -470,6 +524,7 @@ impl Tickets {
             message::error("Le salon n'existe pas.")
         }
     }
+    /// Créer un menu de sélection de catégorie
     fn create_select_menu(&self, cmps: &mut serenity::builder::CreateComponents, categories: &Vec<CategoryTicket>) {
         use serenity::builder::*;
         let mut opts = CreateSelectMenuOptions::default();
@@ -497,12 +552,13 @@ impl Tickets {
         act.add_select_menu(menus);
         cmps.add_action_row(act);
     }
+    /// Met à jour le menu de sélection de catégorie
     async fn update_select_menu(&self, ctx: &Context) -> serenity::Result<()> {
         let data = self.data.read().await;
         let data = data.read();
         let categories = &data.categories;
         
-        let (chan_id, msg_id) = match data.msg_react {
+        let (chan_id, msg_id) = match data.msg_choose {
             Some(v) => v,
             None => return Ok(())
         };
@@ -526,12 +582,7 @@ impl Tickets {
             msg
         }).await
     }
-    async fn categories(&self, ctx: &Context, msg: &Message, matched: &cmd::matching::Command<'_>) -> cmp::CommandMatch {
-        match matched.get_command() {
-            
-            _ => unreachable!()
-        }
-    }
+    /// Ajoute une catégorie de ticket
     async fn category_add(&self, ctx: &Context, guild_id: GuildId, name: String, desc: Option<String>, channel_id: u64, prefix: String) -> message::Message {
         if let Some(_) = self.data.read().await.read().categories.iter().find(|v| v.name == name) {
             return message::error(format!("La catégorie de ticket {} existe déjà.", name));
@@ -561,6 +612,7 @@ impl Tickets {
         let category = data.read().categories.last().unwrap();
         message::success(format!("La catégorie {} a été ajoutée.", category.name))
     }
+    /// Supprime une catégorie de ticket
     async fn category_remove(&self, ctx: &Context, name: String) -> message::Message {
         let i = match self.data.read().await.read().categories.iter().position(|v| v.name == name) {
             Some(i) => i,
@@ -570,6 +622,7 @@ impl Tickets {
         err_println!(self.update_select_menu(ctx).await, "tickets: unable to update message after deleting a category.\n{:?}");
         message::success(format!("La catégorie {} a été supprimée.", name))
     }
+    /// Liste les catégories de ticket du composant
     async fn categories_list(&self, ctx: &Context, guild_id: GuildId) -> message::Message {
         let data = self.data.read().await;
         let data = data.read();
