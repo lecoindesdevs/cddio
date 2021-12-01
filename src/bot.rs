@@ -34,10 +34,11 @@ impl Bot {
             use cmp::components::*;
             let mut manager_instance = manager.write().await;
             // AJOUTER LES COMPOSANTS ICI A LA SUITE
-            manager_instance.add_component(Misc::new().to_arc());
-            manager_instance.add_component(Tickets::new().to_arc());
-            manager_instance.add_component(Help::new(manager.clone()).to_arc());
-            manager_instance.add_component(SlashInit::new(manager.clone(), owners_id, app_id).to_arc());
+            manager_instance
+                .add_component(Misc::new(app_id).to_arc())
+                .add_component(Tickets::new().to_arc())
+                .add_component(Help::new(manager.clone()).to_arc())
+                .add_component(SlashInit::new(manager.clone(), owners_id, app_id).to_arc());
         };
         
         let framework = cmp::Framework::new(config.prefix, manager.clone());
