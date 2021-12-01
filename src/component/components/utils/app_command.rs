@@ -1,11 +1,44 @@
-use serenity::model::{id::GuildId, interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandOptionType}};
+use serenity::model::{id::GuildId, interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandOptionType, ApplicationCommandInteractionData}};
 
+enum CommandType<'b> {
+    Command(&'b ApplicationCommandInteractionData),
+    Option(&'b ApplicationCommandInteractionDataOption)
+}
 
-pub struct ApplicationCommandEmbed<'a>(pub &'a ApplicationCommandInteraction);
+impl<'a> CommandType<'a> {
+    pub fn get_argument(&'a self, name: &str) -> Option<&'a ApplicationCommandInteractionDataOption> {
+        match self {
+            CommandType::Command(command) => {
+                command.options.iter().find(|option| option.name == name)
+            },
+            CommandType::Option(option) => {
+                option.options.iter().find(|option| option.name == name)
+            }
+        }
+    }
+}
+
+pub struct ApplicationCommandEmbed<'a>(pub &'a ApplicationCommandInteraction, CommandType<'a>);
 
 impl<'a> ApplicationCommandEmbed<'a> {
     pub fn new(interaction: &'a ApplicationCommandInteraction) -> Self {
-        ApplicationCommandEmbed(interaction)
+        
+        let mut command = CommandType::Command(&interaction.data);
+        loop {
+            let options = match command {
+                CommandType::Command(data) => &data.options,
+                CommandType::Option(data) => &data.options
+            };
+            if options.len() == 0 {
+                break;
+            }
+            if let Some(cmd) = options.iter().find(|option| option.kind == ApplicationCommandOptionType::SubCommand) {
+                command = CommandType::Option(cmd);
+            } else {
+                break;
+            }
+        }
+        ApplicationCommandEmbed(interaction, command)
     }
     pub fn fullname(&self) -> String {
         let mut names = vec![self.0.data.name.as_str()];
@@ -23,22 +56,8 @@ impl<'a> ApplicationCommandEmbed<'a> {
     pub fn get_guild_id(&self) -> Option<GuildId> {
         self.0.guild_id
     }
-    pub fn get_command(&'a self) -> &'a ApplicationCommandInteractionDataOption {
-        let mut cmd = self.0.data.options.first();
-        while let Some(&ApplicationCommandInteractionDataOption{ref kind, ref options, ..}) = cmd {
-            if kind == &ApplicationCommandOptionType::SubCommand {
-                return cmd.unwrap();
-            }
-            if options.is_empty() {
-                panic!("No subcommand found.\n{:?}", self.0);
-            }
-            cmd = options.first();
-        }
-        unreachable!()
-    }
     pub fn get_argument(&'a self, name: &str) -> Option<&'a ApplicationCommandInteractionDataOption> {
-        let command = self.get_command();
-        command.options.iter().find(|opt| opt.name.as_str() == name)
+        self.1.get_argument(name)
     }
 }
 
