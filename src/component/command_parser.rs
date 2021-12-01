@@ -39,7 +39,7 @@
 
 #![allow(dead_code)]
 use std::{collections::{VecDeque, hash_map::DefaultHasher}, hash::{Hash, Hasher}, sync::Arc};
-use serenity::model::interactions::application_command::ApplicationCommandOptionType;
+pub use serenity::model::interactions::application_command::ApplicationCommandOptionType as ValueType;
 
 /// Structures de retour d'une commande qui a match avec le parseur
 pub mod matching {
@@ -150,7 +150,7 @@ pub struct Argument {
     /// Description de l'argument
     pub help: Option<String>,
     /// Type de valeur
-    pub value_type: ApplicationCommandOptionType,
+    pub value_type: ValueType,
     /// L'argument requis si vrai
     pub required: bool,
     /// Autocompletion
@@ -166,7 +166,7 @@ impl Argument {
         Argument {
             name: name.into(),
             help: None,
-            value_type: ApplicationCommandOptionType::String,
+            value_type: ValueType::String,
             required: false,
             autocomplete: None,
         }
@@ -186,27 +186,27 @@ impl Argument {
             None => None,
         }
     }
-    pub fn set_value_type(mut self, vt: ApplicationCommandOptionType) -> Argument {
+    pub fn set_value_type(mut self, vt: ValueType) -> Argument {
         match vt {
-            ApplicationCommandOptionType::SubCommand => panic!("Commande non supporté pour les arguments, utilisez les commandes natives"),
-            ApplicationCommandOptionType::SubCommandGroup => panic!("Groupe de commande non supporté pour les arguments, utilisez les groupes de commande natifs"),
+            ValueType::SubCommand => panic!("Commande non supporté pour les arguments, utilisez les commandes natives"),
+            ValueType::SubCommandGroup => panic!("Groupe de commande non supporté pour les arguments, utilisez les groupes de commande natifs"),
             _ => self.value_type = vt
         }
         self
     }
-    pub fn value_type(&self) -> ApplicationCommandOptionType {
+    pub fn value_type(&self) -> ValueType {
         self.value_type
     }
     pub fn value_type_str(&self) -> &'static str {
         match self.value_type {
-            ApplicationCommandOptionType::String => "string",
-            ApplicationCommandOptionType::Integer => "integer",
-            ApplicationCommandOptionType::Boolean => "boolean",
-            ApplicationCommandOptionType::User => "user",
-            ApplicationCommandOptionType::Channel => "channel",
-            ApplicationCommandOptionType::Role => "role",
-            ApplicationCommandOptionType::Mentionable => "mentionable",
-            ApplicationCommandOptionType::Number => "number",
+            ValueType::String => "string",
+            ValueType::Integer => "integer",
+            ValueType::Boolean => "boolean",
+            ValueType::User => "user",
+            ValueType::Channel => "channel",
+            ValueType::Role => "role",
+            ValueType::Mentionable => "mentionable",
+            ValueType::Number => "number",
             _ => "unknown"
         }
     }
