@@ -6,6 +6,14 @@ use crate::component::{self as cmp, command_parser::{self as cmd, Named}, compon
 use super::utils::message;
 use crate::component::slash;
 
+
+/// Composant de gestion des commandes de l'application.
+/// 
+/// S'occupe d'assigner les slashs commandes à discord et de gérer leur permissions.
+/// 
+/// Au lancement du bot, le composant parcours les différents composant du bot et 
+/// génère les slashs commandes associés en se reposant sur notre API de *command parser* 
+/// pour les envoyer à Discord.
 pub struct SlashCommands {
     manager: ArcManager,
     owners: Vec<UserId>,
@@ -31,8 +39,10 @@ impl cmp::Component for SlashCommands {
     }
 }
 
+/// Helper pour la lecture des différents arguments d'une commande du group `slash`.
+/// 
+/// Cette macro existe pour simplifier le code et éviter de répéter le code.
 macro_rules! slash_argument {
-    
     ($app_cmd:ident, command: ($self: ident, $in_guild_id:ident, $out_opt_command: ident, $out_command_id:ident)) => {
         let $out_opt_command = match get_argument!($app_cmd, "command", String) {
             Some(v) => v,
@@ -177,6 +187,10 @@ impl SlashCommands {
         }
         Ok(())
     }
+    /// Méthode appelée sur événement de création d'une application command
+    /// 
+    /// Dispatch les commandes de permission aux fonctions correspondantes
+    /// Voir les fonctions `slash_perms_*` pour plus de détails sur leur fonctionnement
     async fn on_applications_command(&self, ctx: &Context, app_command: &ApplicationCommandInteraction) -> Result<(), String> {
         if app_command.application_id != self.app_id {
             // La commande n'est pas destiné à ce bot
@@ -203,6 +217,16 @@ impl SlashCommands {
             Err(e.to_string())
         })
     }
+    /// Méthode appelée sur la commande slash.permissions.set
+    /// 
+    /// Ajoute une permission à une commande
+    /// 
+    /// # Arguments
+    /// 
+    /// * who: L'utilisateur ou le rôle à qui on assigne la permission
+    /// * command: La commande à laquelle on assigne la permission. 
+    /// Seules les commandes et groupe de premier niveau sont pris en compte.
+    /// * type: Le type d'autorisation à assigner. "allow" ou "deny" attendu.
     async fn slash_perms_add<'a>(&self, ctx: &Context, guild_id: GuildId, app_cmd: ApplicationCommandEmbed<'a>) -> message::Message {
         let user_id = app_cmd.0.member.as_ref().unwrap().user.id;
         if !self.owners.contains(&user_id) {
@@ -243,6 +267,15 @@ impl SlashCommands {
             (_, Err(why)) => message::error(format!("La permission pour la commande {} n'a pas pu être assigné: {:?}", opt_command, why))
         }
     }
+    /// Méthode appelée sur la commande slash.permissions.remove
+    /// 
+    /// Supprime une permission à une commande
+    /// 
+    /// # Arguments
+    /// 
+    /// * who: L'utilisateur ou le rôle qui a la permission à supprimer
+    /// * command: La commande à laquelle on retire la permission.
+    /// Seules les commandes et groupe de premier niveau sont pris en compte.
     async fn slash_perms_remove<'a>(&self, ctx: &Context, guild_id: GuildId, app_cmd: ApplicationCommandEmbed<'a>) -> message::Message {
         let user_id = app_cmd.0.member.as_ref().unwrap().user.id;
         if !self.owners.contains(&user_id) {
@@ -281,6 +314,13 @@ impl SlashCommands {
             Err(why) => message::error(format!("Une erreur s'est produite lors de la suppression de la permission: {:?}", why))
         }
     }
+    /// Méthode appelée sur la commande slash.permissions.reset
+    /// 
+    /// Supprime toutes les permissions d'une commande
+    /// 
+    /// # Arguments
+    /// 
+    /// * command: La commande à laquelle on retire les permissions.
     async fn slash_perms_reset<'a>(&self, ctx: &Context, guild_id: GuildId, app_cmd: ApplicationCommandEmbed<'a>) -> message::Message {
         let user_id = app_cmd.0.member.as_ref().unwrap().user.id;
         if !self.owners.contains(&user_id) {
@@ -292,6 +332,9 @@ impl SlashCommands {
             Err(why) => message::error(format!("Une erreur s'est produite lors de la réinitialisation des permissions: {:?}", why))
         }
     }
+    /// Méthode appelée sur la commande slash.permissions.list
+    /// 
+    /// Affiche la liste des permissions des commandes du bot
     async fn slash_perms_list<'a>(&self, ctx: &Context, guild_id: GuildId) -> message::Message {
         let commands = match guild_id.get_application_commands(ctx).await {
             Ok(v) => v,
