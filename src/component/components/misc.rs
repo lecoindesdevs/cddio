@@ -7,8 +7,13 @@ use serde::{Deserialize, Serialize};
 use serenity::async_trait;
 use serenity::client::Context;
 use serenity::model::channel::Message;
+use serenity::model::event::InteractionCreateEvent;
+use serenity::model::id::ApplicationId;
+use serenity::model::interactions::application_command::ApplicationCommandInteraction;
 use serenity::model::{Permissions, event::{Event, ReadyEvent}};
 use super::super::{CommandMatch, Component, FrameworkConfig};
+use super::utils::app_command::ApplicationCommandEmbed;
+use super::utils::message;
 use crate::component::command_parser::{self as cmd, ParseError};
 use super::{utils};
 
@@ -31,7 +36,7 @@ impl Component for Misc {
     }
     async fn command(&self, _: &FrameworkConfig, ctx: &Context, msg: &Message) -> CommandMatch {
         let args = cmd::split_shell(&msg.content[1..]);
-        let matched = match utils::try_match(ctx, msg, &self.group_match, args).await {
+        let matched = match utils::try_match(ctx, msg, &self.node, args).await {
             Ok(v) => v,
             Err(e) => return e
         };
@@ -59,18 +64,21 @@ impl Component for Misc {
     }
 
     async fn event(&self, ctx: &Context, evt: &Event) -> Result<(), String> {
-        if let Event::Ready(ReadyEvent{ready, ..}) = evt {
-            let (username, invite) = { 
-                (ready.user.name.clone(), ready.user.invite_url(&ctx.http, Permissions::empty()).await)
-            };
-            println!("{} is connected!", username);
-            match invite {
-                Ok(v) => println!("Invitation: {}", v),
-                Err(e) => return Err(e.to_string()),
-            }
+        match evt {
+            Event::Ready(ReadyEvent { ready, .. }) => {
+                let (username, invite) = { 
+                    (ready.user.name.clone(), ready.user.invite_url(&ctx.http, Permissions::empty()).await)
+                };
+                println!("{} is connected!", username);
+                match invite {
+                    Ok(v) => println!("Invitation: {}", v),
+                    Err(e) => return Err(e.to_string()),
+                }
+                Ok(())
+            },
+            Event::InteractionCreate(InteractionCreateEvent{interaction: serenity::model::interactions::Interaction::ApplicationCommand(c), ..}) => self.on_applications_command(ctx, c).await,
+            _ => Ok(())
         }
-        Ok(())
-    }
     }
     fn node(&self) -> Option<&cmd::Node> {
         Some(&self.node)
@@ -92,5 +100,28 @@ impl Misc {
             Ok(_) => CommandMatch::Matched,
             Err(e) => CommandMatch::Error(e.to_string()),
         }
+    }
+    async fn on_applications_command(&self, ctx: &Context, app_command: &ApplicationCommandInteraction) -> Result<(), String> {
+        if app_command.application_id != self.app_id {
+            // La commande n'est pas destiné à ce bot
+            return Ok(());
+        }
+        let app_cmd = ApplicationCommandEmbed::new(app_command);
+        let guild_id = match app_cmd.get_guild_id() {
+            Some(v) => v,
+            None => return Err("Vous devez être dans un serveur pour utiliser cette commande.".into())
+        };
+        let command_name = app_cmd.fullname();
+        let msg = match command_name.as_str() {
+            "ping" => message::success("Pong!"),
+            _ => return Ok(())
+        };
+        app_command.create_interaction_response(ctx, |resp|{
+            *resp = msg.into();
+            resp
+        }).await.or_else(|e| {
+            eprintln!("Cannot create response: {}", e);
+            Err(e.to_string())
+        })
     }
 }
