@@ -61,40 +61,40 @@ impl<'a> ApplicationCommandEmbed<'a> {
     }
 }
 
-macro_rules! unwrap_argument {
+macro_rules! get_argument_result {
     ($app_command:expr, $name:expr, $typ:ident) => {
         match $app_command.get_argument($name) {
             Some(ref v) => {
                 match v.resolved {
                     Some(ref v) => {
                         match v {
-                            serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::$typ (v) => v,
-                            _ => return Err(format!("{}: Mauvais type d'argument. {} attendu", $name, stringify!($typ)))
+                            serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::$typ (v) => Ok(v),
+                            _ => Err(format!("{}: Mauvais type d'argument. {} attendu", $name, stringify!($typ)))
                         }
                     },
-                    None => return Err("Erreur de syntaxe".to_string())
+                    None => Err("Erreur de syntaxe".to_string())
                 }
             },
-            None => return Err(format!("{}: Paramètre requis manquant", $name))
-        };
+            None => Err(format!("{}: Paramètre requis manquant", $name))
+        }
     };
 }
-macro_rules! unwrap_optional_argument {
+macro_rules! get_optional_argument_result {
     ($app_command:expr, $name:expr, $typ:ident) => {
         match $app_command.get_argument($name) {
             Some(ref v) => {
                 match v.resolved {
                     Some(ref v) => {
                         match v {
-                            serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::$typ (v) => Some(v),
-                            _ => return Err(format!("{}: Mauvais type d'argument. {} attendu", $name, stringify!($typ)))
+                            serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::$typ (v) => Ok(Some(v)),
+                            _ => Err(format!("{}: Mauvais type d'argument. {} attendu", $name, stringify!($typ)))
                         }
                     },
-                    None => return Err(format!("{}: Impossible à résoudre l'objet", $name))
+                    None => Err("Erreur de syntaxe".to_string())
                 }
             },
-            None => None
-        };
+            None => Ok(None)
+        }
     };
 }
 macro_rules! get_argument {
@@ -105,7 +105,7 @@ macro_rules! get_argument {
                 ..
             }) => Some(s),
             _ => None
-        };
+        }
     };
 }
-pub(crate) use {unwrap_argument, unwrap_optional_argument, get_argument};
+pub(crate) use {get_argument_result, get_optional_argument_result, get_argument};

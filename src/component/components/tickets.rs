@@ -14,6 +14,7 @@ use serenity::async_trait;
 use serenity::client::Context;
 use serenity::model::channel::{Message, ReactionType};
 use serenity::model::event::Event;
+use crate::component::components::utils::app_command::get_optional_argument_result;
 use crate::component::{self as cmp, FrameworkConfig, command_parser as cmd};
 use super::utils;
 use super::utils::message;
@@ -211,7 +212,7 @@ impl Tickets {
     }
     
     async fn on_app_command(&self, ctx: &Context, app_command: &ApplicationCommandInteraction) -> Result<(), String> {
-        use utils::app_command::{unwrap_argument, unwrap_optional_argument};
+        use utils::app_command::{get_argument_result};
         let app_cmd = utils::app_command::ApplicationCommandEmbed::new(app_command);
         let command_id = app_cmd.fullname();
         let guild_id = match app_cmd.get_guild_id() {
@@ -220,15 +221,15 @@ impl Tickets {
         };
         let c_msg = match command_id.as_str() {
             "tickets.channel.set" => {
-                let channel = unwrap_argument!(&app_cmd, "id", Channel);
+                let channel = get_argument_result!(&app_cmd, "id", Channel)?;
                 self.set_channel(ctx, guild_id, channel.id.0).await
             },
             "tickets.list" => message::error("Non supporté"),
             "tickets.categories.add" => {
-                let name = unwrap_argument!(&app_cmd, "name", String).into();
-                let channel = unwrap_argument!(&app_cmd, "id", Channel);
-                let prefix = unwrap_argument!(&app_cmd, "prefix", String).into();
-                let desc = unwrap_optional_argument!(&app_cmd, "desc", String).cloned();
+                let name = get_argument_result!(&app_cmd, "name", String)?.into();
+                let channel = get_argument_result!(&app_cmd, "id", Channel)?;
+                let prefix = get_argument_result!(&app_cmd, "prefix", String)?.into();
+                let desc = get_optional_argument_result!(&app_cmd, "desc", String)?.cloned();
                 
                 self.category_add(ctx, guild_id, name, desc, channel.id.0, prefix).await
                 
@@ -236,7 +237,7 @@ impl Tickets {
                 // command.options.iter().find(|v| v.name == "name").unwrap().value.unwrap().as_str();
             }
             "tickets.categories.remove" => {
-                let name = unwrap_argument!(&app_cmd, "name", String).into();
+                let name = get_argument_result!(&app_cmd, "name", String)?.into();
                 self.category_remove(ctx, name).await
             },
             "tickets.categories.list" => self.categories_list(ctx, guild_id).await,
