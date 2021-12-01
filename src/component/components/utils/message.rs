@@ -1,6 +1,12 @@
 use serenity::builder::{CreateEmbed, CreateInteractionResponse, CreateInteractionResponseData, CreateMessage};
 use serenity::utils::Colour;
 
+/// Interface de création de message
+/// 
+/// Utile pour passer les mêmes informations de d'envoi d'un message 
+/// aux différentes API (commandes par message ou slash)
+/// 
+/// Interface succeptible de changer en fonction des besoins
 pub struct Message{
     pub message: String,
     pub embed: Option<CreateEmbed>,
@@ -52,13 +58,15 @@ impl From<Message> for CreateInteractionResponse {
         response
     }
 }
-
+/// Génère un message d'erreur
 pub fn error<S: ToString>(error_message: S) -> Message {
     custom_embed("Attention", error_message, 0xFF0000)
 }
+/// Génère un message de succès
 pub fn success<S: ToString>(success_message: S) -> Message {
     custom_embed("Effectué", success_message, 0x1ed760)
 }
+/// Génère un message personnalisé
 pub fn custom_embed<S1, S2, C>(title:S1, message: S2, color: C) -> Message
     where 
     S1: ToString, 

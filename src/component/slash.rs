@@ -1,5 +1,6 @@
-use serenity::{builder::{CreateApplicationCommand, CreateApplicationCommandOption}, model::interactions::application_command::ApplicationCommandOptionType};
+//! Générateurs de commandes slash via notre API de commandes.
 
+use serenity::{builder::{CreateApplicationCommand, CreateApplicationCommandOption}, model::interactions::application_command::ApplicationCommandOptionType};
 use super::command_parser::{self as cmd, Named};
 
 pub fn register_root(node: &cmd::Node) -> Vec<CreateApplicationCommand> {
