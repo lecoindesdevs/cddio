@@ -436,27 +436,7 @@ impl Group {
         Err(())
     }
     pub fn try_match<'a>(&'a self, permission: Option<&'a str>, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>> {
-        if args[0] != self.name {
-            return Err(ParseError::NotMatched);
-        }
-        if args.len() == 1 {
-            return Err(ParseError::ExpectedPath(args[0]))
-        }
-        if args[1].starts_with('-') {
-            return Err(ParseError::ExpectedPath(args[0]));
-        }
-        let permission = match &self.permission {
-            Some(v) => Some(v.as_str()),
-            None => permission,
-        };
-        match self.node.commands.find(args[1]) {
-            Some(cmd) => cmd.try_match(permission, &args[1..]),
-            None => match self.node.groups.find(args[1]) {
-                Some(grp) => grp.try_match(permission, &args[1..]),
-                None => Err(ParseError::PartiallyNotMatched(&args[1])),
-            },
-        }
-        .and_then(|mut cmd| Ok({cmd.path.push_front(args[0]); cmd}))
+        self.node.try_match(permission, args)
     }
 }
 impl Named for Group {
@@ -483,6 +463,30 @@ impl Node {
     pub fn generate_ids(&mut self, groups: &[&str]) {
         self.groups.0.iter_mut().for_each(|grp| grp.generate_ids(Some(&groups)));
         self.commands.0.iter_mut().for_each(|cmd| cmd.generate_id(Some(&groups)));
+    }
+    pub fn add_group(mut self, group: Group) -> Node {
+        self.groups.add(group);
+        self
+    }
+    pub fn add_command(mut self, command: Command) -> Node {
+        self.commands.add(command);
+        self
+    }
+    pub fn try_match<'a>(&'a self, permission: Option<&'a str>, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>>  {
+        if args.is_empty() {
+            return Err(ParseError::ExpectedPath(args[0]));
+        }
+        if args[0].starts_with('-') {
+            return Err(ParseError::ExpectedPath(args[0]));
+        }
+        match self.commands.find(args[0]) {
+            Some(cmd) => cmd.try_match(permission, &args[0..]),
+            None => match self.groups.find(args[0]) {
+                Some(grp) => grp.try_match(permission, &args[0..]),
+                None => Err(ParseError::PartiallyNotMatched(args[0])),
+            },
+        }
+        .and_then(|mut cmd| Ok({cmd.path.push_front(args[0]); cmd}))
     }
 }
 /// Conteneur de commandes ou de groupes

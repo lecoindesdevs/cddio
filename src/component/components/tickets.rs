@@ -54,7 +54,7 @@ struct DataTickets {
 
 pub struct Tickets {
     data: RwLock<Data<DataTickets>>,
-    group_match: cmd::Group,
+    node: cmd::Node,
     archives_folder: PathBuf
 }
 #[async_trait]
@@ -68,8 +68,8 @@ impl crate::component::Component for Tickets {
     async fn event(&self, ctx: &Context, evt: &Event) -> Result<(), String> {
         self.r_event(ctx, evt).await
     }
-    fn group_parser(&self) -> Option<&cmd::Group> {
-        Some(&self.group_match)
+    fn node(&self) -> Option<&cmd::Node> {
+        Some(&self.node)
     }
 }
 
@@ -77,64 +77,66 @@ impl Tickets {
     pub fn new() -> Self {
         use serenity::model::interactions::application_command::ApplicationCommandOptionType;
 
-        let mut group_match = cmd::Group::new("tickets")
-        .set_help("Gestion des tickets")
-        .set_permission("owners")
-        .add_group(cmd::Group::new("channel")
-            .set_help("Salon de création de tickets")
-            .add_command(cmd::Command::new("set")
-                .set_help("Change le salon")
-                .add_param(cmd::Argument::new("id")
-                    .set_value_type(ApplicationCommandOptionType::Channel)
-                    .set_required(true)
-                    .set_help("Identifiant du message")
+        let mut node = cmd::Node::new().add_group(
+            cmd::Group::new("tickets")
+                .set_help("Gestion des tickets")
+                .set_permission("owners")
+                .add_group(cmd::Group::new("channel")
+                    .set_help("Salon de création de tickets")
+                    .add_command(cmd::Command::new("set")
+                        .set_help("Change le salon")
+                        .add_param(cmd::Argument::new("id")
+                            .set_value_type(ApplicationCommandOptionType::Channel)
+                            .set_required(true)
+                            .set_help("Identifiant du message")
+                        )
+                    )
                 )
-            )
-        )
-        .add_group(cmd::Group::new("categories")
-            .set_help("Gestion des catégories de tickets.")
-            .add_command(cmd::Command::new("add")
-                .set_help("Ajoute une catégorie de ticket. À ne pas confondre avec les catégories discord")
-                .add_param(cmd::Argument::new("name")
-                    .set_value_type(ApplicationCommandOptionType::String)
-                    .set_required(true)
-                    .set_help("Nom de la catégorie")
+                .add_group(cmd::Group::new("categories")
+                    .set_help("Gestion des catégories de tickets.")
+                    .add_command(cmd::Command::new("add")
+                        .set_help("Ajoute une catégorie de ticket. À ne pas confondre avec les catégories discord")
+                        .add_param(cmd::Argument::new("name")
+                            .set_value_type(ApplicationCommandOptionType::String)
+                            .set_required(true)
+                            .set_help("Nom de la catégorie")
+                        )
+                        .add_param(cmd::Argument::new("id")
+                            .set_value_type(ApplicationCommandOptionType::Channel)
+                            .set_required(true)
+                            .set_help("Identifiant de la catégorie Discord")
+                        )
+                        .add_param(cmd::Argument::new("prefix")
+                            .set_required(true)
+                            .set_help("Prefix du salon du ticket (ex: ticket)")
+                        )
+                        .add_param(cmd::Argument::new("desc")
+                            .set_required(false)
+                            .set_help("Description de la catégorie de ticket")
+                        )
+                        
+                        // .add_param(cmd::Argument::new("emoji")
+                        //     .set_required(false)
+                        //     .set_help("Emoji décoration")
+                        // )
+                    )
+                    .add_command(cmd::Command::new("remove")
+                        .set_help("Supprime une catégorie de ticket")
+                        .add_param(cmd::Argument::new("name")
+                            .set_required(true)
+                            .set_help("Nom de la catégorie")
+                        )
+                    )
+                    .add_command(cmd::Command::new("list")
+                        .set_help("Liste les catégories de tickets")
+                    )
                 )
-                .add_param(cmd::Argument::new("id")
-                    .set_value_type(ApplicationCommandOptionType::Channel)
-                    .set_required(true)
-                    .set_help("Identifiant de la catégorie Discord")
+                .add_command(cmd::Command::new("list")
+                    .set_help("Liste les tickets")
                 )
-                .add_param(cmd::Argument::new("prefix")
-                    .set_required(true)
-                    .set_help("Prefix du salon du ticket (ex: ticket)")
-                )
-                .add_param(cmd::Argument::new("desc")
-                    .set_required(false)
-                    .set_help("Description de la catégorie de ticket")
-                )
-                
-                // .add_param(cmd::Argument::new("emoji")
-                //     .set_required(false)
-                //     .set_help("Emoji décoration")
-                // )
-            )
-            .add_command(cmd::Command::new("remove")
-                .set_help("Supprime une catégorie de ticket")
-                .add_param(cmd::Argument::new("name")
-                    .set_required(true)
-                    .set_help("Nom de la catégorie")
-                )
-            )
-            .add_command(cmd::Command::new("list")
-                .set_help("Liste les catégories de tickets")
-            )
-        )
-        .add_command(cmd::Command::new("list")
-            .set_help("Liste les tickets")
-        );
+            );
         Tickets{
-            group_match,
+            node,
             data: match Data::from_file_default("tickets") {
                 Ok(data) => RwLock::new(data),
                 Err(e) => panic!("Data tickets: {:?}", e)
@@ -144,7 +146,7 @@ impl Tickets {
     }
     async fn r_command(&self, fw_config: &FrameworkConfig, ctx: &Context, msg: &Message) -> cmp::CommandMatch {
         let args = cmd::split_shell(&msg.content[1..]);
-        let matched = match utils::try_match(ctx, msg, &self.group_match, args).await {
+        let matched = match utils::try_match(ctx, msg, &self.node, args).await {
             Ok(v) => v,
             Err(e) => return e
         };

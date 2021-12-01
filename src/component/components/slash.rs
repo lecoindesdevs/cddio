@@ -9,7 +9,7 @@ use crate::component::slash;
 pub struct SlashInit {
     manager: ArcManager,
     owners: Vec<UserId>,
-    group_match: cmd::Group,
+    group_match: cmd::Node,
     commands: RwLock<Vec<(GuildId, Vec<ApplicationCommand>)>>,
     app_id: ApplicationId,
 }
@@ -26,7 +26,7 @@ impl cmp::Component for SlashInit {
     async fn event(&self, ctx: &cmp::Context, evt: &cmp::Event) -> Result<(), String> {
         self.r_event(ctx, evt).await
     }
-    fn group_parser(&self) -> Option<&cmd::Group> {
+    fn node(&self) -> Option<&cmd::Node> {
         Some(&self.group_match)
     }
 }
@@ -93,7 +93,8 @@ impl SlashInit {
             .set_required(true)
             .set_help("Qui est affecté");
             
-        let mut group_match = cmd::Group::new("slash")
+        let group_match = cmd::Node::new().add_group(
+            cmd::Group::new("slash")
             .set_help("Gestion des commandes slash")
             .set_permission("owners")
             .add_group(cmd::Group::new("permissions")
@@ -122,8 +123,8 @@ impl SlashInit {
                 )
                 .add_command(cmd::Command::new("list")
                     .set_help("Liste les permissions des commandes sur le serveur."))
+                )
             );
-        group_match.generate_ids(None);
         SlashInit {
             commands: RwLock::new(Vec::new()),
             group_match,
@@ -141,11 +142,19 @@ impl SlashInit {
                 let mut app_commands = CreateApplicationCommands::default();
                 for compo in components {
                     let compo = compo.read().await;
-                    let group = match compo.group_parser() {
+                    let node = match compo.node() {
                         Some(group) => group,
                         None => continue
                     };
-                    app_commands.add_application_command(slash::register_root(group));
+                    let commands = if compo.name() == "slash" {
+                        slash::register_root_with_perm(node, true)
+                    } else {
+                        slash::register_root(node)
+                    };
+                    commands.into_iter().for_each(|command| {
+                        app_commands.add_application_command(command);
+                    });
+                    
                 }
                 let mut commands = self.commands.write().await;
                 for guild in guilds {

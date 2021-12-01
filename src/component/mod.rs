@@ -62,7 +62,7 @@ pub trait Component: Sync + Send
     /// 
     /// Le système d'aide du bot se repose sur ce groupe. 
     /// Vu que le parse de la commande n'est pas obligatoire, cette fonction est donc optionnelle.
-    fn group_parser(&self) -> Option<&command_parser::Group> {
+    fn node(&self) -> Option<&command_parser::Node> {
         None
     }
     fn register_slash(&self, ) {

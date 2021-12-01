@@ -131,8 +131,8 @@ impl Help {
             Some(name) => {
                 for cmp in comps {
                     let cmp = cmp.read().await;
-                    match (cmp.name(), cmp.group_parser()) {
-                        (n, Some(grp)) if n == name => return Self::help_group(grp, None, list_words),
+                    match (cmp.name(), cmp.node()) {
+                        (n, Some(grp)) if n == name => return Self::help_node(grp, None, list_words),
                         _ => ()
                     }
                 }
@@ -146,14 +146,39 @@ impl Help {
         }
     }
     #[inline]
-    fn help_node<'a, 'b>(node: &'a cmd::Node, permission: Option<&'a str>, name: &str, list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
-        if let Some(found) = node.groups.list().find(|g| g.name() == name) {
-            Self::help_group(found, permission, list_words)
-        } else if let Some(found) = node.commands.list().find(|c| c.name() == name) {
-            Self::help_command(found, permission, list_words)
-        } else {
-            Err(())
-        }
+    fn help_node<'a, 'b>(node: &'a cmd::Node, permission: Option<&'a str>, list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
+        
+        // match list_words.next() {
+        //     Some(name) => {
+        //         if let Some(found) = node.groups.list().find(|g| g.name() == name) {
+        //             Self::help_group(found, permission, list_words)
+        //         } else if let Some(found) = node.commands.list().find(|c| c.name() == name) {
+        //             Self::help_command(found, permission, list_words)
+        //         } else {
+        //             Err(())
+        //         }
+        //     },
+        //     None => {
+        //         let mut groups = Vec::new();
+        //         for grp in node.groups.list() {
+        //             groups.push((grp.name().to_string(), grp.help().and_then(|v| Some(v.to_string()))));
+        //         }
+        //         let mut cmds = Vec::new();
+        //         for cmd in node.commands.list() {
+        //             cmds.push((cmd.name().to_string(), cmd.help().and_then(|v| Some(v.to_string()))));
+        //         }
+        //         Ok(HelpInfo{
+        //             name: format!("{} (Groupe de commande)", group.name()),
+        //             permission: group.permission().and_then(|v| Some(v.to_string())),
+        //             desc: group.help().and_then(|v| Some(v.to_string())),
+        //             groups: if groups.is_empty() {None} else {Some(groups)},
+        //             commands: if cmds.is_empty() {None} else {Some(cmds)},
+        //             .. Default::default()
+        //         })
+        //     }
+        // }
+        return Err(());
+        todo!()
     }
     
     fn help_group<'a, 'b>(group: &'a cmd::Group, permission: Option<&'a str>, mut list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
@@ -162,7 +187,7 @@ impl Help {
             None => permission,
         };
         match list_words.next() {
-            Some(name) => Self::help_node(group.node(), permission, name, list_words),
+            Some(name) => Self::help_node(group.node(), permission, list_words),
             None => {
                 let mut groups = Vec::new();
                 for grp in group.node().groups.list() {

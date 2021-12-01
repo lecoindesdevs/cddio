@@ -14,7 +14,8 @@ use super::{utils};
 
 
 pub struct Misc {
-    group_match: cmd::Group
+    node: cmd::Node,
+    app_id: ApplicationId,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -70,22 +71,20 @@ impl Component for Misc {
         }
         Ok(())
     }
-    fn group_parser(&self) -> Option<&cmd::Group> {
-        Some(&self.group_match)
+    }
+    fn node(&self) -> Option<&cmd::Node> {
+        Some(&self.node)
     }
 }
 
 impl Misc {
-    pub fn new () -> Misc {
+    pub fn new(app_id: ApplicationId) -> Misc {
         Misc{
-            group_match: cmd::Group::new("misc")
-                .set_help("Commande diverse, sans catégorie, ou de test")
+            node: cmd::Node::new()
                 .add_command(cmd::Command::new("ping")
                     .set_help("Permet d'avoir une réponse du bot")
-                )
-                .add_command(cmd::Command::new("data")
-                    .set_help("Teste l'enregistrement des donénes")
-                )
+                ),
+            app_id
         }
     }
     pub async fn send_message(ctx: &Context, msg: &Message, txt: &str) -> CommandMatch{

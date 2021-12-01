@@ -35,8 +35,8 @@ pub async fn has_permission(ctx: &cmp::Context, msg: &cmp::Message, role: Option
     Ok(roles.iter().any(|r| r.name == role))
 }
 
-pub async fn try_match<'a>(ctx: &cmp::Context, msg: &'a cmp::Message, group: &'a cmd::Group, args: Vec<&'a str>) -> Result<cmd::matching::Command<'a>, cmp::CommandMatch> {
-    match group.try_match(None, &args) {
+pub async fn try_match<'a>(ctx: &cmp::Context, msg: &'a cmp::Message, node: &'a cmd::Node, args: Vec<&'a str>) -> Result<cmd::matching::Command<'a>, cmp::CommandMatch> {
+    match node.try_match(None, &args) {
         Ok(v) => Ok(v),
         Err(cmd::ParseError::NotMatched) => Err(CommandMatch::NotMatched),
         Err(e_parse) => {
