@@ -208,40 +208,7 @@ impl SlashInit {
         if !self.owners.contains(&user_id) {
             return message::error("Cette commande est reservée aux owners");
         }
-
-        let opt_command = match get_argument!(app_cmd, "command", String) {
-            Some(opt_command) => opt_command,
-            None => return message::error("L'identifiant de la commande est requis.")
-        };
-        let opt_type = match get_argument!(app_cmd, "type", String).and_then(|v| Some(v.as_str())) {
-            Some("allow") => true,
-            Some("deny") => false,
-            Some(s) => return message::error(format!("Type: mot clé `{}` non reconnu. `allow` ou `deny` attendus.", s)),
-            None => return message::error("Le type de permission est requis."), 
-        };
-        let opt_who = match app_cmd.get_argument("who") {
-            Some(ApplicationCommandInteractionDataOption{
-                resolved: Some(ApplicationCommandInteractionDataOptionValue::User(user, _)),
-                ..
-            }) => (user.id.0, ApplicationCommandPermissionType::User),
-            Some(ApplicationCommandInteractionDataOption{
-                resolved: Some(ApplicationCommandInteractionDataOptionValue::Role(role)),
-                ..
-            }) => (role.id.0, ApplicationCommandPermissionType::Role),
-            None => return message::error("L'identifiant de l'utilisateur ou du rôle est requis."),
-            _ => return message::error("L'identifiant de l'utilisateur ou du rôle n'est pas reconnu."),
-        };
-        let command_id = {
-            let commands = self.commands.read().await;
-            let (_, commands) = match commands.iter().find(|(g, _)| *g == guild_id) {
-                Some(list_commands) => list_commands,
-                None => return message::error("Le serveur n'est pas reconnu.")
-            };
-            match commands.iter().find(|c| &c.name == opt_command) {
-                Some(command) => command.id,
-                None => return message::error("Commande non trouvé.")
-            }
-        };
+        slash_argument!(app_cmd, command: (self, guild_id, opt_command, command_id), who: opt_who, type: opt_type);
         let mut old_perms = match guild_id.get_application_command_permissions(ctx, command_id).await {
             Ok(v) => v.permissions,
             Err(_) => Vec::new()
@@ -253,7 +220,6 @@ impl SlashInit {
                 }
                 v.2 = opt_type;
                 true
-                
             },
             None => {
                 old_perms.push((opt_who.0, opt_who.1, opt_type));
