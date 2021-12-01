@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use futures_locks::RwLock;
 use serenity::{async_trait, builder::CreateApplicationCommands, client::Context, http::CacheHttp, model::{event::InteractionCreateEvent, id::{ApplicationId, GuildId, UserId}, interactions::application_command::{ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandInteractionDataOptionValue, ApplicationCommandOption, ApplicationCommandPermissionData, ApplicationCommandPermissionType}}};
-use crate::component::{self as cmp, command_parser::{self as cmd, Named}, components::utils::{self, app_command::{ApplicationCommandEmbed, get_argument, unwrap_argument}}, manager::{ArcManager}};
+use crate::component::{self as cmp, command_parser::{self as cmd, Named}, components::utils::{self, app_command::{ApplicationCommandEmbed, get_argument}}, manager::{ArcManager}};
 use super::utils::message;
 use crate::component::slash;
 
-pub struct SlashInit {
+pub struct SlashCommands {
     manager: ArcManager,
     owners: Vec<UserId>,
     group_match: cmd::Node,
@@ -14,7 +14,7 @@ pub struct SlashInit {
     app_id: ApplicationId,
 }
 #[async_trait]
-impl cmp::Component for SlashInit {
+impl cmp::Component for SlashCommands {
     fn name(&self) -> &'static str {
         "slash"
     }
@@ -79,7 +79,7 @@ macro_rules! slash_argument {
     };
 }
 
-impl SlashInit {
+impl SlashCommands {
     pub fn new(manager: ArcManager, owners: Vec<UserId>, app_id: ApplicationId) -> Self {
         use serenity::model::interactions::application_command::ApplicationCommandOptionType;
         let autocomplete_commands = Arc::new(Vec::new());
@@ -125,7 +125,7 @@ impl SlashInit {
                         .set_help("Liste les permissions des commandes sur le serveur."))
                 )
             );
-        SlashInit {
+        SlashCommands {
             commands: RwLock::new(Vec::new()),
             group_match,
             manager,
