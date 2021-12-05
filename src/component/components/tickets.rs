@@ -178,9 +178,10 @@ impl Tickets {
             Ok(v) => v,
             Err(e) => return e
         };
+        println!("matched: {:?}", matched);
         let command_id = match matched.id {
             Some(id) => id.to_string(),
-            None => [matched.get_groups().join("."), matched.get_command().to_string()].join("."),
+            None => matched.fullname(),
         };
         let guild_id = match msg.guild_id {
             Some(id) => id,

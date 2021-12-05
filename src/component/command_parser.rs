@@ -48,6 +48,7 @@ pub mod matching {
     #[derive(Debug, PartialEq)]
     pub struct Parameter<'a> {
         pub name: &'a str,
+        pub kind: super::ValueType,
         pub value: &'a str,
     }
     /// Information de commande que le parseur a matché
@@ -76,6 +77,9 @@ pub mod matching {
 
         pub fn get_parameter(&self, name: &str) -> Option<&Parameter> {
             self.params.iter().find(|p| p.name == name)
+        }
+        pub fn fullname(&self) -> String {
+            self.path.iter().map(|v| *v).collect::<Vec<_>>().join(".")
         }
     }
 }
@@ -119,21 +123,23 @@ impl<'a> ToString for ParseError<'a> {
         }
     }
 }
+
 /// Convertit une chaine de caractère en groupe d'arguments 
 pub fn split_shell<'a>(txt: &'a str) -> Vec<&'a str> {
     let mut mode=false;
-    txt.split(|c| {
-        match (mode, c) {
-            (_, '\"') => {
-                mode = !mode;
-                true
+    let args = txt.split(|c| {
+            match (mode, c) {
+                (_, '\"') => {
+                    mode = !mode;
+                    true
+                }
+                (false, ' ') => true,
+                _ => false
             }
-            (false, ' ') => true,
-            _ => false
-        }
-    })
-    .filter(|s| !s.is_empty())
-    .collect()
+        })
+        .filter(|s| !s.is_empty())
+        .collect();
+    args
 }
 
 fn hash<T: Hash>(t: &T) -> u64 {
@@ -326,11 +332,12 @@ impl Command {
                     return Err(ParseError::UnknownParameter(name));
                 }
             }
-            if let None = self.params.iter().find(|cmdp| cmdp.name == name[1..]) {
-                return Err(ParseError::UnknownParameter(name));
-            }
+            let param = match self.params.iter().find(|cmdp| cmdp.name == name[1..]) {
+                Some(v) => v,
+                None => return Err(ParseError::UnknownParameter(name)),
+            };
             match iter_args.next() {
-                Some(value) => params.push(matching::Parameter{name: &name[1..],value}),
+                Some(value) => params.push(matching::Parameter{name: &name[1..], value, kind: param.value_type}),
                 None => return Err(ParseError::MissingParameterValue(name))
             }
         }
@@ -472,6 +479,16 @@ impl Node {
         self.commands.add(command);
         self
     }
+    pub fn list_commands(&self) -> Vec<&Command> {
+        self.groups.list().flat_map(|grp| grp.node().list_commands()).chain(self.commands.list()).collect()
+    }
+    pub fn list_commands_names(&self) -> Vec<String> {
+        self.groups.list().flat_map(|grp| {
+            let grp_name = grp.name().to_string();
+            let grp_name_ref = grp_name.as_str();
+            grp.node().list_commands_names().into_iter().map(|c| format!("{} {}", grp_name_ref, c)).collect::<Vec<_>>()
+        }).chain(self.commands.list().map(|cmd| cmd.name().into())).collect()
+    }
     pub fn try_match<'a>(&'a self, permission: Option<&'a str>, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>>  {
         if args.is_empty() {
             return Err(ParseError::ExpectedPath(args[0]));
@@ -483,10 +500,10 @@ impl Node {
             Some(cmd) => cmd.try_match(permission, &args[0..]),
             None => match self.groups.find(args[0]) {
                 Some(grp) => grp.try_match(permission, &args[0..]),
-                None => Err(ParseError::PartiallyNotMatched(args[0])),
+                None => Err(ParseError::NotMatched),
             },
         }
-        .and_then(|mut cmd| Ok({cmd.path.push_front(args[0]); cmd}))
+        //.and_then(|mut cmd| Ok({cmd.path.push_front(args[0]); cmd}))
     }
 }
 /// Conteneur de commandes ou de groupes

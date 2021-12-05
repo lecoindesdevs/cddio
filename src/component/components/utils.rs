@@ -11,6 +11,7 @@ pub mod send;
 pub mod message;
 #[macro_use]
 pub mod app_command;
+pub mod commands;
 /// Retourne vrai s'il sagit d'un message privé au bot
 pub fn is_dm(_ctx: &cmp::Context, msg: &cmp::Message) -> bool {
     msg.guild_id.is_none()

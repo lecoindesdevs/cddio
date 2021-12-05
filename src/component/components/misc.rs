@@ -59,7 +59,7 @@ impl Component for Misc {
                 guard.don1 = "no".to_string();
                 CommandMatch::Matched
             }
-            _ => unreachable!()
+            _ => CommandMatch::NotMatched
         }
     }
 
