@@ -15,10 +15,12 @@ use serenity::client::Context;
 use serenity::model::channel::{Message, ReactionType};
 use serenity::model::event::Event;
 use crate::component::components::utils::app_command::get_optional_argument_result;
+use crate::component::components::utils::commands::ToCommand;
 use crate::component::{self as cmp, FrameworkConfig, command_parser as cmd};
 use super::utils;
 use super::utils::message;
 use super::utils::Data;
+use super::utils::commands;
 
 macro_rules! err_println {
     (send_error($ctx: ident, $msg: ident, $txt:expr)) => {
@@ -157,10 +159,11 @@ impl Tickets {
                             .set_help("Nom de la catégorie")
                         )
                     )
+                    .add_command(cmd::Command::new("list")
+                        .set_help("Liste les catégories de ticket")
+                    )
                 )
-                .add_command(cmd::Command::new("list")
-                    .set_help("Liste les tickets")
-                )
+                
             );
         Tickets{
             node,
@@ -172,47 +175,24 @@ impl Tickets {
         }
     }
     /// Execute les commandes du composant __non slash__
-    async fn r_command(&self, fw_config: &FrameworkConfig, ctx: &Context, msg: &Message) -> cmp::CommandMatch {
+    async fn r_command(&self, _: &FrameworkConfig, ctx: &Context, msg: &Message) -> cmp::CommandMatch {
         let args = cmd::split_shell(&msg.content[1..]);
+        
         let matched = match utils::try_match(ctx, msg, &self.node, args).await {
             Ok(v) => v,
             Err(e) => return e
         };
         println!("matched: {:?}", matched);
-        let command_id = match matched.id {
-            Some(id) => id.to_string(),
-            None => matched.fullname(),
-        };
         let guild_id = match msg.guild_id {
             Some(id) => id,
             None => return cmp::CommandMatch::Error("Cette commande n'est pas disponible en message privé.".to_string())
         };
-        
-        let c_msg = match command_id.as_str() {
-            "tickets.channel.set" => {
-                let id: u64 = match matched.get_parameter("id").unwrap().value.parse() {
-                    Ok(v) => v,
-                    Err(e) => return cmp::CommandMatch::Error(format!("id: paramètre mal formé: {}", e.to_string()))
-                };
-                self.set_channel(ctx, guild_id, id).await
-            },
-            "tickets.categories.add" => {
-                let id: u64 = match matched.get_parameter("id").unwrap().value.parse() {
-                    Ok(v) => v,
-                    Err(e) => return cmp::CommandMatch::Error(format!("id: paramètre mal formé: {}", e.to_string()))
-                };
-                let name = matched.get_parameter("name").unwrap().value.to_string();
-                let prefix = matched.get_parameter("prefix").unwrap().value.to_string();
-                let desc = matched.get_parameter("desc").and_then(|param| Some(param.value.to_string()));
-                self.category_add(ctx, guild_id, name, desc, id, prefix).await
-            },
-            "tickets.categories.remove" => {
-                let name = matched.get_parameter("name").unwrap().value.to_string();
-                self.category_remove(ctx, name).await
-            },
-            "tickets.categories.list" => self.categories_list(ctx, guild_id).await,
-            "tickets.list" => message::error("Non supporté"),
-            _ => return cmp::CommandMatch::NotMatched
+        let command = matched.to_command();
+        println!("{:?}", command);
+        let c_msg = match self.commands(ctx, guild_id, command).await {
+            Ok(v) => v,
+            Err(Some(e)) => return cmp::CommandMatch::Error(e),
+            Err(None) => return cmp::CommandMatch::NotMatched,
         };
         match utils::send::custom(ctx, msg.channel_id, c_msg).await {
             Ok(_) => cmp::CommandMatch::Matched,
@@ -240,46 +220,64 @@ impl Tickets {
             Interaction::MessageComponent(v) => self.on_msg_component(ctx, v).await,
         }
     }
+    async fn commands(&self, ctx: &Context, guild_id: GuildId, command: commands::Command) -> Result<message::Message, Option<String>> {
+        match command.fullname().as_str() {
+            "tickets.channel.set" => {
+                let channel = match command.get_argument("id") {
+                    Some(&commands::Argument{value: commands::Value::Channel(v), ..}) => v,
+                    Some(_) => return Err(Some("id: paramètre mal formé".to_string())),
+                    None => return Err(Some("id: paramètre manquant".to_string()))
+                };
+                Ok(self.set_channel(ctx, guild_id, channel.0).await)
+            },
+            "tickets.categories.add" => {
+                let name = match command.get_argument("name") {
+                    Some(&commands::Argument{value: commands::Value::String(ref v), ..}) => v.clone(),
+                    Some(_) => return Err(Some("name: paramètre mal formé".to_string())),
+                    None => return Err(Some("name: paramètre manquant".to_string()))
+                };
+                let prefix = match command.get_argument("prefix") {
+                    Some(&commands::Argument{value: commands::Value::String(ref v), ..}) => v.clone(),
+                    Some(_) => return Err(Some("prefix: paramètre mal formé".to_string())),
+                    None => return Err(Some("prefix: paramètre manquant".to_string()))
+                };
+                let desc = match command.get_argument("desc") {
+                    Some(&commands::Argument{value: commands::Value::String(ref v), ..}) => Some(v.clone()),
+                    Some(_) => return Err(Some("desc: paramètre mal formé".to_string())),
+                    None => None
+                };
+                let channel = match command.get_argument("id") {
+                    Some(&commands::Argument{value: commands::Value::Channel(v), ..}) => v,
+                    Some(_) => return Err(Some("id: paramètre mal formé".to_string())),
+                    None => return Err(Some("id: paramètre manquant".to_string()))
+                };
+                Ok(self.category_add(ctx, guild_id, name, desc, channel.0, prefix).await)
+            }
+            "tickets.categories.remove" => {
+                let name = match command.get_argument("name") {
+                    Some(&commands::Argument{value: commands::Value::String(ref v), ..}) => v.clone(),
+                    Some(_) => return Err(Some("name: paramètre mal formé".to_string())),
+                    None => return Err(Some("name: paramètre manquant".to_string()))
+                };
+                Ok(self.category_remove(ctx, name).await)
+            },
+            "tickets.categories.list" => Ok(self.categories_list(ctx, guild_id).await),
+            _ => return Err(None)
+        }
+    }
     /// Dispatch les commandes slash reçu par le bot
     async fn on_app_command(&self, ctx: &Context, app_command: &ApplicationCommandInteraction) -> Result<(), String> {
-        use utils::app_command::{get_argument_result};
         let app_cmd = utils::app_command::ApplicationCommandEmbed::new(app_command);
-        let command_id = app_cmd.fullname();
         let guild_id = match app_cmd.get_guild_id() {
             Some(v) => v,
             None => return Err("Vous devez être dans un serveur pour utiliser cette commande.".into())
         };
-        let c_msg = match command_id.as_str() {
-            "tickets.channel.set" => {
-                match || -> Result<_, String> {Ok(
-                    get_argument_result!(&app_cmd, "id", Channel)?
-                )}() {
-                    Ok(channel) => self.set_channel(ctx, guild_id, channel.id.0).await,
-                    Err(e) => message::error(e)
-                }
-            },
-            "tickets.list" => message::error("Non supporté"),
-            "tickets.categories.add" => {
-                match || -> Result<_, String> {Ok((
-                    get_argument_result!(&app_cmd, "name", String)?.into(),
-                    get_argument_result!(&app_cmd, "prefix", String)?.into(),
-                    get_optional_argument_result!(&app_cmd, "desc", String)?.cloned(),
-                    get_argument_result!(&app_cmd, "id", Channel)?
-                ))}() {
-                    Ok((name, prefix, desc, channel)) => self.category_add(ctx, guild_id, name, desc, channel.id.0, prefix).await,
-                    Err(e) => message::error(e)
-                }
-            }
-            "tickets.categories.remove" => {
-                match || -> Result<_, String> {Ok(
-                    get_argument_result!(&app_cmd, "name", String)?.into()
-                )}() {
-                    Ok(name) => self.category_remove(ctx, name).await,
-                    Err(e) => message::error(e)
-                }
-            },
-            "tickets.categories.list" => self.categories_list(ctx, guild_id).await,
-            _ => return Ok(())
+        let command = app_command.to_command();
+        println!("{:?}", command);
+        let c_msg = match self.commands(ctx, guild_id, command).await {
+            Ok(v) => v,
+            Err(None) => return Ok(()),
+            Err(Some(e)) => return Err(e)
         };
         app_command.create_interaction_response(ctx, |resp|{
             *resp = c_msg.into();

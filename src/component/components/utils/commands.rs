@@ -2,7 +2,7 @@ pub use serenity::model::interactions::application_command::ApplicationCommandIn
 use serenity::{model::{interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandInteractionData}, id::{UserId, ChannelId, RoleId, GuildId}}, client::Context};
 
 use crate::component::command_parser::matching;
-
+#[derive(Debug)]
 pub enum Value {
     String(String),
     Integer(i64),
@@ -28,11 +28,12 @@ impl From<ApplicationCommandInteractionDataOptionValue> for Value {
         }
     }
 }
-
+#[derive(Debug)]
 pub struct Command {
     pub path: Vec<String>,
     pub args: Vec<Argument>,
 }
+#[derive(Debug)]
 pub struct Argument {
     pub name: String,
     pub value: Value,
@@ -85,7 +86,7 @@ impl ToCommand for ApplicationCommandInteraction {
             if options.len() == 0 {
                 break;
             }
-            if let Some(cmd) = options.iter().find(|option| option.kind == ApplicationCommandOptionType::SubCommand) {
+            if let Some(cmd) = options.iter().find(|option| option.kind == ApplicationCommandOptionType::SubCommand || option.kind == ApplicationCommandOptionType::SubCommandGroup) {
                 path.push(cmd.name.clone());
                 command = CommandType::Option(cmd);
             } else {
