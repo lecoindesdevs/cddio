@@ -39,6 +39,8 @@ impl serenity::framework::Framework for Framework {
         if !msg.content.starts_with(self.config.prefix) {
             return;
         }
+        msg.channel_id.say(ctx, "Passez par les slashs commands").await;
+        return;
         
         for mid in self.components.read().await.get_components() {
             let mut mid = mid.read().await;
