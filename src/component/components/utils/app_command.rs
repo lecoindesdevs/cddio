@@ -57,12 +57,9 @@ impl<'a> ApplicationCommandEmbed<'a> {
         let mut names = vec![self.0.data.name.as_str()];
         let mut cmd = self.0.data.options.first();
         // s'inspirer de la fonction get_command pour produire le nom
-        while let Some(opt) = cmd {
-            names.push(opt.name.as_str());
-            if opt.kind == ApplicationCommandOptionType::SubCommand {
-                return names.join(".");
-            }
-            cmd = opt.options.first();
+        while let Some(&ApplicationCommandInteractionDataOption{ref name, ref options, kind: ApplicationCommandOptionType::SubCommandGroup | ApplicationCommandOptionType::SubCommand, ..}) = cmd {
+            names.push(name.as_str());
+            cmd = options.first();
         }
         names.join(".")
     }
