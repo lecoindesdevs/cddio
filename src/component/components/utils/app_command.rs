@@ -42,7 +42,7 @@ impl<'a> ApplicationCommandEmbed<'a> {
             if options.len() == 0 {
                 break;
             }
-            if let Some(cmd) = options.iter().find(|option| option.kind == ApplicationCommandOptionType::SubCommand) {
+            if let Some(cmd) = options.iter().find(|option| option.kind == ApplicationCommandOptionType::SubCommand || option.kind == ApplicationCommandOptionType::SubCommandGroup) {
                 command = CommandType::Option(cmd);
             } else {
                 break;
