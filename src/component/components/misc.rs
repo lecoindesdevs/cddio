@@ -107,9 +107,8 @@ impl Misc {
             return Ok(());
         }
         let app_cmd = ApplicationCommandEmbed::new(app_command);
-        let guild_id = match app_cmd.get_guild_id() {
-            Some(v) => v,
-            None => return Err("Vous devez être dans un serveur pour utiliser cette commande.".into())
+        if let None = app_cmd.get_guild_id() {
+            return Err("Vous devez être dans un serveur pour utiliser cette commande.".into())
         };
         let command_name = app_cmd.fullname();
         let msg = match command_name.as_str() {
