@@ -175,12 +175,10 @@ impl Help {
                     None => None
                 };
                 let help_info = match words {
-                    Some(words) => {
-                        let words = words.split(' ').collect::<Vec<&str>>();
-                        self.help_components(words.into_iter()).await.or_else(|_| Err("Aucune aide trouvé.".to_string()))
-                    },
+                    Some(words) => self.help_components(words).await.or_else(|_| Err("Aucune aide trouvé.".to_string())),
                     None => self.list_commands().await
                 };
+                
                 let msg_to_send = match help_info {
                     Ok(v) => {
                         Self::make_help_embed(v)
@@ -202,88 +200,35 @@ impl Help {
             _ => Err(None)
         }
     }
-    async fn help_components<'a, 'b>(&'a self, mut list_words: impl Iterator<Item = &'b str> + Clone) -> Result<HelpInfo, ()> {
+    async fn help_components<'a, 'b>(&'a self, command_name: &'b str) -> Result<HelpInfo, ()> {
         let comps = self.manager.read().await;
         let comps = comps.get_components();
         
-        match list_words.next() {
-            Some(name) => {
-                for cmp in comps {
-                    let cmp = cmp.read().await;
-                    if let Some(node) = cmp.node() {
-                        match Self::help_node(node, name, None, list_words.clone()) {
-                            Ok(v) => return Ok(v),
-                            Err(_) => continue,
-                        }
-                    }
-                }
-                Err(())
-            },
-            None => {
-                let mut components = Vec::new();
-                for cmp in comps {
-                    components.push(cmp.read().await.name().to_string());
-                }
-                Ok(HelpInfo{
-                    name: "Liste des composants".to_string(),
-                    components: Some(components),
-                    .. Default::default()
-                })
-            },
+        for cmp in comps {
+            let cmp = cmp.read().await;
+            let node = match cmp.node() {
+                Some(v) => v,
+                None => continue
+            };
+            let (_, cmd) = match node.list_commands().into_iter().find(|(cmd_name, _)| cmd_name == command_name) {
+                Some(v) => v,
+                None => continue
+            };
+            return Self::help_command(cmd, command_name);
         }
+        Err(())
     }
-    fn help_node<'a, 'b>(node: &'a cmd::Node, name: &'b str, permission: Option<&'a str>, list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
-        return if let Some(found) = node.groups.list().find(|g| g.name() == name) {
-            Self::help_group(found, permission, list_words)
-        } else if let Some(found) = node.commands.list().find(|c| c.name() == name) {
-            Self::help_command(found, permission, list_words)
-        } else {
-            Err(())
-        };
-    }
-    
-    fn help_group<'a, 'b>(group: &'a cmd::Group, permission: Option<&'a str>, mut list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
-        let permission = None;
-        match list_words.next() {
-            Some(name) => Self::help_node(group.node(), name, permission, list_words),
-            None => {
-                let mut groups = Vec::new();
-                for grp in group.node().groups.list() {
-                    groups.push((grp.name().to_string(), grp.help().and_then(|v| Some(v.to_string()))));
-                }
-                let mut cmds = Vec::new();
-                for cmd in group.node().commands.list() {
-                    cmds.push((cmd.name().to_string(), cmd.help().and_then(|v| Some(v.to_string()))));
-                }
-                Ok(HelpInfo{
-                    name: format!("{} (Groupe de commande)", group.name()),
-                    permission: group.permission().and_then(|v| Some(v.to_string())),
-                    desc: group.help().and_then(|v| Some(v.to_string())),
-                    groups: if groups.is_empty() {None} else {Some(groups)},
-                    commands: if cmds.is_empty() {None} else {Some(cmds)},
-                    .. Default::default()
-                })
-            },
-        }
-    }
-    fn help_command<'a, 'b>(command: &'a cmd::Command, permission: Option<&'a str>, mut list_words: impl Iterator<Item = &'b str>) -> Result<HelpInfo, ()> {
-        let permission = None;
-        match list_words.next() {
-            Some(_) => Err(()),
-            None => {
-                let mut params = Vec::new();
-                for param in &command.params {
-                    let name = format!("{} <{}>", param.name(), param.value_type_str());
-                    params.push((name, param.help().and_then(|v| Some(v.to_string()))));
-                }
-                Ok(HelpInfo{
-                    name: format!("{} (Commande)", command.name()),
-                    permission: permission,
-                    desc: command.help().and_then(|v| Some(v.to_string())),
-                    .. Default::default()
-                })
-            },
-        }
+    fn help_command<'a, 'b>(command: &'a cmd::Command, command_name: &'b str) -> Result<HelpInfo, ()> {
+        let params = command.params.iter()
+            .map(|param| (format!("{} <{}>", param.name(), param.value_type_str()), param.help.clone()))
+            .collect::<Vec<(String, Option<String>)>>();
+        Ok(HelpInfo{
+            name: format!("{} (Commande)", command_name),
+            permission: None,
+            desc: command.help().and_then(|v| Some(v.to_string())),
+            params: Some(params),
+            .. Default::default()
+        })
     }
     
     async fn list_commands(&self) -> Result<HelpInfo, String> {
@@ -293,9 +238,11 @@ impl Help {
         for comp in comps {
             let comp = comp.read().await;
             if let Some(node) = comp.node() {
-                commands.extend(node.list_commands_names().into_iter().zip(node.list_commands().into_iter()).map(|(name, cmd)| {
-                    (name, cmd.help().and_then(|v| Some(v.to_string())))
-                }));
+                commands.extend(
+                    node.list_commands()
+                        .into_iter()
+                        .map(|(name, cmd)| (name, cmd.help().and_then(|help| Some(help.to_string()))))
+                );
             }
         }
         Ok(HelpInfo{

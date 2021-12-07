@@ -479,8 +479,12 @@ impl Node {
         self.commands.add(command);
         self
     }
-    pub fn list_commands(&self) -> Vec<&Command> {
-        self.groups.list().flat_map(|grp| grp.node().list_commands()).chain(self.commands.list()).collect()
+    pub fn list_commands(&self) -> Vec<(String, &Command)> {
+        self.groups.list().flat_map(|grp| {
+            let grp_name = grp.name().to_string();
+            let grp_name_ref = grp_name.as_str();
+            grp.node().list_commands().into_iter().map(|(cname, c)| (format!("{} {}", grp_name_ref, cname), c)).collect::<Vec<_>>()
+        }).chain(self.commands.list().map(|cmd| (cmd.name().into(), cmd))).collect()
     }
     pub fn list_commands_names(&self) -> Vec<String> {
         self.groups.list().flat_map(|grp| {

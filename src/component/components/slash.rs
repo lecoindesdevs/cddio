@@ -110,13 +110,13 @@ impl SlashCommands {
                 .add_group(cmd::Group::new("permissions")
                     .set_help("Gérer les permissions des commandes")
                     .add_command(cmd::Command::new("set")
-                        .set_help("Change le salon")
+                        .set_help("Autoriser ou interdire une commande à un utilisateur ou un rôle")
                         .add_param(arg_who.clone())
                         .add_param(arg_command.clone())
                         .add_param(cmd::Argument::new("type")
                             .set_value_type(ApplicationCommandOptionType::String)
                             .set_required(true)
-                            .set_help("Type d'autorisation")
+                            .set_help(r#"Type d'autorisation. "allow" ou "deny""#)
                             .set_autocomplete(Arc::new(vec![
                                 "allow".to_string(),
                                 "deny".to_string()
