@@ -227,7 +227,7 @@ impl Help {
             name: format!("{} (Commande)", command_name),
             permission: None,
             desc: command.help().and_then(|v| Some(v.to_string())),
-            params: Some(params),
+            params: if params.is_empty() {None} else {Some(params)},
             .. Default::default()
         })
     }
