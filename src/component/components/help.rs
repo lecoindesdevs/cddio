@@ -179,21 +179,22 @@ impl Help {
                     None => self.list_commands().await
                 };
                 
-                let msg_to_send = match help_info {
+                let (msg_to_send, ephemeral) = match help_info {
                     Ok(v) => {
-                        Self::make_help_embed(v)
+                        (Self::make_help_embed(v), false)
                     },
                     Err(e) => {
                         let mut embed = CreateEmbed::default();
                         embed.color(Colour::from_rgb(204, 0, 0));
                         embed.title("Erreur");
                         embed.description(e);
-                        embed
+                        (embed, true)
                     }
                 };
                 Ok(message::Message {
                     message: String::new(),
                     embed: Some(msg_to_send),
+                    ephemeral,
                     ..Default::default()
                 })
             }
