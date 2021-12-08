@@ -119,6 +119,15 @@ macro_rules! get_optional_argument_result {
 /// Contraitement à [`get_argument_result!`] et [`get_optional_argument_result!`], cette macro ne fait 
 /// pas de vérification superflu et retourne l'argument de la commande si les critères sont remplis.
 macro_rules! get_argument {
+    ($app_command:expr, $name:expr, User) => {
+        match $app_command.get_argument($name) {
+            Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
+                resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::User(a, b)),
+                ..
+            }) => Some((a, b)),
+            _ => None
+        }
+    };
     ($app_command:expr, $name:expr, $typ:ident) => {
         match $app_command.get_argument($name) {
             Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
