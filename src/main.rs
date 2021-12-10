@@ -46,8 +46,6 @@ impl<T, S: AsRef<str>> ResultLog for Result<T, S> {
         } 
     }
 }
-#[cfg(test)]
-mod tests;
 
 #[tokio::main]
 async fn main() {
