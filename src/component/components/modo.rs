@@ -179,7 +179,7 @@ impl Moderation {
         };
         let reason = match get_argument!(app_cmd, "raison", String) {
             Some(v) => v,
-            None => return Err("La raison d'un bannissement est nécessaire.".into())
+            None => return Err("La raison est nécessaire.".into())
         };
         let time = match get_argument!(app_cmd, "pendant", String) {
             Some(v) => {
@@ -191,7 +191,7 @@ impl Moderation {
             None => None
         };
         if user.id == app_cmd.0.member.as_ref().unwrap().user.id {
-            return Err("Vous ne pouvez pas vous bannir.".into());
+            return Err("Vous vous êtes mentionné vous meême dans `qui`.".into());
         }
         let username = format!("{}#{}", user.name, user.discriminator);
         let guild_name = match guild_id.name(ctx).await {
@@ -199,7 +199,7 @@ impl Moderation {
             _ => "Coin des développeurs".to_string()
         };
         let member = guild_id.member(ctx, user.id).await.or_else(|e| {
-            eprintln!("Cannot get member: {}", e);
+            eprintln!("Impoossible d'obtenir le membre depuis le serveur: {}", e);
             Err(e.to_string())
         })?;
         match user.direct_message(ctx, |msg| {
