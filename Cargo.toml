@@ -6,7 +6,6 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serenity = "0.10"
 tokio = { version = "1.12", features = ["full"] }
 serde = "1.0"
 futures = "0.3"
@@ -14,3 +13,7 @@ futures-locks = "0.6"
 chrono = "0.4"
 ron = "0.7"
 lazy_static = "1.4"
+
+[dependencies.serenity]
+version = "0.10"
+features = ["unstable_discord_api"]

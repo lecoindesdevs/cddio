@@ -11,8 +11,9 @@ impl Manager {
             components: Vec::new(),
         }
     }
-    pub fn add_component(&mut self, cmp_arc: ArcComponent) {
+    pub fn add_component(&mut self, cmp_arc: ArcComponent) -> &mut Self {
         self.components.push(cmp_arc);
+        self
     }
     pub fn get_components(&self) -> &Vec<ArcComponent> {
         &self.components

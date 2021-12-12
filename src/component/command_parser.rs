@@ -38,7 +38,8 @@
 
 
 #![allow(dead_code)]
-use std::collections::VecDeque;
+use std::{collections::{VecDeque, hash_map::DefaultHasher}, hash::{Hash, Hasher}, sync::Arc};
+pub use serenity::model::interactions::application_command::ApplicationCommandOptionType as ValueType;
 
 /// Structures de retour d'une commande qui a match avec le parseur
 pub mod matching {
@@ -47,6 +48,7 @@ pub mod matching {
     #[derive(Debug, PartialEq)]
     pub struct Parameter<'a> {
         pub name: &'a str,
+        pub kind: super::ValueType,
         pub value: &'a str,
     }
     /// Information de commande que le parseur a matché
@@ -57,7 +59,11 @@ pub mod matching {
         /// Paramètres de la commande. Exemple avec la commande concat : `[Parameter { name: "string1", value: "Hello" }, Parameter { name: "string2", value: " world" }]`
         pub params: Vec<Parameter<'a>>,
         /// Role pouvant lancer la commande. Tout le monde si None.
-        pub permission: Option<&'a str>
+        pub permission: Option<&'a str>,
+        /// Arguments variadiques
+        pub arguments: Vec<&'a str>,
+        /// ID de la commande. Sous la forme "group1.group2.command"
+        pub id: Option<&'a str>,
     }
     impl<'a> Command<'a> {
         /// Retourne le nom de la commande. Exemple : `["group", "subgroup", "command"]` -> `command`
@@ -67,6 +73,13 @@ pub mod matching {
         /// Retourne la suite de groupe. Exemple : `["group", "subgroup", "command"]` -> `["group", "subgroup"]`
         pub fn get_groups(&self) -> &[&'a str] {
             &self.path.as_slices().0
+        }
+
+        pub fn get_parameter(&self, name: &str) -> Option<&Parameter> {
+            self.params.iter().find(|p| p.name == name)
+        }
+        pub fn fullname(&self) -> String {
+            self.path.iter().map(|v| *v).collect::<Vec<_>>().join(".")
         }
     }
 }
@@ -84,6 +97,8 @@ pub trait Named {
 pub enum ParseError<'a> {
     /// La commande n'a pas matché
     NotMatched,
+    /// Un groupe a matché, mais pas la commande
+    PartiallyNotMatched(&'a str),
     /// Le paramètre n'a est inconnu
     UnknownParameter(&'a str),
     /// La valeur du paramètre est absente
@@ -98,30 +113,39 @@ pub enum ParseError<'a> {
 impl<'a> ToString for ParseError<'a> {
     fn to_string(&self) -> String {
         match &self {
-            ParseError::NotMatched => "Command not found".to_string(),
-            ParseError::UnknownParameter(v) => format!("Unknown parameter: {}", v),
-            ParseError::MissingParameterValue(v) => format!("Missing value for parameter {}", v),
-            ParseError::ExpectedPath(v) => format!("Expected group or command name after {}", v),
-            ParseError::RequiredParameters(v) => format!("Parameter required: {}", v),
+            ParseError::NotMatched => "Commande inconnue".to_string(),
+            ParseError::PartiallyNotMatched(v)=> format!("Groupe ou commande inconnu {}", v),
+            ParseError::UnknownParameter(v) => format!("Paramètre {} inconnu", v),
+            ParseError::MissingParameterValue(v) => format!("Valeur du paramètre {} manquant", v),
+            ParseError::RequiredParameters(v) => format!("Paramètre {} requis", v),
+            ParseError::ExpectedPath(v) => format!("Groupe ou commande attendu après {}", v),
             ParseError::Todo => "Unknown parser error".to_string(),
         }
     }
 }
+
 /// Convertit une chaine de caractère en groupe d'arguments 
 pub fn split_shell<'a>(txt: &'a str) -> Vec<&'a str> {
     let mut mode=false;
-    txt.split(|c| {
-        match (mode, c) {
-            (_, '\"') => {
-                mode = !mode;
-                true
+    let args = txt.split(|c| {
+            match (mode, c) {
+                (_, '\"') => {
+                    mode = !mode;
+                    true
+                }
+                (false, ' ') => true,
+                _ => false
             }
-            (false, ' ') => true,
-            _ => false
-        }
-    })
-    .filter(|s| !s.is_empty())
-    .collect()
+        })
+        .filter(|s| !s.is_empty())
+        .collect();
+    args
+}
+
+fn hash<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
 }
 
 ///Argument de commande
@@ -132,9 +156,11 @@ pub struct Argument {
     /// Description de l'argument
     pub help: Option<String>,
     /// Type de valeur
-    pub value_type: Option<String>,
+    pub value_type: ValueType,
     /// L'argument requis si vrai
-    pub required: bool
+    pub required: bool,
+    /// Autocompletion
+    pub autocomplete: Option<Arc<Vec<String>>>,
 }
 impl Named for Argument {
     fn name(&self) -> &str {
@@ -146,13 +172,18 @@ impl Argument {
         Argument {
             name: name.into(),
             help: None,
-            value_type: None,
-            required: false
+            value_type: ValueType::String,
+            required: false,
+            autocomplete: None,
         }
     }
     
     pub fn set_help<S: Into<String>>(mut self, h: S) -> Argument {
         self.help = Some(h.into());
+        self
+    }
+    pub fn set_autocomplete(mut self, a: Arc<Vec<String>>) -> Argument {
+        self.autocomplete = Some(a);
         self
     }
     pub fn help(&self) -> Option<&str> {
@@ -161,31 +192,52 @@ impl Argument {
             None => None,
         }
     }
-    pub fn set_value_type<S: Into<String>>(mut self, vt: S) -> Argument {
-        self.value_type = Some(vt.into());
+    pub fn set_value_type(mut self, vt: ValueType) -> Argument {
+        match vt {
+            ValueType::SubCommand => panic!("Commande non supporté pour les arguments, utilisez les commandes natives"),
+            ValueType::SubCommandGroup => panic!("Groupe de commande non supporté pour les arguments, utilisez les groupes de commande natifs"),
+            _ => self.value_type = vt
+        }
         self
     }
-    pub fn value_type(&self) -> Option<&str> {
-        match &self.value_type {
-            Some(v) => Some(&v),
-            None => None,
+    pub fn value_type(&self) -> ValueType {
+        self.value_type
+    }
+    pub fn value_type_str(&self) -> &'static str {
+        match self.value_type {
+            ValueType::String => "string",
+            ValueType::Integer => "integer",
+            ValueType::Boolean => "boolean",
+            ValueType::User => "user",
+            ValueType::Channel => "channel",
+            ValueType::Role => "role",
+            ValueType::Mentionable => "mentionable",
+            ValueType::Number => "number",
+            _ => "unknown"
         }
     }
     pub fn set_required(mut self, req: bool) -> Argument {
         self.required = req;
         self
     }
+    pub fn required(&self) -> bool {
+        self.required
+    }
 }
 #[derive(Debug, Clone)]
 pub struct Command {
     /// Nom de la commande
     pub name: String,
+    /// Type d'arguments variadique si besoin
+    pub arguments: Option<String>,
     /// Description de la commande
     pub help: Option<String>,
     /// Role pouvant lancer la commande. Tout le monde si None.
     pub permission: Option<String>,
     /// Liste des arguments de la commande
-    pub params: Vec<Argument>
+    pub params: Vec<Argument>,
+    /// ID de la commande
+    pub id: Option<String>,
 }
 impl Named for Command {
     fn name(&self) -> &str {
@@ -196,9 +248,11 @@ impl Command {
     pub fn new<S: Into<String>>(name: S) -> Command {
         Command {
             name: name.into(),
+            arguments: None,
             permission: None,
             help: None,
-            params: Vec::new()
+            params: Vec::new(),
+            id: None
         }
     }
     pub fn set_permission<S: Into<String>>(mut self, permission: S) -> Self {
@@ -226,7 +280,35 @@ impl Command {
         self.params.push(param);
         self
     }
-
+    pub fn params(&self) -> &Vec<Argument> {
+        &self.params
+    }
+    pub fn set_arguments(mut self, arg: String) -> Command {
+        self.arguments = Some(arg);
+        self
+    }
+    pub fn generate_id(&mut self, groups: Option<&[&str]>) {
+        self.id = match groups {
+            Some(g) => {
+                let nameid = format!("{}.{}",g.join("."), self.name);
+                Some(nameid)
+            },
+            None => Some(self.name.clone())
+        };
+    }
+    pub fn id(&self) -> Option<&str> {
+        match self.id {
+            Some(ref v) => Some(&v),
+            None => None,
+        }
+    }
+    pub fn try_match_slash<'a>(&'a self, args: &[&'a str]) -> Result<(), ()> {
+        if args.is_empty() || args[0] != self.name{
+            Err(())
+        } else {
+            Ok(())
+        }
+    }
     pub fn try_match<'a>(&'a self, permission: Option<&'a str>, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>> {
         if args.is_empty() {
             return Err(ParseError::Todo);
@@ -240,12 +322,22 @@ impl Command {
         };
         let mut params = Vec::new();
         let mut iter_args = args.iter().skip(1);
+        let mut arguments: Vec<&str> = Vec::new();
         while let Some(name) = iter_args.next() {
-            if let None = self.params.iter().find(|cmdp| cmdp.name == name[1..]) {
-                return Err(ParseError::UnknownParameter(name));
+            if !name.starts_with('-') {
+                if self.arguments.is_some() {
+                    arguments.push(name);
+                    continue;
+                } else {
+                    return Err(ParseError::UnknownParameter(name));
+                }
             }
+            let param = match self.params.iter().find(|cmdp| cmdp.name == name[1..]) {
+                Some(v) => v,
+                None => return Err(ParseError::UnknownParameter(name)),
+            };
             match iter_args.next() {
-                Some(value) => params.push(matching::Parameter{name: &name[1..],value}),
+                Some(value) => params.push(matching::Parameter{name: &name[1..], value, kind: param.value_type}),
                 None => return Err(ParseError::MissingParameterValue(name))
             }
         }
@@ -258,6 +350,8 @@ impl Command {
             path: {let mut v = VecDeque::new(); v.push_back(args[0]); v},
             permission,
             params,
+            arguments,
+            id: self.id.as_ref().map(|v| v.as_str())
         })
     }
 }
@@ -274,7 +368,7 @@ pub struct Group {
 }
 impl Group {
     pub fn new<S: Into<String>>(name: S) -> Group {
-        Group { 
+        Group {
             name: name.into(), 
             permission: None,
             help: None, 
@@ -285,9 +379,21 @@ impl Group {
         self.node.groups.add(grp);
         self
     }
+    pub fn groups(&self) -> &Container<Group> {
+        &self.node.groups
+    }
+    pub fn get_group(&self, name: &str) -> Option<&Group> {
+        self.node.groups.find(name)
+    }
     pub fn add_command(mut self, cmd: Command) -> Group {
         self.node.commands.add(cmd);
         self
+    }
+    pub fn commands(&self) -> &Container<Command> {
+        &self.node.commands
+    }
+    pub fn get_command(&self, name: &str) -> Option<&Command> {
+        self.node.commands.find(name)
     }
     pub fn set_permission<S: Into<String>>(mut self, permission: S) -> Self {
         self.permission = Some(permission.into());
@@ -312,28 +418,32 @@ impl Group {
     pub fn node(&self) -> &Node {
         &self.node
     }
+    pub fn generate_ids(&mut self, groups: Option<&[&str]>) {
+        let groups = groups.unwrap_or(&[])
+            .iter()
+            .map(|s| *s)
+            .chain(std::iter::once(self.name.as_str()))
+            .collect::<Vec<_>>();
+        self.node.generate_ids(&groups);
+    }
+    pub fn try_match_slash<'a>(&'a self, args: &[&'a str]) -> Result<(), ()> {
+        if args.is_empty() || args[0] != self.name{
+            return Err(());
+        }
+        for grp in self.node.groups.list() {
+            if grp.try_match_slash(&args[1..]).is_ok() {
+                return Ok(());
+            }
+        }
+        for cmd in self.node.commands.list() {
+            if cmd.try_match_slash(&args[1..]).is_ok() {
+                return Ok(());
+            }
+        }
+        Err(())
+    }
     pub fn try_match<'a>(&'a self, permission: Option<&'a str>, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>> {
-        if args[0] != self.name {
-            return Err(ParseError::NotMatched);
-        }
-        if args.len() == 1 {
-            return Err(ParseError::ExpectedPath(args[0]))
-        }
-        if args[1].starts_with('-') {
-            return Err(ParseError::ExpectedPath(args[0]));
-        }
-        let permission = match &self.permission {
-            Some(v) => Some(v.as_str()),
-            None => permission,
-        };
-        match self.node.commands.find(args[1]) {
-            Some(cmd) => cmd.try_match(permission, &args[1..]),
-            None => match self.node.groups.find(args[1]) {
-                Some(grp) => grp.try_match(permission, &args[1..]),
-                None => Err(ParseError::NotMatched),
-            },
-        }
-        .and_then(|mut cmd| Ok({cmd.path.push_front(args[0]); cmd}))
+        self.node.try_match(permission, args)
     }
 }
 impl Named for Group {
@@ -357,6 +467,48 @@ impl Node {
             groups: Container::new() 
         }
     }
+    pub fn generate_ids(&mut self, groups: &[&str]) {
+        self.groups.0.iter_mut().for_each(|grp| grp.generate_ids(Some(&groups)));
+        self.commands.0.iter_mut().for_each(|cmd| cmd.generate_id(Some(&groups)));
+    }
+    pub fn add_group(mut self, group: Group) -> Node {
+        self.groups.add(group);
+        self
+    }
+    pub fn add_command(mut self, command: Command) -> Node {
+        self.commands.add(command);
+        self
+    }
+    pub fn list_commands(&self) -> Vec<(String, &Command)> {
+        self.groups.list().flat_map(|grp| {
+            let grp_name = grp.name().to_string();
+            let grp_name_ref = grp_name.as_str();
+            grp.node().list_commands().into_iter().map(|(cname, c)| (format!("{} {}", grp_name_ref, cname), c)).collect::<Vec<_>>()
+        }).chain(self.commands.list().map(|cmd| (cmd.name().into(), cmd))).collect()
+    }
+    pub fn list_commands_names(&self) -> Vec<String> {
+        self.groups.list().flat_map(|grp| {
+            let grp_name = grp.name().to_string();
+            let grp_name_ref = grp_name.as_str();
+            grp.node().list_commands_names().into_iter().map(|c| format!("{} {}", grp_name_ref, c)).collect::<Vec<_>>()
+        }).chain(self.commands.list().map(|cmd| cmd.name().into())).collect()
+    }
+    pub fn try_match<'a>(&'a self, permission: Option<&'a str>, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>>  {
+        if args.is_empty() {
+            return Err(ParseError::ExpectedPath(args[0]));
+        }
+        if args[0].starts_with('-') {
+            return Err(ParseError::ExpectedPath(args[0]));
+        }
+        match self.commands.find(args[0]) {
+            Some(cmd) => cmd.try_match(permission, &args[0..]),
+            None => match self.groups.find(args[0]) {
+                Some(grp) => grp.try_match(permission, &args[0..]),
+                None => Err(ParseError::NotMatched),
+            },
+        }
+        //.and_then(|mut cmd| Ok({cmd.path.push_front(args[0]); cmd}))
+    }
 }
 /// Conteneur de commandes ou de groupes
 #[derive(Debug, Clone)]
@@ -378,11 +530,10 @@ impl<T: Named> Container<T> {
     pub fn list(&self) -> impl Iterator<Item = &T> {
         self.0.iter()
     }
-    pub fn remove(&mut self, name: &str)  {
-        let id = self.0.iter().take_while(|v| v.name() == name).count();
-        if id>=self.0.len() {
-            panic!("Container remove: {} not found", name);
-        }
+    pub fn remove(&mut self, name: &str) {
+        let id = self.0.iter()
+            .take_while(|v| v.name() == name)
+            .count();
         self.0.remove(id);
     }
 }
@@ -390,5 +541,63 @@ impl<T: Named> Container<T> {
 impl<T: Named> Default for Container<T> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+pub enum Type<'a> {
+    Group(&'a Group),
+    Command(&'a Command),
+}
+
+enum IterType<'a> {
+    Group(std::slice::Iter<'a, Group>, std::slice::Iter<'a, Command>),
+    Command(std::slice::Iter<'a, Command>),
+}
+pub struct Iter<'a>(&'a Node, Vec<IterType<'a>>);
+
+impl<'a> Iter<'a> {
+    fn new(node: &'a Node) -> Self {
+        Self(node, vec![IterType::Group(node.groups.0.iter(), node.commands.0.iter())])
+    }
+}
+impl<'a> Iterator for Iter<'a> {
+    type Item = &'a Command;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.1.is_empty() {
+            return None;
+        } 
+        loop {
+            let iter = match self.1.pop() {
+                Some(v) => v,
+                None => return None,
+            };
+            match iter {
+                IterType::Group(mut iter_group, iter_comm) => {
+                    if let Some(grp) = iter_group.next() {
+                        self.1.push(IterType::Group(iter_group, iter_comm));
+                        self.1.push(IterType::Group(grp.node.groups.0.iter(), grp.node.commands.0.iter()));
+                    } else {
+                        self.1.push(IterType::Command(iter_comm));
+                    }
+                },
+                IterType::Command(mut iter_comm) => {
+                    if let Some(cmd) = iter_comm.next() {
+                        self.1.push(IterType::Command(iter_comm));
+                        return Some(cmd);
+                    }
+                },
+            } 
+        }
+    }
+}
+
+impl Node {
+    pub fn iter(&self) -> Iter {
+        Iter::new(self)
+    }
+}
+impl Group {
+    pub fn iter(&self) -> Iter {
+        self.node.iter()
     }
 }

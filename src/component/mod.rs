@@ -9,6 +9,7 @@ use serenity::async_trait;
 mod event;
 mod framework;
 mod data;
+mod slash;
 pub mod command_parser;
 pub mod components;
 pub mod manager;
@@ -61,8 +62,11 @@ pub trait Component: Sync + Send
     /// 
     /// Le système d'aide du bot se repose sur ce groupe. 
     /// Vu que le parse de la commande n'est pas obligatoire, cette fonction est donc optionnelle.
-    fn group_parser(&self) -> Option<&command_parser::Group> {
+    fn node(&self) -> Option<&command_parser::Node> {
         None
+    }
+    fn register_slash(&self, ) {
+        
     }
     /// Helper : convertir un composant en ArcComponent
     fn to_arc(self) -> ArcComponent 
