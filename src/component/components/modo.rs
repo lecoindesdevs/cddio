@@ -12,6 +12,7 @@ use super::utils::{app_command::{ApplicationCommandEmbed, get_argument}, Data, m
 struct ModerationData {
     banned_until: Vec<(u64, i64)>, // (user_id, time)
     mute_until: Vec<(u64, i64)>, // (user_id, time)
+    muted_role: u64,
 }
 #[derive(Clone, Debug)]
 pub struct Moderation {
@@ -82,14 +83,23 @@ impl Moderation {
         }
     }
     async fn on_ready(&self, ctx: &cmp::Context, ready: &serenity::model::gateway::Ready) -> Result<(), String> {
-        let (banned_until, guild_id)= {
+        
+        let (banned_until, mute_until, muted_role, guild_id)= {
             let data = self.data.read().await;
             let data = data.read();
             
             let guild_ids = ready.guilds.iter().map(|g| g.id()).collect::<Vec<_>>();
             let guild_id = guild_ids.first().cloned().ok_or("No guild found".to_string())?;
-            (data.banned_until.clone(), guild_id)
+            (data.banned_until.clone(), data.mute_until.clone(), data.muted_role, guild_id)
         };
+        if muted_role == 0 {
+            let role = guild_id.roles(ctx).await
+                .map_err(|e| format!("Impossible d'obtenir la liste des roles du serveur: {}", e.to_string()))?
+                .into_iter()
+                .find(|(_, role)| role.name == "muted")
+                .ok_or("Impossible de trouver le role muted".to_string())?;
+            self.data.write().await.write().muted_role = role.0.0;
+        }
 
         banned_until.iter().cloned().for_each(|(user_id, time)| {
             let ctx = ctx.clone();
@@ -121,7 +131,7 @@ impl Moderation {
         let command_name = app_cmd.fullname();
         let msg = match command_name.as_str() {
             "ban" => self.ban(ctx, guild_id, &app_cmd).await?,
-            // "mute" => self.mute(ctx, guild_id, app_cmd).await,
+            "mute" => self.mute(ctx, guild_id, &app_cmd).await?,
             _ => return Ok(())
         };
         app_command.create_interaction_response(ctx, |resp|{
@@ -160,6 +170,25 @@ impl Moderation {
             }
         });
     }
+    fn unmute_thread(ctx: Context, mut member: Member, date_time: DateTime<Utc>, data: RwLock<Data<ModerationData>>) {
+        tokio::spawn(async move {
+            let duration = date_time - chrono::Utc::now();
+            if duration.num_seconds()>0 {
+                tokio::time::sleep(duration.to_std().unwrap()).await;
+            }
+            let muted_role = data.read().await.read().muted_role;
+            if let Err(e) =  member.remove_role(ctx, muted_role).await {
+                eprintln!("Error unmutting {} ({}): {}", member.user.name, member.user.id, e.to_string());
+            } else {
+                let mut data = data.write().await;
+                let mut data = data.write();
+                let banned_until = &mut data.banned_until;
+                let idx = banned_until.iter().position(|(user_id, _)| user_id == &member.user.id.0).unwrap();
+                data.mute_until.remove(idx);
+                println!("Membre {} unmute", member.user.name);
+            }
+        });
+    }
     fn get_arguments<'a>(app_cmd: &'a ApplicationCommandEmbed<'a>) -> Result<(&'a User, &'a String, Option<(i64, DateTime<Utc>)>), String>{
         let user = match get_argument!(app_cmd, "qui", User) {
             Some(v) => v.0,
@@ -180,10 +209,40 @@ impl Moderation {
         };
         Ok((user, reason, time))
     }
+    async fn warn_member(&self, ctx: &Context, member: &Member, keyword: &str, when: Option<&str>, reason: &str, guild_name: &str) -> Result<(), String> {
+        match member.user.direct_message(ctx, |msg| {
+            if let Some(when) = when {
+                msg.content(format!("Vous avez été temporairement **{}** du serveur {}.\n__Raison__ : {}\n__Prend fin le__ : {}", keyword, guild_name, reason, when));
+            } else {
+                msg.content(format!("Vous avez été **{}** du serveur {}.\n__Raison__ : {}", keyword, guild_name, reason));
+            }
+            msg
+        }).await {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                let user = &member.user;
+                let username = format!("{}#{}", user.name, user.discriminator);
+                Err(format!("Impossible d'envoyer le message de bannissement à l'utilisateur {}: {}", username, e))
+            }
+        }
+    }
+    async fn save_until(&self, who: u64, when: i64, what: u8) {
+        let mut data = self.data.write().await;
+        let mut data = data.write();
+        let array_until = match what {
+            0 => &mut data.banned_until,
+            1 => &mut data.mute_until,
+            _ => unreachable!()
+        };
+        match array_until.iter_mut().find(|(uid, _)| uid == &who) {
+            Some((_, t)) => *t = when,
+            None => data.banned_until.push((who, when))
+        };
+    }
     async fn ban(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>) -> Result<message::Message, String> {
         let (user, reason, time) = Self::get_arguments(app_cmd)?;
         if user.id == app_cmd.0.member.as_ref().unwrap().user.id {
-            return Err("Vous vous êtes mentionné vous meême dans `qui`.".into());
+            return Err("Vous vous êtes mentionné vous même dans `qui`.".into());
         }
         let username = format!("{}#{}", user.name, user.discriminator);
         let guild_name = match guild_id.name(ctx).await {
@@ -194,41 +253,62 @@ impl Moderation {
             eprintln!("Impossible d'obtenir le membre depuis le serveur: {}", e);
             Err(e.to_string())
         })?;
-        match user.direct_message(ctx, |msg| {
-            msg.embed(|embed| {
-                embed.title("Vous avez été banni du serveur.");
-                if let Some((_, date_time)) = time {
-                    embed.description(format!("Vous avez été banni temporairement du serveur {}, le bannissement prendra fin le {} UTC.", guild_name, date_time.format("%d/%m/%Y à %H:%M:%S")));
-                } else {
-                    embed.description("Vous avez été banni du serveur.");
-                }
-                embed.field("Raison", reason, false);
-                
-                embed.color(0xFF0000);
-                embed
-            });
-            msg
-        }).await {
-            Ok(_) => (),
-            Err(e) => eprintln!("Impossible d'envoyer le message de bannissement à l'utilisateur {}: {}", username, e)
+        let formatted_when = match time {
+            Some((_, when)) => Some(when.format("%d/%m/%Y à %H:%M:%S").to_string()),
+            None => None
         };
+        Self::warn_member(&self, ctx, &member, "ban", formatted_when.as_ref().map(|v| v.as_str()), reason.as_str(), guild_name.as_str()).await?;
 
         if let Err(e) = member.ban_with_reason(ctx, 0, reason).await {
             return Err(format!("Impossible de bannir le membre: {}", e));
         }
         let msg = match time {
             Some((timestamp, date_time)) => {
-                let mut data = self.data.write().await;
-                let mut data = data.write();
-                match data.banned_until.iter_mut().find(|(uid, _)| uid == &user.id.0) {
-                    Some((_, t)) => *t = timestamp,
-                    None => data.banned_until.push((user.id.0, timestamp))
-                };
-                let formatted_date = date_time.format("%d/%m/%Y à %H:%M:%S");
+                self.save_until(user.id.0, timestamp, 0).await;
                 Self::unban_thread(ctx.clone(), member, date_time, self.data.clone());
-                format!("Le membre <@{}> ({}) a été banni temporairement du serveur {}, fini le {} UTC.", user.id, username, guild_name, formatted_date)
+                format!("Le membre <@{}> ({}) a été banni temporairement du serveur {}, fini le {} UTC.", user.id, username, guild_name, formatted_when.unwrap())
             },
             None => format!("Le membre <@{}> ({}) a été banni du serveur {}.", user.id, username, guild_name)
+        };
+        println!("{}", msg);
+        let mut msg = message::success(msg);
+        msg.embed.as_mut().unwrap().field("Raison", reason, false);
+        Ok(msg)
+    }
+    async fn mute(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>) -> Result<message::Message, String> {
+        let (user, reason, time) = Self::get_arguments(app_cmd)?;
+        if user.id == app_cmd.0.member.as_ref().unwrap().user.id {
+            return Err("Vous vous êtes mentionné vous même dans `qui`.".into());
+        }
+        let username = format!("{}#{}", user.name, user.discriminator);
+        let guild_name = match guild_id.name(ctx).await {
+            Some(v) => v,
+            _ => "Coin des développeurs".to_string()
+        };
+        let mut member = guild_id.member(ctx, user.id).await.or_else(|e| {
+            eprintln!("Impossible d'obtenir le membre depuis le serveur: {}", e);
+            Err(e.to_string())
+        })?;
+        let formatted_when = time.map(|(_, when)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
+        let muted_role = self.data.read().await.read().muted_role;
+        let muted_role = guild_id.roles(ctx)
+            .await
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .find(|r| r.0.0 == muted_role) 
+            .ok_or_else(|| "Impossible de trouver le rôle de mute.".to_string())?;
+        Self::warn_member(&self, ctx, &member, "mute", formatted_when.as_ref().map(|v| v.as_str()), reason.as_str(), guild_name.as_str()).await?;
+
+        if let Err(e) = member.add_role(ctx, muted_role.1).await {
+            return Err(format!("Impossible de mute le membre: {}", e));
+        }
+        let msg = match time {
+            Some((timestamp, date_time)) => {
+                self.save_until(user.id.0, timestamp, 1).await;
+                Self::unmute_thread(ctx.clone(), member, date_time, self.data.clone());
+                format!("Le membre <@{}> ({}) a été mute temporairement du serveur {}, fini le {} UTC.", user.id, username, guild_name, formatted_when.unwrap())
+            },
+            None => format!("Le membre <@{}> ({}) a été mute du serveur {}.", user.id, username, guild_name)
         };
         println!("{}", msg);
         let mut msg = message::success(msg);
