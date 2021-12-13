@@ -60,9 +60,21 @@ impl Moderation {
         let mute = ban.clone()
             .set_name("mute")
             .set_help("Mute un membre. Temporaire si l'argument for est présent.");
+        let unban = cmd::Command::new("unban")
+            .set_help("Unban un membre")
+            .add_param(cmd::Argument::new("qui")
+                .set_value_type(cmd::ValueType::User)
+                .set_help("Le membre à unban")
+                .set_required(true)
+            );
+        let unmute = unban.clone()
+            .set_name("unmute")
+            .set_help("Unmute un membre");
         let node = cmd::Node::new()
             .add_command(ban)
-            .add_command(mute);
+            .add_command(mute)
+            .add_command(unban)
+            .add_command(unmute);
         Moderation {
             node,
             app_id,
@@ -135,6 +147,8 @@ impl Moderation {
         let msg = match command_name.as_str() {
             "ban" => self.ban(ctx, guild_id, &app_cmd).await?,
             "mute" => self.mute(ctx, guild_id, &app_cmd).await?,
+            "unban" => self.unban(ctx, guild_id, &app_cmd).await?,
+            "unmute" => self.unmute(ctx, guild_id, &app_cmd).await?,
             _ => return Ok(())
         };
         app_command.create_interaction_response(ctx, |resp|{
@@ -306,5 +320,36 @@ impl Moderation {
         let mut msg = message::success(msg);
         msg.embed.as_mut().unwrap().field("Raison", reason, false);
         Ok(msg)
+    }
+    async fn unmute(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>) -> Result<message::Message, String> {
+        let user = get_argument!(app_cmd, "qui", User)
+            .map(|v| v.0)
+            .ok_or_else(|| "Vous devez mentionner un membre.".to_string())?;
+        let muted_role = self.data.read().await.read().muted_role;
+        if muted_role == 0 {
+            return Err("Le rôle de mute n'est pas défini.".into());
+        }
+        let mut member = guild_id.member(ctx, user.id).await
+            .map_err(|e| format!("Impossible d'obtenir le membre depuis le serveur: {}", e))?;
+        if member.roles.iter().find(|r| r.0 == muted_role).is_none() {
+            return Ok(message::error(format!("Le membre <@{}> n'est pas mute.", user.id)));
+        }
+        member.remove_role(ctx, RoleId(muted_role)).await
+            .map_err(|e| format!("Impossible de unmute le membre: {}", e))?;
+        Ok(message::success(format!("<@{}> a été unmute.", user.id)))
+    }
+    async fn unban(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>) -> Result<message::Message, String> {
+        let user = get_argument!(app_cmd, "qui", User)
+            .map(|v| v.0)
+            .ok_or_else(|| "Vous devez mentionner un membre.".to_string())?;
+        if guild_id.bans(ctx).await
+            .map_err(|e| format!("Impossible d'obtenir les bans depuis le serveur: {}", e))?
+            .into_iter()
+            .find(|b| b.user.id == user.id).is_none() {
+            return Ok(message::error(format!("Le membre <@{}> n'est pas banni.", user.id)));
+        }
+        guild_id.unban(ctx, user.id).await
+            .map_err(|e| format!("Impossible de unban le membre: {}", e))?;
+        Ok(message::success(format!("<@{}> a été unban.", user.id)))
     }
 }
