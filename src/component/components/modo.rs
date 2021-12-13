@@ -106,14 +106,17 @@ impl Moderation {
             let data = self.data.clone();
             tokio::spawn(async move {
                 let date_time = DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp(time, 0), Utc);
-                let member = match guild_id.member(&ctx, user_id).await {
-                    Ok(member) => member,
-                    Err(e) => {
-                        eprintln!("tempban execution: Error getting member {}: {}", user_id, e);
-                        return;
-                    },
-                };
+                let member = guild_id.member(&ctx, user_id).await.map_err(|e| eprintln!("tempban waiter: Error getting member {}: {}", user_id, e)).unwrap();
                 Self::unban_thread(ctx, member, date_time, data);
+            });
+        });
+        mute_until.iter().cloned().for_each(|(user_id, time)| {
+            let ctx = ctx.clone();
+            let data = self.data.clone();
+            tokio::spawn(async move {
+                let date_time = DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp(time, 0), Utc);
+                let member = guild_id.member(&ctx, user_id).await.map_err(|e| eprintln!("tempmute waiter: Error getting member {}: {}", user_id, e)).unwrap();
+                Self::unmute_thread(ctx, member, date_time, data);
             });
         });
         Ok(())
