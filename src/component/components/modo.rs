@@ -182,8 +182,8 @@ impl Moderation {
             } else {
                 let mut data = data.write().await;
                 let mut data = data.write();
-                let banned_until = &mut data.banned_until;
-                let idx = banned_until.iter().position(|(user_id, _)| user_id == &member.user.id.0).unwrap();
+                let mute_until = &mut data.mute_until;
+                let idx = mute_until.iter().position(|(user_id, _)| user_id == &member.user.id.0).unwrap();
                 data.mute_until.remove(idx);
                 println!("Membre {} unmute", member.user.name);
             }
@@ -236,7 +236,7 @@ impl Moderation {
         };
         match array_until.iter_mut().find(|(uid, _)| uid == &who) {
             Some((_, t)) => *t = when,
-            None => data.banned_until.push((who, when))
+            None => array_until.push((who, when))
         };
     }
     async fn ban(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>) -> Result<message::Message, String> {
@@ -281,27 +281,16 @@ impl Moderation {
             return Err("Vous vous êtes mentionné vous même dans `qui`.".into());
         }
         let username = format!("{}#{}", user.name, user.discriminator);
-        let guild_name = match guild_id.name(ctx).await {
-            Some(v) => v,
-            _ => "Coin des développeurs".to_string()
-        };
-        let mut member = guild_id.member(ctx, user.id).await.or_else(|e| {
-            eprintln!("Impossible d'obtenir le membre depuis le serveur: {}", e);
-            Err(e.to_string())
-        })?;
-        let formatted_when = time.map(|(_, when)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
+        let guild_name = guild_id.name(ctx).await.unwrap_or_else(|| "Coin des développeurs".to_string());
+        let mut member = guild_id.member(ctx, user.id).await.map_err(|e| format!("Impossible d'obtenir le membre depuis le serveur: {}", e))?;
         let muted_role = self.data.read().await.read().muted_role;
-        let muted_role = guild_id.roles(ctx)
-            .await
-            .map_err(|e| e.to_string())?
-            .into_iter()
-            .find(|r| r.0.0 == muted_role) 
-            .ok_or_else(|| "Impossible de trouver le rôle de mute.".to_string())?;
+        if muted_role == 0 {
+            return Err("Le rôle de mute n'est pas défini.".into());
+        }
+        let formatted_when = time.map(|(_, when)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
         Self::warn_member(&self, ctx, &member, "mute", formatted_when.as_ref().map(|v| v.as_str()), reason.as_str(), guild_name.as_str()).await?;
 
-        if let Err(e) = member.add_role(ctx, muted_role.1).await {
-            return Err(format!("Impossible de mute le membre: {}", e));
-        }
+        member.add_role(ctx, RoleId(muted_role)).await.map_err(|e| format!("Impossible de mute le membre: {}", e))?;
         let msg = match time {
             Some((timestamp, date_time)) => {
                 self.save_until(user.id.0, timestamp, 1).await;
