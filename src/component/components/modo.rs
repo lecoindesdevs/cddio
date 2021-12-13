@@ -187,7 +187,7 @@ impl Moderation {
             _ => "Coin des développeurs".to_string()
         };
         let member = guild_id.member(ctx, user.id).await.or_else(|e| {
-            eprintln!("Impoossible d'obtenir le membre depuis le serveur: {}", e);
+            eprintln!("Impossible d'obtenir le membre depuis le serveur: {}", e);
             Err(e.to_string())
         })?;
         match user.direct_message(ctx, |msg| {
