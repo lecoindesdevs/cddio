@@ -4,7 +4,7 @@ use crate::component::{self as cmp, command_parser as cmd};
 use chrono::{DateTime, Utc};
 use futures_locks::RwLock;
 use serde::{Deserialize, Serialize};
-use serenity::{async_trait, model::{interactions::application_command::ApplicationCommandInteraction, id::{ApplicationId, GuildId, UserId}, guild::{Guild, Member}, event::ReadyEvent}, client::Context};
+use serenity::{async_trait, model::{interactions::application_command::ApplicationCommandInteraction, id::{ApplicationId, GuildId, UserId}, guild::{Guild, Member}, event::ReadyEvent, prelude::*}, client::Context};
 
 use super::utils::{app_command::{ApplicationCommandEmbed, get_argument}, Data, message};
 
@@ -160,7 +160,7 @@ impl Moderation {
             }
         });
     }
-    async fn ban<'a>(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'a>) -> Result<message::Message, String> {
+    fn get_arguments<'a>(app_cmd: &'a ApplicationCommandEmbed<'a>) -> Result<(&'a User, &'a String, Option<(i64, DateTime<Utc>)>), String>{
         let user = match get_argument!(app_cmd, "qui", User) {
             Some(v) => v.0,
             None => return Err("Vous devez mentionner un membre.".into())
@@ -178,6 +178,10 @@ impl Moderation {
             },
             None => None
         };
+        Ok((user, reason, time))
+    }
+    async fn ban(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>) -> Result<message::Message, String> {
+        let (user, reason, time) = Self::get_arguments(app_cmd)?;
         if user.id == app_cmd.0.member.as_ref().unwrap().user.id {
             return Err("Vous vous êtes mentionné vous meême dans `qui`.".into());
         }
