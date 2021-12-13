@@ -56,21 +56,9 @@ impl Moderation {
                 .set_value_type(cmd::ValueType::String)
                 .set_help("Pendant combien de temps")
             );
-        let mute = cmd::Command::new("mute")
-            .set_help("Mute un membre. Temporaire si l'argument for est présent.")
-            .add_param(cmd::Argument::new("qui")
-                .set_value_type(cmd::ValueType::User)
-                .set_help("Le membre à bannir")
-                .set_required(true)
-            )
-            .add_param(cmd::Argument::new("raison")
-                .set_value_type(cmd::ValueType::String)
-                .set_help("La raison du mute")
-            )
-            .add_param(cmd::Argument::new("pendant")
-                .set_value_type(cmd::ValueType::String)
-                .set_help("Pendant combien de temps")
-            );
+        let mute = ban.clone()
+            .set_name("mute")
+            .set_help("Mute un membre. Temporaire si l'argument for est présent.");
         let node = cmd::Node::new()
             .add_command(ban)
             .add_command(mute);
