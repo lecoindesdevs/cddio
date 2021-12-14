@@ -1,24 +1,57 @@
 mod time;
 
+use std::collections::LinkedList;
+use std::ops::Add;
+use std::path::Display;
+
 use crate::component::{self as cmp, command_parser as cmd};
 use chrono::{DateTime, Utc};
+use futures::Future;
 use futures_locks::RwLock;
 use serde::{Deserialize, Serialize};
 use serenity::{async_trait, client::Context};
 use serenity::model::{interactions::application_command::ApplicationCommandInteraction, id::{ApplicationId, GuildId}, guild::Member, event::ReadyEvent, prelude::*};
 use super::utils::{app_command::{ApplicationCommandEmbed, get_argument}, Data, message};
+use tokio::sync::oneshot::Sender;
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+enum TypeModeration {
+    Ban,
+    Mute,
+}
+
+impl std::fmt::Display for TypeModeration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TypeModeration::Ban => write!(f, "ban"),
+            TypeModeration::Mute => write!(f, "mute"),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct Action {
+    type_mod: TypeModeration,
+    user_id: u64,
+    time: i64,
+}
+
+impl Action {
+    fn new(type_mod: TypeModeration, user_id: u64, time: i64) -> Self { Self { type_mod, user_id, time } }
+}
+
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
 struct ModerationData {
-    banned_until: Vec<(u64, i64)>, // (user_id, time)
-    mute_until: Vec<(u64, i64)>, // (user_id, time)
+    mod_until: Vec<Action>,
     muted_role: u64,
 }
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Moderation {
     node: cmd::Node,
     app_id: ApplicationId,
     data: RwLock<Data<ModerationData>>,
+    tasks: RwLock<Vec<(UserId, TypeModeration, Sender<()>)>>,
 }
 
 #[async_trait]
@@ -81,7 +114,8 @@ impl Moderation {
             data: match Data::from_file_default("moderation") {
                 Ok(data) => RwLock::new(data),
                 Err(e) => panic!("Data moderation: {:?}", e)
-            }
+            },
+            tasks: RwLock::new(Vec::new()),
         }
     }
     async fn r_event(&self, ctx: &cmp::Context, evt: &cmp::Event) -> Result<(), String> {
@@ -95,13 +129,15 @@ impl Moderation {
     }
     async fn on_ready(&self, ctx: &cmp::Context, ready: &serenity::model::gateway::Ready) -> Result<(), String> {
         
-        let (banned_until, mute_until, muted_role, guild_id)= {
+        let (mod_until, muted_role, guild_id)= {
             let data = self.data.read().await;
             let data = data.read();
             
-            let guild_ids = ready.guilds.iter().map(|g| g.id()).collect::<Vec<_>>();
-            let guild_id = guild_ids.first().cloned().ok_or_else(|| "No guild found".to_string())?;
-            (data.banned_until.clone(), data.mute_until.clone(), data.muted_role, guild_id)
+            let guild_id = ready.guilds.iter()
+                .map(|g| g.id())
+                .next()
+                .ok_or_else(|| "No guild found".to_string())?;
+            (data.mod_until.clone(), data.muted_role, guild_id)
         };
         if muted_role == 0 {
             let role = guild_id.roles(ctx).await
@@ -111,25 +147,9 @@ impl Moderation {
                 .ok_or_else(|| "Impossible de trouver le role muted".to_string())?;
             self.data.write().await.write().muted_role = role.0.0;
         }
-
-        banned_until.iter().cloned().for_each(|(user_id, time)| {
-            let ctx = ctx.clone();
-            let data = self.data.clone();
-            tokio::spawn(async move {
-                let date_time = DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp(time, 0), Utc);
-                let member = guild_id.member(&ctx, user_id).await.map_err(|e| eprintln!("tempban waiter: Error getting member {}: {}", user_id, e)).unwrap();
-                Self::unban_thread(ctx, member, date_time, data);
-            });
-        });
-        mute_until.iter().cloned().for_each(|(user_id, time)| {
-            let ctx = ctx.clone();
-            let data = self.data.clone();
-            tokio::spawn(async move {
-                let date_time = DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp(time, 0), Utc);
-                let member = guild_id.member(&ctx, user_id).await.map_err(|e| eprintln!("tempmute waiter: Error getting member {}: {}", user_id, e)).unwrap();
-                Self::unmute_thread(ctx, member, date_time, data);
-            });
-        });
+        futures::future::join_all(mod_until.into_iter().map(|act| {
+            self.make_task(ctx.clone(), guild_id, act)
+        })).await;
         Ok(())
     }
     async fn on_applications_command(&self, ctx: &Context, app_command: &ApplicationCommandInteraction) -> Result<(), String> {
@@ -155,59 +175,57 @@ impl Moderation {
             resp
         }).await.map_err(|e| format!("Cannot create response: {}", e))
     }
-    fn unban_thread(ctx: Context, member: Member, date_time: DateTime<Utc>, data: RwLock<Data<ModerationData>>) {
-        tokio::spawn(async move {
-            let duration = date_time - chrono::Utc::now();
-            if duration.num_seconds()>0 {
-                tokio::time::sleep(duration.to_std().unwrap()).await;
-            }
-            if match member.unban(ctx).await {
-                Ok(_) => true,
-                Err(e) => {
-                    let err_msg = e.to_string();
-                    if err_msg == "Unknown Ban" {
-                        true
-                    } else {
-                        eprintln!("Error unbanning {}: {}", member.user.id, err_msg);
-                        false
-                    }
-                }
-            } {
-                let mut data = data.write().await;
-                let mut data = data.write();
-                let banned_until = &mut data.banned_until;
-                let idx = banned_until.iter().position(|(user_id, _)| user_id == &member.user.id.0).unwrap();
-                data.banned_until.remove(idx);
-                println!("Membre {} débanni", member.user.name)
-                
-            }
-        });
+    
+    async fn task(ctx: Context, guild_id: GuildId, action: Action, data: RwLock<Data<ModerationData>>) {
+        let time_point = DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp(action.time, 0), Utc);
+        let duration = time_point - chrono::Utc::now();
+        if duration.num_seconds()>0 { 
+            tokio::time::sleep(duration.to_std().unwrap()).await;
+        }
+        let mut member = guild_id.member(&ctx, action.user_id).await.map_err(|e| eprintln!("Error getting member {}: {}", action.user_id, e)).unwrap();
+        let action_done = match action.type_mod {
+            TypeModeration::Mute => {
+                let muted_role = {data.read().await.read().muted_role};
+                member.remove_role(ctx, muted_role).await
+            },
+            TypeModeration::Ban => member.unban(ctx).await,
+        };
+        if let Err(e) = action_done {
+            eprintln!("Mod task erreur {} ({}): {}", member.user.name, member.user.id, e.to_string());
+        } else {
+            let mut data = data.write().await;
+            let mut data = data.write();
+            let mod_until = &mut data.mod_until;
+            mod_until.iter().position(|Action{user_id, ..}| user_id == &action.user_id).map(|idx| mod_until.remove(idx)).unwrap();
+        }
     }
-    fn unmute_thread(ctx: Context, mut member: Member, date_time: DateTime<Utc>, data: RwLock<Data<ModerationData>>) {
+    async fn make_task(&self, ctx: Context, guild_id: GuildId, action: Action) {
+        let who = guild_id.member(&ctx, action.user_id).await.map_err(|e| eprintln!("Error getting member {}: {}", action.user_id, e)).unwrap();
+        let task = Self::task(ctx, guild_id, action.clone(), self.data.clone());
+        let (stop_task, stop_me) = tokio::sync::oneshot::channel();
         tokio::spawn(async move {
-            let duration = date_time - chrono::Utc::now();
-            if duration.num_seconds()>0 {
-                tokio::time::sleep(duration.to_std().unwrap()).await;
-            }
-            let muted_role = data.read().await.read().muted_role;
-            if let Err(e) =  member.remove_role(ctx, muted_role).await {
-                eprintln!("Error unmutting {} ({}): {}", member.user.name, member.user.id, e.to_string());
-            } else {
-                let mut data = data.write().await;
-                let mut data = data.write();
-                let mute_until = &mut data.mute_until;
-                let idx = mute_until.iter().position(|(user_id, _)| user_id == &member.user.id.0).unwrap();
-                data.mute_until.remove(idx);
-                println!("Membre {} unmute", member.user.name);
+            tokio::select! {
+                _ = task => println!("{} du membre {} fini", action.type_mod, who.display_name()),
+                _ = stop_me => println!("Arrêt {} temporaire de {}", action.type_mod, who.display_name()),
             }
         });
+        self.tasks.write().await.push((UserId(action.user_id), action.type_mod, stop_task)); 
+    }
+    async fn remove_task(&self, who: UserId, type_mod: TypeModeration) {
+        let mut tasks = self.tasks.write().await;
+        let idx = match tasks.iter().position(|(user_id, t, _)| user_id == &who && t == &type_mod) {
+            Some(idx) => idx,
+            None => return
+        };
+        let (_, _, stop_task) = tasks.remove(idx);
+        stop_task.send(()).unwrap_or(());
     }
     fn get_arguments<'a>(app_cmd: &'a ApplicationCommandEmbed<'a>) -> Result<(&'a User, &'a String), String>{
         let user = match get_argument!(app_cmd, "qui", User) {
             Some(v) => v.0,
             None => return Err("Vous devez mentionner un membre.".into())
         };
-        let reason = match get_argument!(app_cmd, "raison", String) {
+        let reason = match get_argument!(app_cmd, "pourquoi", String) {
             Some(v) => v,
             None => return Err("La raison est nécessaire.".into())
         };
@@ -230,18 +248,21 @@ impl Moderation {
             }
         }
     }
-    async fn save_until(&self, who: u64, when: i64, what: u8) {
+    async fn add_until(&self, who: u64, when: i64, what: TypeModeration) -> Action {
         let mut data = self.data.write().await;
         let mut data = data.write();
-        let array_until = match what {
-            0 => &mut data.banned_until,
-            1 => &mut data.mute_until,
-            _ => unreachable!()
-        };
-        match array_until.iter_mut().find(|(uid, _)| uid == &who) {
-            Some((_, t)) => *t = when,
-            None => array_until.push((who, when))
-        };
+        let result = Action::new(what, who, when);
+        data.mod_until.push(result.clone());
+        result
+    }
+    async fn remove_until(&self, who: u64, what: TypeModeration) {
+        let mut data = self.data.write().await;
+        let mut data = data.write();
+        data.mod_until
+            .iter()
+            .position(|a| a.user_id == who && a.type_mod == what)
+            .map(|idx| {data.mod_until.remove(idx);})
+            .unwrap_or_default();
     }
     async fn ban(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>) -> Result<message::Message, String> {
         let (user, reason) = Self::get_arguments(app_cmd)?;
@@ -269,13 +290,16 @@ impl Moderation {
         let formatted_when = time.map(|(_, when)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
         self.warn_member(ctx, &member, "ban", formatted_when.as_deref(), reason.as_str(), guild_name.as_str()).await?;
 
-        if let Err(e) = member.ban_with_reason(ctx, 0, reason).await {
-            return Err(format!("Impossible de bannir le membre: {}", e));
-        }
+        member.ban_with_reason(ctx, 0, reason).await.map_err(|e| format!("Impossible de bannir le membre: {}", e))?;
+        
+        tokio::join!(
+            self.remove_task(user.id, TypeModeration::Ban),
+            self.remove_until(user.id.0, TypeModeration::Ban)
+        );
         let msg = match time {
             Some((timestamp, date_time)) => {
-                self.save_until(user.id.0, timestamp, 0).await;
-                Self::unban_thread(ctx.clone(), member, date_time, self.data.clone());
+                let action = self.add_until(user.id.0, timestamp, TypeModeration::Ban).await;
+                self.make_task(ctx.clone(), guild_id, action).await;
                 format!("Le membre <@{}> ({}) a été banni temporairement du serveur {}, fini le {} UTC.", user.id, username, guild_name, formatted_when.unwrap())
             },
             None => format!("Le membre <@{}> ({}) a été banni du serveur {}.", user.id, username, guild_name)
@@ -299,9 +323,9 @@ impl Moderation {
             },
             None => None
         };
-        if user.id == app_cmd.0.member.as_ref().unwrap().user.id {
-            return Err("Vous vous êtes mentionné vous même dans `qui`.".into());
-        }
+        // if user.id == app_cmd.0.member.as_ref().unwrap().user.id {
+        //     return Err("Vous vous êtes mentionné vous même dans `qui`.".into());
+        // }
         let username = format!("{}#{}", user.name, user.discriminator);
         let guild_name = guild_id.name(ctx).await.unwrap_or_else(|| "Coin des développeurs".to_string());
         let mut member = guild_id.member(ctx, user.id).await.map_err(|e| format!("Impossible d'obtenir le membre depuis le serveur: {}", e))?;
@@ -313,10 +337,14 @@ impl Moderation {
         self.warn_member(ctx, &member, "mute", formatted_when.as_deref(), reason.as_str(), guild_name.as_str()).await?;
 
         member.add_role(ctx, RoleId(muted_role)).await.map_err(|e| format!("Impossible de mute le membre: {}", e))?;
+        tokio::join!(
+            self.remove_task(user.id, TypeModeration::Mute),
+            self.remove_until(user.id.0, TypeModeration::Mute)
+        );
         let msg = match time {
             Some((timestamp, date_time)) => {
-                self.save_until(user.id.0, timestamp, 1).await;
-                Self::unmute_thread(ctx.clone(), member, date_time, self.data.clone());
+                let action = self.add_until(user.id.0, timestamp, TypeModeration::Mute).await;
+                self.make_task(ctx.clone(), guild_id, action).await;
                 format!("Le membre <@{}> ({}) a été mute temporairement du serveur {}, fini le {} UTC.", user.id, username, guild_name, formatted_when.unwrap())
             },
             None => format!("Le membre <@{}> ({}) a été mute du serveur {}.", user.id, username, guild_name)
@@ -341,6 +369,10 @@ impl Moderation {
         }
         member.remove_role(ctx, RoleId(muted_role)).await
             .map_err(|e| format!("Impossible de unmute le membre: {}", e))?;
+        tokio::join!(
+            self.remove_task(user.id, TypeModeration::Mute),
+            self.remove_until(user.id.0, TypeModeration::Mute)
+        );
         Ok(message::success(format!("<@{}> a été unmute.", user.id)))
     }
     async fn unban(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>) -> Result<message::Message, String> {
@@ -355,6 +387,10 @@ impl Moderation {
         }
         guild_id.unban(ctx, user.id).await
             .map_err(|e| format!("Impossible de unban le membre: {}", e))?;
+        tokio::join!(
+            self.remove_task(user.id, TypeModeration::Ban),
+            self.remove_until(user.id.0, TypeModeration::Ban)
+        );
         Ok(message::success(format!("<@{}> a été unban.", user.id)))
     }
 }
