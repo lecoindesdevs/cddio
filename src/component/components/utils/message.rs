@@ -20,6 +20,10 @@ impl Message {
             ..Default::default()
         }
     }
+    pub fn set_ephemeral(mut self, ephemeral: bool) -> Self {
+        self.ephemeral = ephemeral;
+        self
+    }
 }
 impl Default for Message {
     fn default() -> Self {
