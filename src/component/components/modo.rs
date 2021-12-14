@@ -42,7 +42,7 @@ impl cmp::Component for Moderation {
 impl Moderation {
     pub fn new(app_id: ApplicationId) -> Moderation {
         let ban = cmd::Command::new("ban")
-            .set_help("Bannir un membre du serveur. Temporaire si le parametre *pendant* est renseigné. Un message avec la raison et la durée du bannissement est envoyé au membre bani.")
+            .set_help("Bannir un membre du serveur. Temporaire si le parametre *pendant* est renseigné.")
             .add_param(cmd::Argument::new("qui")
                 .set_value_type(cmd::ValueType::User)
                 .set_help("Le membre à bannir")
@@ -59,7 +59,7 @@ impl Moderation {
             );
         let mute = ban.clone()
             .set_name("mute")
-            .set_help("Attribue le rôle *muted* à un membre. Temporaire si le parametre *pendant* est renseigné. Un message avec la raison et la durée du mute est envoyé au membre bani.");
+            .set_help("Attribue le rôle *muted* à un membre. Temporaire si le parametre *pendant* est renseigné.");
         let unban = cmd::Command::new("unban")
             .set_help("Unban un membre")
             .add_param(cmd::Argument::new("qui")

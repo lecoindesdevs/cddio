@@ -53,7 +53,7 @@ impl Help {
     pub fn new(manager: ArcManager) -> Help {
         let node = cmd::Node::new()
             .add_command(cmd::Command::new("help")
-                .set_help("Affiche l'aide d'une commande ou la liste des commandes du bot si le parametre commande n'est pas précisé.")
+                .set_help("Affiche l'aide d'une commanded ou du bot.")
                 .add_param(cmd::Argument::new("commande")
                     .set_help("Nom de la commande ou du groupe")
                 )
