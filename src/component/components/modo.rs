@@ -206,7 +206,7 @@ impl Moderation {
             }
         });
     }
-    fn get_arguments<'a>(app_cmd: &'a ApplicationCommandEmbed<'a>) -> Result<(&'a User, &'a String, Option<(i64, DateTime<Utc>)>), String>{
+    fn get_arguments<'a>(app_cmd: &'a ApplicationCommandEmbed<'a>) -> Result<(&'a User, &'a String), String>{
         let user = match get_argument!(app_cmd, "qui", User) {
             Some(v) => v.0,
             None => return Err("Vous devez mentionner un membre.".into())
@@ -215,16 +215,7 @@ impl Moderation {
             Some(v) => v,
             None => return Err("La raison est nécessaire.".into())
         };
-        let time = match get_argument!(app_cmd, "pendant", String) {
-            Some(v) => {
-                let duration_second = time::parse(v)? as _;
-                let duration = chrono::Duration::seconds(duration_second);
-                let time_point = chrono::Utc::now() + duration;
-                Some((time_point.timestamp(), time_point))
-            },
-            None => None
-        };
-        Ok((user, reason, time))
+        Ok((user, reason))
     }
     async fn warn_member(&self, ctx: &Context, member: &Member, keyword: &str, when: Option<&str>, reason: &str, guild_name: &str) -> Result<(), String> {
         match member.user.direct_message(ctx, |msg| {
@@ -257,7 +248,19 @@ impl Moderation {
         };
     }
     async fn ban(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>) -> Result<message::Message, String> {
-        let (user, reason, time) = Self::get_arguments(app_cmd)?;
+        let (user, reason) = Self::get_arguments(app_cmd)?;
+        let time = match get_argument!(app_cmd, "pendant", String) {
+            Some(v) => {
+                let duration_second = match time::parse(v) {
+                    Ok(v) => v as _,
+                    Err(e) => return Ok(message::error(e).set_ephemeral(true))
+                };
+                let duration = chrono::Duration::seconds(duration_second);
+                let time_point = chrono::Utc::now() + duration;
+                Some((time_point.timestamp(), time_point))
+            },
+            None => None
+        };
         if user.id == app_cmd.0.member.as_ref().unwrap().user.id {
             return Err("Vous vous êtes mentionné vous même dans `qui`.".into());
         }
@@ -293,7 +296,19 @@ impl Moderation {
         Ok(msg)
     }
     async fn mute(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>) -> Result<message::Message, String> {
-        let (user, reason, time) = Self::get_arguments(app_cmd)?;
+        let (user, reason) = Self::get_arguments(app_cmd)?;
+        let time = match get_argument!(app_cmd, "pendant", String) {
+            Some(v) => {
+                let duration_second = match time::parse(v) {
+                    Ok(v) => v as _,
+                    Err(e) => return Ok(message::error(e).set_ephemeral(true))
+                };
+                let duration = chrono::Duration::seconds(duration_second);
+                let time_point = chrono::Utc::now() + duration;
+                Some((time_point.timestamp(), time_point))
+            },
+            None => None
+        };
         if user.id == app_cmd.0.member.as_ref().unwrap().user.id {
             return Err("Vous vous êtes mentionné vous même dans `qui`.".into());
         }
