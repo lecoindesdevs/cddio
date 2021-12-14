@@ -29,7 +29,7 @@ pub fn parse<S: AsRef<str>>(duration: S) -> Result<u64, String> {
         let unit = dur_captures.get(2).unwrap().as_str();
         duration *= UNITS.iter()
             .find(|v| v.0 == unit).map(|v| v.1)
-            .ok_or(format!(r#"Unité de durée "{}" inconnue, attendue: {}"#, unit, *STR_LIST_UNITS))?;
+            .ok_or_else(|| format!(r#"Unité de durée "{}" inconnue, attendue: {}"#, unit, *STR_LIST_UNITS))?;
         Ok(duration)
     } else if let Some(dur_captures) = RE_TIME.captures(duration.as_ref()) {
         let hours = dur_captures.get(1).unwrap().as_str().parse::<u64>().unwrap();
@@ -40,6 +40,6 @@ pub fn parse<S: AsRef<str>>(duration: S) -> Result<u64, String> {
         };
         Ok(hours * HOURS + minutes * MINUTES + seconds)
     } else {
-        return Err("Format de la durée invalide".to_string());
+        Err(format!("Format de la durée invalide\nMettez un nombre suivi de l'unité.\nListe des unités : {}", *STR_LIST_UNITS))
     }
 }

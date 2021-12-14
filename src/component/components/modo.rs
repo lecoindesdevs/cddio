@@ -4,8 +4,8 @@ use crate::component::{self as cmp, command_parser as cmd};
 use chrono::{DateTime, Utc};
 use futures_locks::RwLock;
 use serde::{Deserialize, Serialize};
-use serenity::{async_trait, model::{interactions::application_command::ApplicationCommandInteraction, id::{ApplicationId, GuildId, UserId}, guild::{Guild, Member}, event::ReadyEvent, prelude::*}, client::Context};
-
+use serenity::{async_trait, client::Context};
+use serenity::model::{interactions::application_command::ApplicationCommandInteraction, id::{ApplicationId, GuildId}, guild::Member, event::ReadyEvent, prelude::*};
 use super::utils::{app_command::{ApplicationCommandEmbed, get_argument}, Data, message};
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
@@ -85,7 +85,6 @@ impl Moderation {
         }
     }
     async fn r_event(&self, ctx: &cmp::Context, evt: &cmp::Event) -> Result<(), String> {
-        use serenity::model::event::InteractionCreateEvent;
         use serenity::model::interactions::Interaction::*;
         use cmp::Event::*;
         match evt {
@@ -101,7 +100,7 @@ impl Moderation {
             let data = data.read();
             
             let guild_ids = ready.guilds.iter().map(|g| g.id()).collect::<Vec<_>>();
-            let guild_id = guild_ids.first().cloned().ok_or("No guild found".to_string())?;
+            let guild_id = guild_ids.first().cloned().ok_or_else(|| "No guild found".to_string())?;
             (data.banned_until.clone(), data.mute_until.clone(), data.muted_role, guild_id)
         };
         if muted_role == 0 {
@@ -109,7 +108,7 @@ impl Moderation {
                 .map_err(|e| format!("Impossible d'obtenir la liste des roles du serveur: {}", e.to_string()))?
                 .into_iter()
                 .find(|(_, role)| role.name == "muted")
-                .ok_or("Impossible de trouver le role muted".to_string())?;
+                .ok_or_else(|| "Impossible de trouver le role muted".to_string())?;
             self.data.write().await.write().muted_role = role.0.0;
         }
 
@@ -154,10 +153,7 @@ impl Moderation {
         app_command.create_interaction_response(ctx, |resp|{
             *resp = msg.into();
             resp
-        }).await.or_else(|e| {
-            eprintln!("Cannot create response: {}", e);
-            Err(e.to_string())
-        })
+        }).await.map_err(|e| format!("Cannot create response: {}", e))
     }
     fn unban_thread(ctx: Context, member: Member, date_time: DateTime<Utc>, data: RwLock<Data<ModerationData>>) {
         tokio::spawn(async move {
@@ -269,15 +265,9 @@ impl Moderation {
             Some(v) => v,
             _ => "Coin des développeurs".to_string()
         };
-        let member = guild_id.member(ctx, user.id).await.or_else(|e| {
-            eprintln!("Impossible d'obtenir le membre depuis le serveur: {}", e);
-            Err(e.to_string())
-        })?;
-        let formatted_when = match time {
-            Some((_, when)) => Some(when.format("%d/%m/%Y à %H:%M:%S").to_string()),
-            None => None
-        };
-        Self::warn_member(&self, ctx, &member, "ban", formatted_when.as_ref().map(|v| v.as_str()), reason.as_str(), guild_name.as_str()).await?;
+        let member = guild_id.member(ctx, user.id).await.map_err(|e| format!("Impossible d'obtenir le membre depuis le serveur: {}", e))?;
+        let formatted_when = time.map(|(_, when)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
+        self.warn_member(ctx, &member, "ban", formatted_when.as_deref(), reason.as_str(), guild_name.as_str()).await?;
 
         if let Err(e) = member.ban_with_reason(ctx, 0, reason).await {
             return Err(format!("Impossible de bannir le membre: {}", e));
@@ -320,7 +310,7 @@ impl Moderation {
             return Err("Le rôle de mute n'est pas défini.".into());
         }
         let formatted_when = time.map(|(_, when)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
-        Self::warn_member(&self, ctx, &member, "mute", formatted_when.as_ref().map(|v| v.as_str()), reason.as_str(), guild_name.as_str()).await?;
+        self.warn_member(ctx, &member, "mute", formatted_when.as_deref(), reason.as_str(), guild_name.as_str()).await?;
 
         member.add_role(ctx, RoleId(muted_role)).await.map_err(|e| format!("Impossible de mute le membre: {}", e))?;
         let msg = match time {
@@ -346,7 +336,7 @@ impl Moderation {
         }
         let mut member = guild_id.member(ctx, user.id).await
             .map_err(|e| format!("Impossible d'obtenir le membre depuis le serveur: {}", e))?;
-        if member.roles.iter().find(|r| r.0 == muted_role).is_none() {
+        if !member.roles.iter().any(|r| r.0 == muted_role) {
             return Ok(message::error(format!("Le membre <@{}> n'est pas mute.", user.id)));
         }
         member.remove_role(ctx, RoleId(muted_role)).await
@@ -357,10 +347,10 @@ impl Moderation {
         let user = get_argument!(app_cmd, "qui", User)
             .map(|v| v.0)
             .ok_or_else(|| "Vous devez mentionner un membre.".to_string())?;
-        if guild_id.bans(ctx).await
+        if !guild_id.bans(ctx).await
             .map_err(|e| format!("Impossible d'obtenir les bans depuis le serveur: {}", e))?
             .into_iter()
-            .find(|b| b.user.id == user.id).is_none() {
+            .any(|b| b.user.id == user.id) {
             return Ok(message::error(format!("Le membre <@{}> n'est pas banni.", user.id)));
         }
         guild_id.unban(ctx, user.id).await
