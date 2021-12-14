@@ -42,13 +42,13 @@ impl cmp::Component for Moderation {
 impl Moderation {
     pub fn new(app_id: ApplicationId) -> Moderation {
         let ban = cmd::Command::new("ban")
-            .set_help("Bannir un membre. Temporaire si l'argument for est présent.")
+            .set_help("Bannir un membre du serveur. Temporaire si le parametre *pendant* est renseigné. Un message avec la raison et la durée du bannissement est envoyé au membre bani.")
             .add_param(cmd::Argument::new("qui")
                 .set_value_type(cmd::ValueType::User)
                 .set_help("Le membre à bannir")
                 .set_required(true)
             )
-            .add_param(cmd::Argument::new("raison")
+            .add_param(cmd::Argument::new("pourquoi")
                 .set_value_type(cmd::ValueType::String)
                 .set_help("La raison du ban")
                 .set_required(true)
@@ -59,7 +59,7 @@ impl Moderation {
             );
         let mute = ban.clone()
             .set_name("mute")
-            .set_help("Mute un membre. Temporaire si l'argument for est présent.");
+            .set_help("Attribue le rôle *muted* à un membre. Temporaire si le parametre *pendant* est renseigné. Un message avec la raison et la durée du mute est envoyé au membre bani.");
         let unban = cmd::Command::new("unban")
             .set_help("Unban un membre")
             .add_param(cmd::Argument::new("qui")
@@ -69,7 +69,7 @@ impl Moderation {
             );
         let unmute = unban.clone()
             .set_name("unmute")
-            .set_help("Unmute un membre");
+            .set_help("Retire le rôle *muted* à un membre.");
         let node = cmd::Node::new()
             .add_command(ban)
             .add_command(mute)
