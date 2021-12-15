@@ -1,7 +1,7 @@
 [package]
 name = "open_cdd"
 version = "0.0.1"
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -13,6 +13,7 @@ futures-locks = "0.6"
 chrono = "0.4"
 ron = "0.7"
 lazy_static = "1.4"
+regex = "1.5"
 
 [dependencies.serenity]
 version = "0.10"

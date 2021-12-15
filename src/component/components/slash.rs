@@ -97,7 +97,7 @@ impl SlashCommands {
             .set_value_type(ApplicationCommandOptionType::String)
             .set_required(true)
             .set_help("Quel commande est affecté")
-            .set_autocomplete(autocomplete_commands.clone());
+            .set_autocomplete(autocomplete_commands);
         let arg_who = cmd::Argument::new("who")
             .set_value_type(ApplicationCommandOptionType::Mentionable)
             .set_required(true)
@@ -128,8 +128,8 @@ impl SlashCommands {
                     )
                     .add_command(cmd::Command::new("remove")
                         .set_help("Retire la permission d'un membre ou d'un rôle à une commande.")
-                        .add_param(arg_command.clone())
-                        .add_param(arg_who.clone())
+                        .add_param(arg_command)
+                        .add_param(arg_who)
                     )
                     .add_command(cmd::Command::new("list")
                         .set_help("Liste les permissions des commandes sur le serveur."))
@@ -156,11 +156,8 @@ impl SlashCommands {
                         Some(group) => group,
                         None => continue
                     };
-                    let commands = if compo.name() == "slash" {
-                        slash::register_root_with_perm(node, true)
-                    } else {
-                        slash::register_root(node)
-                    };
+                    let commands = slash::register_root_with_perm(node, compo.name() == "slash");
+                    commands.iter().for_each(|c| println!("Name: {:?}, Perm: {:?}", c.0.get("name"), c.0.get("default_permission")));
                     commands.into_iter().for_each(|command| {
                         app_commands.add_application_command(command);
                     });
@@ -175,7 +172,7 @@ impl SlashCommands {
                     }).await {
                         Ok(v) => commands.push((guild_id, v)),
                         Err(why) => {
-                            let name = guild.id().name(ctx).await.unwrap_or(guild.id().to_string());
+                            let name = guild.id().name(ctx).await.unwrap_or_else(|| guild.id().to_string());
                             eprintln!("Could not set application commands for guild {}: {:?}", name, why);
                         }
                     }
@@ -212,10 +209,7 @@ impl SlashCommands {
         app_command.create_interaction_response(ctx, |resp|{
             *resp = msg.into();
             resp
-        }).await.or_else(|e| {
-            eprintln!("Cannot create response: {}", e);
-            Err(e.to_string())
-        })
+        }).await.map_err(|e| format!("Cannot create response: {}", e))
     }
     /// Méthode appelée sur la commande slash.permissions.set
     /// 
@@ -227,7 +221,7 @@ impl SlashCommands {
     /// * command: La commande à laquelle on assigne la permission. 
     /// Seules les commandes et groupe de premier niveau sont pris en compte.
     /// * type: Le type d'autorisation à assigner. "allow" ou "deny" attendu.
-    async fn slash_perms_add<'a>(&self, ctx: &Context, guild_id: GuildId, app_cmd: ApplicationCommandEmbed<'a>) -> message::Message {
+    async fn slash_perms_add(&self, ctx: &Context, guild_id: GuildId, app_cmd: ApplicationCommandEmbed<'_>) -> message::Message {
         let user_id = app_cmd.0.member.as_ref().unwrap().user.id;
         if !self.owners.contains(&user_id) {
             return message::error("Cette commande est reservée aux owners");
@@ -276,7 +270,7 @@ impl SlashCommands {
     /// * who: L'utilisateur ou le rôle qui a la permission à supprimer
     /// * command: La commande à laquelle on retire la permission.
     /// Seules les commandes et groupe de premier niveau sont pris en compte.
-    async fn slash_perms_remove<'a>(&self, ctx: &Context, guild_id: GuildId, app_cmd: ApplicationCommandEmbed<'a>) -> message::Message {
+    async fn slash_perms_remove(&self, ctx: &Context, guild_id: GuildId, app_cmd: ApplicationCommandEmbed<'_>) -> message::Message {
         let user_id = app_cmd.0.member.as_ref().unwrap().user.id;
         if !self.owners.contains(&user_id) {
             return message::error("Cette commande est reservée aux owners");
@@ -321,7 +315,7 @@ impl SlashCommands {
     /// # Arguments
     /// 
     /// * command: La commande à laquelle on retire les permissions.
-    async fn slash_perms_reset<'a>(&self, ctx: &Context, guild_id: GuildId, app_cmd: ApplicationCommandEmbed<'a>) -> message::Message {
+    async fn slash_perms_reset(&self, ctx: &Context, guild_id: GuildId, app_cmd: ApplicationCommandEmbed<'_>) -> message::Message {
         let user_id = app_cmd.0.member.as_ref().unwrap().user.id;
         if !self.owners.contains(&user_id) {
             return message::error("Cette commande est reservée aux owners");
@@ -335,24 +329,18 @@ impl SlashCommands {
     /// Méthode appelée sur la commande slash.permissions.list
     /// 
     /// Affiche la liste des permissions des commandes du bot
-    async fn slash_perms_list<'a>(&self, ctx: &Context, guild_id: GuildId) -> message::Message {
-        let commands = match guild_id.get_application_commands(ctx).await {
+    async fn slash_perms_list(&self, ctx: &Context, guild_id: GuildId) -> message::Message {
+        let mut commands = match guild_id.get_application_commands(ctx).await {
             Ok(v) => v,
             Err(_) => Vec::new()
-        }.into_iter().filter(|c| c.application_id == self.app_id).collect::<Vec<_>>();
+        }.into_iter().filter(|c| c.application_id == self.app_id);
         let perms = match guild_id.get_application_commands_permissions(ctx).await {
             Ok(v) => v,
             Err(_) => Vec::new()
-        }.into_iter().filter(|c| c.application_id == self.app_id).collect::<Vec<_>>();
+        }.into_iter().filter(|c| c.application_id == self.app_id);
 
         let perms = perms
-            .into_iter()
-            .filter_map(|v| {
-                match commands.iter().find(|c| c.id == v.id) {
-                    Some(command) => Some((command.name.clone(), v.permissions)),
-                    None => None
-                }
-            })
+            .filter_map(|v| commands.find(|c| c.id == v.id).map(|command| (command.name, v.permissions)))
             .map(|info_perms| {
                 let list_perm = info_perms.1
                     .into_iter()

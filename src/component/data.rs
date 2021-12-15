@@ -1,6 +1,7 @@
 //! Module de gestion des données des composants.
 //! 
 
+use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 use std::{fs, env};
@@ -33,6 +34,13 @@ pub struct Data<T>
 {
     pub name: String,
     pub value: T,
+}
+impl<T> Debug for Data<T> 
+    where T: DeserializeOwned + Serialize + Debug
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Data {{ name: {}, value: {:?} }}", self.name, self.value)
+    }
 }
 
 impl<T> Data<T> 

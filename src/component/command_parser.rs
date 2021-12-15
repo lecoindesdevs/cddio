@@ -192,6 +192,10 @@ impl Argument {
             None => None,
         }
     }
+    pub fn set_name<S: Into<String>>(mut self, name: S) -> Self {
+        self.name = name.into();
+        self
+    }
     pub fn set_value_type(mut self, vt: ValueType) -> Argument {
         match vt {
             ValueType::SubCommand => panic!("Commande non supporté pour les arguments, utilisez les commandes natives"),
@@ -243,6 +247,7 @@ impl Named for Command {
     fn name(&self) -> &str {
         &self.name
     }
+    
 }
 impl Command {
     pub fn new<S: Into<String>>(name: S) -> Command {
@@ -274,6 +279,10 @@ impl Command {
             Some(h) => Some(&h),
             None => None,
         }
+    }
+    pub fn set_name<S: Into<String>>(mut self, name: S) -> Command {
+        self.name = name.into();
+        self
     }
     
     pub fn add_param(mut self, param: Argument) -> Command {
@@ -414,6 +423,10 @@ impl Group {
             Some(h) => Some(&h),
             None => None,
         }
+    }
+    pub fn set_name<S: Into<String>>(mut self, name: S) -> Self {
+        self.name = name.into();
+        self
     }
     pub fn node(&self) -> &Node {
         &self.node
