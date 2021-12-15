@@ -156,11 +156,8 @@ impl SlashCommands {
                         Some(group) => group,
                         None => continue
                     };
-                    let commands = if compo.name() == "slash" {
-                        slash::register_root_with_perm(node, true)
-                    } else {
-                        slash::register_root(node)
-                    };
+                    let commands = slash::register_root_with_perm(node, compo.name() == "slash");
+                    commands.iter().for_each(|c| println!("Name: {:?}, Perm: {:?}", c.0.get("name"), c.0.get("default_permission")));
                     commands.into_iter().for_each(|command| {
                         app_commands.add_application_command(command);
                     });
