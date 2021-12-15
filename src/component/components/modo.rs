@@ -166,12 +166,13 @@ impl Moderation {
         };
         let command_name = app_cmd.fullname();
         let msg = match command_name.as_str() {
-            "ban" => self.ban_mute(ctx, guild_id, &app_cmd, TypeModeration::Ban).await?,
-            "mute" => self.ban_mute(ctx, guild_id, &app_cmd, TypeModeration::Mute).await?,
-            "unban" => self.unmute_unban(ctx, guild_id, &app_cmd, TypeModeration::Ban).await?,
-            "unmute" => self.unmute_unban(ctx, guild_id, &app_cmd, TypeModeration::Mute).await?,
+            "ban" => self.ban_mute(ctx, guild_id, &app_cmd, TypeModeration::Ban).await,
+            "mute" => self.ban_mute(ctx, guild_id, &app_cmd, TypeModeration::Mute).await,
+            "unban" => self.unmute_unban(ctx, guild_id, &app_cmd, TypeModeration::Ban).await,
+            "unmute" => self.unmute_unban(ctx, guild_id, &app_cmd, TypeModeration::Mute).await,
             _ => return Ok(())
-        };
+        }.or_else(|e| -> Result<message::Message, ()> {Ok(message::error(e).set_ephemeral(true))}).unwrap();
+
         app_command.create_interaction_response(ctx, |resp|{
             *resp = msg.into();
             resp
