@@ -185,16 +185,17 @@ impl Moderation {
         if duration.num_seconds()>0 { 
             tokio::time::sleep(duration.to_std().unwrap()).await;
         }
-        let mut member = guild_id.member(&ctx, action.user_id).await.map_err(|e| eprintln!("Error getting member {}: {}", action.user_id, e)).unwrap();
         let action_done = match action.type_mod {
             TypeModeration::Mute => {
+                let mut member = guild_id.member(&ctx, action.user_id).await.map_err(|e| eprintln!("Error getting member {}: {}", action.user_id, e)).unwrap();
                 let muted_role = {data.read().await.read().muted_role};
-                member.remove_role(ctx, muted_role).await
+                member.remove_role(&ctx, muted_role).await
             },
-            TypeModeration::Ban => member.unban(ctx).await,
+            TypeModeration::Ban => guild_id.unban(&ctx, action.user_id).await,
         };
         if let Err(e) = action_done {
-            eprintln!("Mod task erreur {} ({}): {}", member.user.name, member.user.id, e.to_string());
+            let username = UserId(action.user_id).to_user(&ctx).await.map(|user| format!("{}#{} ({})", user.name, user.discriminator, action.user_id)).unwrap_or_else(|_| action.user_id.to_string());
+            eprintln!("Mod task erreur {}: {}", username, e.to_string());
         } else {
             let mut data = data.write().await;
             let mut data = data.write();
