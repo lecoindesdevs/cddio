@@ -38,7 +38,7 @@ impl Bot {
                 .add_component(Misc::new(app_id).to_arc())
                 .add_component(Tickets::new().to_arc())
                 .add_component(Help::new(manager.clone()).to_arc())
-                .add_component(Moderation::new(app_id).to_arc())
+                .add_component(Moderation::new(app_id, owners_id.clone()).to_arc())
                 .add_component(SlashCommands::new(manager.clone(), owners_id, app_id).to_arc());
         };
         

@@ -51,6 +51,7 @@ struct ModerationData {
 #[derive(Debug)]
 pub struct Moderation {
     node: cmd::Node,
+    owners: Vec<UserId>,
     app_id: ApplicationId,
     data: RwLock<Data<ModerationData>>,
     tasks: RwLock<Vec<(UserId, TypeModeration, Sender<()>)>>,
@@ -75,7 +76,7 @@ impl cmp::Component for Moderation {
 }
 
 impl Moderation {
-    pub fn new(app_id: ApplicationId) -> Moderation {
+    pub fn new(app_id: ApplicationId, owners: Vec<UserId>) -> Moderation {
         let ban = cmd::Command::new("ban")
             .set_help("Bannir un membre du serveur. Temporaire si le parametre *pendant* est renseigné.")
             .add_param(cmd::Argument::new("qui")
@@ -117,6 +118,7 @@ impl Moderation {
                 Ok(data) => RwLock::new(data),
                 Err(e) => panic!("Data moderation: {:?}", e)
             },
+            owners,
             tasks: RwLock::new(Vec::new()),
         }
     }
@@ -294,7 +296,12 @@ impl Moderation {
         let formatted_when = time.map(|(_, when)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
         self.warn_member(ctx, &member, what.as_str(), formatted_when.as_deref(), reason.as_str(), guild_name.as_str()).await?;
         match what {
-            TypeModeration::Ban => member.ban_with_reason(ctx, 0, reason).await.map_err(|e| format!("Impossible de bannir le membre: {}", e))?,
+            TypeModeration::Ban => {
+                if self.owners.iter().any(|u| u == &user.id) {
+                    return Err("Vous ne pouvez pas bannir un propriétaire du bot.".into());
+                }
+                member.ban_with_reason(ctx, 0, reason).await.map_err(|e| format!("Impossible de bannir le membre: {}", e))?
+            },
             TypeModeration::Mute => {
                 let muted_role = self.data.read().await.read().muted_role;
                 if muted_role == 0 {
