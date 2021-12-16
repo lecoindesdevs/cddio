@@ -21,6 +21,7 @@ use super::{utils};
 pub struct Misc {
     node: cmd::Node,
     app_id: ApplicationId,
+    bot_permissions: u64
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -66,14 +67,23 @@ impl Component for Misc {
     async fn event(&self, ctx: &Context, evt: &Event) -> Result<(), String> {
         match evt {
             Event::Ready(ReadyEvent { ready, .. }) => {
-                let (username, invite) = { 
-                    (ready.user.name.clone(), ready.user.invite_url(&ctx.http, Permissions::empty()).await)
-                };
-                println!("{} is connected!", username);
+                println!("{} is connected!", ready.user.name);
+                let perms = Permissions::from_bits(self.bot_permissions)
+                    .map(|v| {
+                        println!("Permission(s) demandé par le bot: {}", v);
+                        v
+                    })
+                    .unwrap_or_else(|| {
+                        println!("Permission du bot dans la configuration invalide. Utilisation de la permission par défaut.");
+                        Permissions::empty()
+                    });
+                let invite = ready.user.invite_url(&ctx.http, perms).await;
+                
                 match invite {
                     Ok(v) => println!("Invitation: {}", v),
                     Err(e) => return Err(e.to_string()),
                 }
+                
                 Ok(())
             },
             Event::InteractionCreate(InteractionCreateEvent{interaction: serenity::model::interactions::Interaction::ApplicationCommand(c), ..}) => self.on_applications_command(ctx, c).await,
@@ -86,13 +96,14 @@ impl Component for Misc {
 }
 
 impl Misc {
-    pub fn new(app_id: ApplicationId) -> Misc {
+    pub fn new(app_id: ApplicationId, bot_permissions: u64) -> Misc {
         Misc{
             node: cmd::Node::new()
                 .add_command(cmd::Command::new("ping")
                     .set_help("Permet d'avoir une réponse du bot")
                 ),
-            app_id
+            app_id,
+            bot_permissions
         }
     }
     pub async fn send_message(ctx: &Context, msg: &Message, txt: &str) -> CommandMatch{
