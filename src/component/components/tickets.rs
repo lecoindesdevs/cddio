@@ -442,6 +442,15 @@ impl Tickets {
             .map(|v|{
                 match v {
                     Ok(v) => {
+                        let attachments = if v.attachments.is_empty() {
+                            None
+                        } else {
+                            let attachs = v.attachments.iter().map(|attachment| {
+                                let is_image = attachment.content_type.as_ref().map(|v| v.contains("image")).unwrap_or(false);
+                                format!("\n{}[{}]({})", if is_image {"!"} else {""}, attachment.filename, attachment.url)
+                            }).collect::<String>();
+                            Some(format!("\nFichiers joints: {}", attachs))
+                        };
                         let content = v.content.as_str();
                         let author = format!("{}#{:04}", v.author.name, v.author.discriminator);
                         let date = v.timestamp.to_rfc3339();
@@ -451,7 +460,7 @@ impl Tickets {
                                 avatar: v.author.avatar_url().unwrap_or("https://cdn.discordapp.com/embed/avatars/0.png".to_string())
                             });
                         }
-                        format!("[{}] {}: {}\n", date, author, content)
+                        format!("[{}] {}: {}{}\n", date, author, content, attachments.unwrap_or_default())
                     },
                     Err(e) => format!("Erreur lors de la récupération d'un message: {}\n", e)
                 }
