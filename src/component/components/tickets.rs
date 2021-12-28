@@ -460,7 +460,7 @@ impl Tickets {
                                 avatar: v.author.avatar_url().unwrap_or("https://cdn.discordapp.com/embed/avatars/0.png".to_string())
                             });
                         }
-                        format!("[{}] {}: {}{}\n", date, author, content, attachments.unwrap_or_default())
+                        format!("[{}] {}: {}{}\n\n", date, author, content, attachments.unwrap_or_default())
                     },
                     Err(e) => format!("Erreur lors de la récupération d'un message: {}\n", e)
                 }
