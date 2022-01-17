@@ -24,16 +24,19 @@ impl EventDispatcher {
 #[async_trait]
 impl RawEventHandler for EventDispatcher {
     async fn raw_event(&self, ctx: Context, evt: Event) {
-        for component in self.cmp_manager.read().await.get_components() {
-            let mut component = component.read().await;
-            if let Err(what) = component.event(&ctx, &evt).await {
-                println!("[{}] Module {} command error: {}\nEvent: {:?}\n\n",
-                    chrono::Local::now().format("%Y-%m-%d %H:%M:%S"), 
-                    component.name(),
-                    what,
-                    evt
-                );
+        let components = self.cmp_manager.read().await.get_components().clone();
+        tokio::spawn(async move {
+            for component in components {
+                let component = component.read().await;
+                if let Err(what) = component.event(&ctx, &evt).await {
+                    println!("[{}] Module {} command error: {}\nEvent: {:?}\n\n",
+                        chrono::Local::now().format("%Y-%m-%d %H:%M:%S"), 
+                        component.name(),
+                        what,
+                        evt
+                    );
+                }
             }
-        }
+        });
     }
 }
