@@ -189,24 +189,45 @@ impl Moderation {
         }
         let action_done = match action.type_mod {
             TypeModeration::Mute => {
-                let mut member = guild_id.member(&ctx, action.user_id).await.map_err(|e| eprintln!("Error getting member {}: {}", action.user_id, e)).unwrap();
+                let mut member = match guild_id.member(&ctx, action.user_id).await {
+                    Ok(v) => v,
+                    Err(e) => {
+                        eprintln!("Impossible d'avoir le membre {}: {}", action.user_id, e);
+                        return;
+                    }
+                };
+                
                 let muted_role = {data.read().await.read().muted_role};
                 member.remove_role(&ctx, muted_role).await
             },
             TypeModeration::Ban => guild_id.unban(&ctx, action.user_id).await,
         };
+        let username = UserId(action.user_id).to_user(&ctx).await.map(|user| format!("{}#{} ({})", user.name, user.discriminator, action.user_id)).unwrap_or_else(|_| action.user_id.to_string());
         if let Err(e) = action_done {
-            let username = UserId(action.user_id).to_user(&ctx).await.map(|user| format!("{}#{} ({})", user.name, user.discriminator, action.user_id)).unwrap_or_else(|_| action.user_id.to_string());
-            eprintln!("Mod task erreur {}: {}", username, e.to_string());
-        } else {
+            eprintln!("modo::task erreur {}: {}", username, e.to_string());
+        } else { 
+            println!("modo::task: Sanction contre {} retiré", username);
             let mut data = data.write().await;
             let mut data = data.write();
             let mod_until = &mut data.mod_until;
-            mod_until.iter().position(|Action{user_id, ..}| user_id == &action.user_id).map(|idx| mod_until.remove(idx)).unwrap();
+            
+            match mod_until.iter()
+                .position(|Action{user_id, ..}| user_id == &action.user_id)
+                .map(|idx| mod_until.remove(idx))
+                {
+                    Some(action) => (),
+                    None => eprintln!("modo::task: sanction non trouvée dans les données pour l'utilisateur {}", username)
+                };
         }
     }
     async fn make_task(&self, ctx: Context, guild_id: GuildId, action: Action) {
-        let who = guild_id.member(&ctx, action.user_id).await.map_err(|e| eprintln!("Error getting member {}: {}", action.user_id, e)).unwrap();
+        let who = match guild_id.member(&ctx, action.user_id).await {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("Impossible d'avoir le membre {}: {}", action.user_id, e);
+                return;
+            }
+        };
         let task = Self::task(ctx, guild_id, action.clone(), self.data.clone());
         let (stop_task, stop_me) = tokio::sync::oneshot::channel();
         tokio::spawn(async move {
