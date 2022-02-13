@@ -11,6 +11,8 @@ mod slash;
 pub use slash::*;
 mod modo;
 pub use modo::*;
+mod integrators;
+pub use integrators::*;
 
 // Fonctions utiles pour les composants
 mod utils;
