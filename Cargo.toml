@@ -15,6 +15,11 @@ ron = "0.7"
 lazy_static = "1.4"
 regex = "1.5"
 
+
 [dependencies.serenity]
 version = "0.10"
 features = ["unstable_discord_api"]
+
+[dependencies.mlua]
+version = "0.7"
+features = ["async", "luajit", "vendored"]
