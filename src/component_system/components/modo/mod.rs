@@ -1,5 +1,5 @@
 mod time;
-use crate::component::{self as cmp, command_parser as cmd};
+use crate::component_system::{self as cmp, command_parser as cmd};
 use chrono::{DateTime, Utc};
 use futures_locks::RwLock;
 use serde::{Deserialize, Serialize};

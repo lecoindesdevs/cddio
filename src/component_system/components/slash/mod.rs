@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use futures_locks::RwLock;
 use serenity::{async_trait, builder::CreateApplicationCommands, client::Context, http::CacheHttp, model::{event::InteractionCreateEvent, id::{ApplicationId, GuildId, UserId}, interactions::application_command::{ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandInteractionDataOptionValue, ApplicationCommandOption, ApplicationCommandPermissionData, ApplicationCommandPermissionType}}};
-use crate::component::{self as cmp, command_parser::{self as cmd, Named}, components::utils::{self, app_command::{ApplicationCommandEmbed, get_argument}}, manager::{ArcManager}};
+use crate::component_system::{self as cmp, command_parser::{self as cmd, Named}, components::utils::{self, app_command::{ApplicationCommandEmbed, get_argument}}, manager::{ArcManager}};
 use super::utils::message;
-use crate::component::slash;
+use crate::component_system::slash;
 
 
 /// Composant de gestion des commandes de l'application.

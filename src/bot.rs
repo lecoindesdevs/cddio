@@ -1,8 +1,7 @@
 //! Core de l'application. 
 //! L'initialisation du bot et la gestion des composants se fait dans ce module.
 use serenity::{Client, client::bridge::gateway::GatewayIntents, model::id::{ApplicationId, UserId}};
-use crate::{component::{self as cmp, manager::{Manager, ArcManager}}, config::Config, util::ArcRw};
-use cmp::Component;
+use crate::{component_system::{self as cmp, Component, manager::{Manager, ArcManager}}, config::Config, util::ArcRw};
 type Result<T> = serenity::Result<T>;
 
 /// Structure du bot.

@@ -14,7 +14,7 @@ use serenity::model::{Permissions, event::{Event, ReadyEvent}};
 use super::super::{CommandMatch, Component, FrameworkConfig};
 use super::utils::app_command::ApplicationCommandEmbed;
 use super::utils::message;
-use crate::component::command_parser::{self as cmd, ParseError};
+use crate::component_system::command_parser::{self as cmd, ParseError};
 use super::{utils};
 
 
