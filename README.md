@@ -16,9 +16,11 @@ Ce bot est développé en [**Rust**](https://www.rust-lang.org/) et repose sur l
 
 ## Contribution
 
+Retrouvez la documentation technique du bot [ici](https://lecoindesdevs.github.io/openCDD/open_cdd/)
 
+Retrouvez la documentation de contribution des *composants* du bot [ici](src/component_system/README.md)
 
 ## Licence
 
-Ce projet est licencié sous GPLv3. Je vous invite à aller [sur cette page](https://choosealicense.com/licenses/gpl-3.0/) pour plus de détails. 
+Ce projet est licencié sous GPLv3. Je vous invite à aller [sur cette page](https://choosealicense.com/licenses/gpl-3.0/) ou lisez notre document [LICENCE](LICENCE) pour plus de détails. 
 
