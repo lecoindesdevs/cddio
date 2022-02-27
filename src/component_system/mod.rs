@@ -50,7 +50,10 @@ pub trait Component: Sync + Send
     /// 
     /// [`Context`]: serenity::client::Context
     /// [`Message`]: serenity::model::channel::Message
-    async fn command(&self, fw_config: &FrameworkConfig, ctx: &Context, msg: &Message) -> CommandMatch;
+    #[deprecated(note="Utilisez les events pour prendre en charge les slashs commandes")]
+    async fn command(&self, _: &FrameworkConfig, _: &Context, _: &Message) -> CommandMatch {
+        CommandMatch::NotMatched
+    }
     /// Event handler du composant.
     /// 
     /// Cette fonction est appelée lorsque le bot reçoit un évènement.
