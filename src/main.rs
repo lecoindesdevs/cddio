@@ -24,7 +24,7 @@
 //! [`misc`]: crate::component::components::misc
 
 mod bot;
-mod component;
+mod component_system;
 mod config;
 #[macro_use]
 mod util;

@@ -14,9 +14,9 @@ use serenity::async_trait;
 use serenity::client::Context;
 use serenity::model::channel::{Message, ReactionType};
 use serenity::model::event::Event;
-use crate::component::components::utils::app_command::get_optional_argument_result;
-use crate::component::components::utils::commands::ToCommand;
-use crate::component::{self as cmp, FrameworkConfig, command_parser as cmd};
+use crate::component_system::components::utils::app_command::get_optional_argument_result;
+use crate::component_system::components::utils::commands::ToCommand;
+use crate::component_system::{self as cmp, FrameworkConfig, command_parser as cmd};
 use super::utils;
 use super::utils::message;
 use super::utils::Data;
@@ -90,7 +90,7 @@ struct CategoryTicket {
 
 
 #[async_trait]
-impl crate::component::Component for Tickets {
+impl crate::component_system::Component for Tickets {
     fn name(&self) -> &str {
         "tickets"
     }

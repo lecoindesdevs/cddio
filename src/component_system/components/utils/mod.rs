@@ -2,10 +2,10 @@
 //! 
 //! Contient notamment des fonctions utiles.
 
-use crate::component::{self as cmp, CommandMatch};
+use crate::component_system::{self as cmp, CommandMatch};
 use serenity::http::CacheHttp;
-pub use crate::component::data::*;
-use crate::component::command_parser as cmd;
+pub use crate::component_system::data::*;
+use crate::component_system::command_parser as cmd;
 
 pub mod send;
 pub mod message;

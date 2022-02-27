@@ -1,7 +1,7 @@
 pub use serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue;
 use serenity::{model::{interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandInteractionData}, id::{UserId, ChannelId, RoleId, GuildId}}, client::Context};
 
-use crate::component::command_parser::matching;
+use crate::component_system::command_parser::matching;
 #[derive(Debug)]
 pub enum Value {
     String(String),

@@ -3,7 +3,7 @@
 
 use serenity::{async_trait, utils::Colour, client::Context, model::{interactions::{application_command::ApplicationCommandInteraction, InteractionApplicationCommandCallbackDataFlags}, event::InteractionCreateEvent}, builder::CreateEmbed};
 
-use crate::component::{self as cmp, command_parser::{self as cmd, Named}, manager::{ArcManager}};
+use crate::component_system::{self as cmp, command_parser::{self as cmd, Named}, manager::{ArcManager}};
 
 use super::utils::{self, message, commands};
 

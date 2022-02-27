@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use futures_locks::RwLock;
 use serenity::{async_trait, builder::CreateApplicationCommands, client::Context, http::CacheHttp, model::{event::InteractionCreateEvent, id::{ApplicationId, GuildId, UserId}, interactions::application_command::{ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandInteractionDataOptionValue, ApplicationCommandOption, ApplicationCommandPermissionData, ApplicationCommandPermissionType}}};
-use crate::component::{self as cmp, command_parser::{self as cmd, Named}, components::utils::{self, app_command::{ApplicationCommandEmbed, get_argument}}, manager::{ArcManager}};
+use crate::component_system::{self as cmp, command_parser::{self as cmd, Named}, components::utils::{self, app_command::{ApplicationCommandEmbed, get_argument}}, manager::{ArcManager}};
 use super::utils::message;
-use crate::component::slash;
+use crate::component_system::slash;
 
 
 /// Composant de gestion des commandes de l'application.
@@ -110,7 +110,7 @@ impl SlashCommands {
                 .add_group(cmd::Group::new("permissions")
                     .set_help("Gérer les permissions des commandes")
                     .add_command(cmd::Command::new("set")
-                        .set_help("Autoriser ou interdire une commande à un utilisateur ou un rôle")
+                        .set_help("Autoriser ou interdire une commande à un membre ou un rôle")
                         .add_param(arg_who.clone())
                         .add_param(arg_command.clone())
                         .add_param(cmd::Argument::new("type")
@@ -127,7 +127,7 @@ impl SlashCommands {
                         .add_param(arg_command.clone())
                     )
                     .add_command(cmd::Command::new("remove")
-                        .set_help("Retire la permission d'un membre ou d'un rôle à une commande.")
+                        .set_help("Efface la permission d'un membre ou d'un rôle à une commande.")
                         .add_param(arg_command)
                         .add_param(arg_who)
                     )
