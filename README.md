@@ -8,11 +8,11 @@ Ce bot est développé en [**Rust**](https://www.rust-lang.org/) et repose sur l
 
 ## Fonctionnalités
 
-* [Gestion de ticket du serveur](src/component/components/tickets/)
-* [Commandes de modération](src/component/components/modo/)
-* [Création des slash commands](src/component/components/slash/)
-* [Aide du bot](src/component/components/help/)
-* [Commandes diverses](src/component/components/misc/)
+* [Gestion de ticket du serveur](src/component_system/components/tickets/)
+* [Commandes de modération](src/component_system/components/modo/)
+* [Création des slash commands](src/component_system/components/slash/)
+* [Aide du bot](src/component_system/components/help/)
+* [Commandes diverses](src/component_system/components/misc/)
 
 ## Contribution
 
