@@ -169,10 +169,10 @@ impl Moderation {
         };
         let command_name = app_cmd.fullname();
         let msg = match command_name.as_str() {
-            "ban" => self.ban_mute(ctx, guild_id, &app_cmd, TypeModeration::Ban).await,
-            "mute" => self.ban_mute(ctx, guild_id, &app_cmd, TypeModeration::Mute).await,
-            "unban" => self.unmute_unban(ctx, guild_id, &app_cmd, TypeModeration::Ban).await,
-            "unmute" => self.unmute_unban(ctx, guild_id, &app_cmd, TypeModeration::Mute).await,
+            "ban" => self.moderate(ctx, guild_id, &app_cmd, TypeModeration::Ban, false).await,
+            "mute" => self.moderate(ctx, guild_id, &app_cmd, TypeModeration::Mute, false).await,
+            "unban" => self.moderate(ctx, guild_id, &app_cmd, TypeModeration::Ban, true).await,
+            "unmute" => self.moderate(ctx, guild_id, &app_cmd, TypeModeration::Mute, true).await,
             _ => return Ok(())
         }.or_else(|e| -> Result<message::Message, ()> {Ok(message::error(e).set_ephemeral(true))}).unwrap();
 
