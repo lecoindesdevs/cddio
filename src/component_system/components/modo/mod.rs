@@ -123,6 +123,7 @@ impl Moderation {
             tasks: RwLock::new(Vec::new()),
         }
     }
+    // region: discord interface
     async fn r_event(&self, ctx: &cmp::Context, evt: &cmp::Event) -> Result<(), String> {
         use serenity::model::interactions::Interaction::*;
         use cmp::Event::*;
@@ -181,7 +182,8 @@ impl Moderation {
             resp
         }).await.map_err(|e| format!("Cannot create response: {}", e))
     }
-    
+    // endregion: discord interface
+    // region: tasks
     async fn task(ctx: Context, guild_id: GuildId, action: Action, data: RwLock<Data<ModerationData>>) {
         let time_point = DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp(action.time, 0), Utc);
         let duration = time_point - chrono::Utc::now();
@@ -216,7 +218,7 @@ impl Moderation {
                 .position(|Action{user_id, ..}| user_id == &action.user_id)
                 .map(|idx| mod_until.remove(idx))
                 {
-                    Some(action) => (),
+                    Some(_) => (),
                     None => eprintln!("modo::task: sanction non trouvée dans les données pour l'utilisateur {}", username)
                 };
         }
@@ -264,6 +266,8 @@ impl Moderation {
             .map(|idx| {data.mod_until.remove(idx);})
             .unwrap_or_default();
     }
+    // endregion
+    // region: actions
     async fn moderate(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>, what: TypeModeration, disable: bool) -> Result<message::Message, String>
     {
         let user_cmd = &app_cmd.0.member.as_ref().unwrap().user;
@@ -401,6 +405,7 @@ impl Moderation {
         };
         Ok(())
     }
+    // endregion
     async fn write_log(who: &str, who_did: &str, what: &str, why:Option<&str>, during: Option<&str>)
     {
         use tokio::fs::OpenOptions;
