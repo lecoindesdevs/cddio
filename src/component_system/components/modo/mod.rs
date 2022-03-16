@@ -394,6 +394,95 @@ impl Moderation {
         Self::write_log(&username, &who_did, &what, None, None).await;
         Ok(message::success(format!("{} a été {}.", username, what)))
     }
+    async fn moderate(ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>, what: TypeModeration, disable: bool, data: RwLock<Data<ModerationData>>) -> Result<message::Message, String>
+    {
+        let user_cmd = &app_cmd.0.member.as_ref().unwrap().user;
+        let what_str = format!("{}{}", if disable {"un"} else {""}, what.as_str());
+        let user = get_argument!(app_cmd, "qui", User)
+            .map(|v| v.0)
+            .ok_or_else(|| "Vous devez mentionner un membre.".to_string())
+            .and_then(|user| if user.id != user_cmd.id {
+                Ok(user)
+            } else {
+                Err(format!("Vous ne pouvez pas vous {} vous-même.", &what_str))
+            })?;
+        let reason = if !disable {
+            Some(get_argument!(app_cmd, "pourquoi", String)
+                .map(|v| v)
+                .ok_or_else(|| "Raison non specifiée.".to_string())?)
+        } else {
+            None
+        };
+        let time = match (disable, get_argument!(app_cmd, "pendant", String)) {
+            (false, Some(v)) => {
+                let duration_second = match time::parse(v) {
+                    Ok(v) => v as _,
+                    Err(e) => return Ok(message::error(e).set_ephemeral(true))
+                };
+                let duration = chrono::Duration::seconds(duration_second);
+                let time_point = chrono::Utc::now() + duration;
+                Some((time_point.timestamp(), time_point, v))
+            },
+            _ => None
+        };
+        let muted_role = if what == TypeModeration::Mute {
+            let muted_role = data.read().await.read().muted_role;
+            if muted_role == 0 {
+                return Err("Le rôle de mute n'est pas défini.".into());
+            }
+            Some(RoleId(muted_role))
+        } else {
+            None
+        };
+        Self::do_action(
+            ctx,
+            guild_id,
+            user.id,
+            what,
+            disable,
+            reason,
+            muted_role,
+        ).await
+            .map_err(|e| format!("Impossible de {} le membre: {}", what_str, e))?;
+        
+        let username = format!("{}#{} (<@{}>)", user.name, user.discriminator, user.id);
+        let who_did = format!("{}#{}", user_cmd.name, user_cmd.discriminator);
+        
+        let mut msg = message::success(format!("{} a été {}.", username, what.as_str()));
+        if let Some(reason) = reason {
+            msg.embed.as_mut().unwrap().field("Raison", reason, false);
+        }
+        Ok(msg)
+    }
+    async fn do_action(
+        ctx: &Context,
+        guild_id: GuildId,
+        user: UserId,
+        what: TypeModeration,
+        disable: bool,
+        reason: Option<&String>,
+        muted_role: Option<RoleId>,
+    ) -> serenity::Result<()> 
+    {
+        match (what, disable, reason) {
+            (TypeModeration::Ban, false, Some(reason)) => guild_id.ban_with_reason(&ctx, user, 0, reason).await?,
+            (TypeModeration::Ban, false, None) => guild_id.ban(&ctx, user, 0).await?,
+            (TypeModeration::Mute, false, _) => {
+                if let Some(muted_role) = muted_role {
+                    let mut member = guild_id.member(ctx, user).await?;
+                    member.add_role(ctx, muted_role).await?;
+                }
+            },
+            (TypeModeration::Ban, true, _) => guild_id.unban(&ctx, user).await?,
+            (TypeModeration::Mute, true, _) => {
+                if let Some(muted_role) = muted_role {
+                    let mut member = guild_id.member(ctx, user).await?;
+                    member.remove_role(ctx, muted_role).await?;
+                }
+            }
+        };
+        Ok(())
+    }
     async fn write_log(who: &str, who_did: &str, what: &str, why:Option<&str>, during: Option<&str>)
     {
         use tokio::fs::OpenOptions;
