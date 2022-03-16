@@ -7,6 +7,7 @@ use serenity::{async_trait, client::Context};
 use serenity::model::{interactions::application_command::ApplicationCommandInteraction, id::{ApplicationId, GuildId}, guild::Member, event::ReadyEvent, prelude::*};
 use super::utils::{app_command::{ApplicationCommandEmbed, get_argument}, Data, message};
 use tokio::sync::oneshot::Sender;
+use super::utils;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 enum TypeModeration {
@@ -301,11 +302,13 @@ impl Moderation {
                 };
                 let duration = chrono::Duration::seconds(duration_second);
                 let time_point = chrono::Utc::now() + duration;
-                Some((time_point.timestamp(), time_point))
+                Some((time_point.timestamp(), time_point, v))
             },
             None => None
         };
-        if user.id == app_cmd.0.member.as_ref().unwrap().user.id {
+        let user_cmd = &app_cmd.0.member.as_ref().unwrap().user;
+        
+        if user.id == user_cmd.id {
             return Err("Vous vous êtes mentionné vous même dans `qui`.".into());
         }
         let username = format!("{}#{}", user.name, user.discriminator);
@@ -314,7 +317,7 @@ impl Moderation {
             _ => "Coin des développeurs".to_string()
         };
         let mut member = guild_id.member(ctx, user.id).await.map_err(|e| format!("Impossible d'obtenir le membre depuis le serveur: {}", e))?;
-        let formatted_when = time.map(|(_, when)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
+        let formatted_when = time.map(|(_, when, _)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
         self.warn_member(ctx, &member, what.as_str(), formatted_when.as_deref(), reason.as_str(), guild_name.as_str()).await?;
         match what {
             TypeModeration::Ban => {
@@ -337,7 +340,7 @@ impl Moderation {
             self.remove_until(user.id.0, what)
         );
         let msg = match time {
-            Some((timestamp, date_time)) => {
+            Some((timestamp, date_time, _)) => {
                 let action = self.add_until(user.id.0, timestamp, what).await;
                 self.make_task(ctx.clone(), guild_id, action).await;
                 format!("Le membre <@{}> ({}) a été {} temporairement du serveur {}, fini le {} UTC.", user.id, username, what.as_str(), guild_name, formatted_when.unwrap())
@@ -347,6 +350,8 @@ impl Moderation {
         println!("{}", msg);
         let mut msg = message::success(msg);
         msg.embed.as_mut().unwrap().field("Raison", reason, false);
+        let who_did = format!("{}#{}", user_cmd.name, user_cmd.discriminator);
+        Self::write_log(&username, &who_did, what.as_str(), Some(reason), time.map(|v| v.2.as_str())).await;
         Ok(msg)
     }
     async fn unmute_unban(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>, what: TypeModeration) -> Result<message::Message, String> {
@@ -382,6 +387,46 @@ impl Moderation {
             self.remove_task(user.id, TypeModeration::Mute),
             self.remove_until(user.id.0, TypeModeration::Mute)
         );
-        Ok(message::success(format!("<@{}> a été un{}.", user.id, what.as_str())))
+        let username = format!("{}#{} (<@{}>)", user.name, user.discriminator, user.id);
+        let what = format!("un{}", what.as_str());
+        let user_cmd = &app_cmd.0.member.as_ref().unwrap().user;
+        let who_did = format!("{}#{}", user_cmd.name, user_cmd.discriminator);
+        Self::write_log(&username, &who_did, &what, None, None).await;
+        Ok(message::success(format!("{} a été {}.", username, what)))
+    }
+    async fn write_log(who: &str, who_did: &str, what: &str, why:Option<&str>, during: Option<&str>)
+    {
+        use tokio::fs::OpenOptions;
+        use std::io::Write;
+        let file_path = utils::DATA_DIR.join("modo.log");
+        let file = match OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&file_path).await {
+                Ok(v) => v,
+                Err(e) => {
+                    println!("Impossible d'ouvrir le fichier de log: {}", e);
+                    return;
+                }
+            };
+        let now = chrono::Local::now();
+        let mut file: std::fs::File = file.into_std().await;
+        let file = &mut file;
+        match (|| -> std::io::Result<()>{
+            write!(file, "{:=<10}\nWhen: {}\nWho: {}\nWhat: {}\nWho did: {}\n", "", now.to_rfc3339(), who, what, who_did)?;
+            if let Some(why) = why {
+                write!(file, "Why: {}\n", why)?;
+            }
+            if let Some(during) = during {
+                write!(file, "During: {}\n", during)?;
+            }
+            Ok(())
+        })() {
+            Ok(_) => (),
+            Err(e) => {
+                println!("Impossible d'écrire dans le fichier de log: {}", e);
+                return;
+            }
+        }
     }
 }
