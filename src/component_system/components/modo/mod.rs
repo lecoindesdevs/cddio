@@ -7,6 +7,7 @@ use serenity::{async_trait, client::Context};
 use serenity::model::{interactions::application_command::ApplicationCommandInteraction, id::{ApplicationId, GuildId}, guild::Member, event::ReadyEvent, prelude::*};
 use super::utils::{app_command::{ApplicationCommandEmbed, get_argument}, Data, message};
 use tokio::sync::oneshot::Sender;
+use super::utils;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 enum TypeModeration {
@@ -122,6 +123,7 @@ impl Moderation {
             tasks: RwLock::new(Vec::new()),
         }
     }
+    // region: discord interface
     async fn r_event(&self, ctx: &cmp::Context, evt: &cmp::Event) -> Result<(), String> {
         use serenity::model::interactions::Interaction::*;
         use cmp::Event::*;
@@ -168,10 +170,10 @@ impl Moderation {
         };
         let command_name = app_cmd.fullname();
         let msg = match command_name.as_str() {
-            "ban" => self.ban_mute(ctx, guild_id, &app_cmd, TypeModeration::Ban).await,
-            "mute" => self.ban_mute(ctx, guild_id, &app_cmd, TypeModeration::Mute).await,
-            "unban" => self.unmute_unban(ctx, guild_id, &app_cmd, TypeModeration::Ban).await,
-            "unmute" => self.unmute_unban(ctx, guild_id, &app_cmd, TypeModeration::Mute).await,
+            "ban" => self.moderate(ctx, guild_id, &app_cmd, TypeModeration::Ban, false).await,
+            "mute" => self.moderate(ctx, guild_id, &app_cmd, TypeModeration::Mute, false).await,
+            "unban" => self.moderate(ctx, guild_id, &app_cmd, TypeModeration::Ban, true).await,
+            "unmute" => self.moderate(ctx, guild_id, &app_cmd, TypeModeration::Mute, true).await,
             _ => return Ok(())
         }.or_else(|e| -> Result<message::Message, ()> {Ok(message::error(e).set_ephemeral(true))}).unwrap();
 
@@ -180,7 +182,8 @@ impl Moderation {
             resp
         }).await.map_err(|e| format!("Cannot create response: {}", e))
     }
-    
+    // endregion: discord interface
+    // region: tasks
     async fn task(ctx: Context, guild_id: GuildId, action: Action, data: RwLock<Data<ModerationData>>) {
         let time_point = DateTime::<Utc>::from_utc(chrono::NaiveDateTime::from_timestamp(action.time, 0), Utc);
         let duration = time_point - chrono::Utc::now();
@@ -215,7 +218,7 @@ impl Moderation {
                 .position(|Action{user_id, ..}| user_id == &action.user_id)
                 .map(|idx| mod_until.remove(idx))
                 {
-                    Some(action) => (),
+                    Some(_) => (),
                     None => eprintln!("modo::task: sanction non trouvée dans les données pour l'utilisateur {}", username)
                 };
         }
@@ -247,34 +250,6 @@ impl Moderation {
         let (_, _, stop_task) = tasks.remove(idx);
         stop_task.send(()).unwrap_or(());
     }
-    fn get_arguments<'a>(app_cmd: &'a ApplicationCommandEmbed<'a>) -> Result<(&'a User, &'a String), String>{
-        let user = match get_argument!(app_cmd, "qui", User) {
-            Some(v) => v.0,
-            None => return Err("Vous devez mentionner un membre.".into())
-        };
-        let reason = match get_argument!(app_cmd, "pourquoi", String) {
-            Some(v) => v,
-            None => return Err("La raison est nécessaire.".into())
-        };
-        Ok((user, reason))
-    }
-    async fn warn_member(&self, ctx: &Context, member: &Member, keyword: &str, when: Option<&str>, reason: &str, guild_name: &str) -> Result<(), String> {
-        match member.user.direct_message(ctx, |msg| {
-            if let Some(when) = when {
-                msg.content(format!("Vous avez été temporairement **{}** du serveur {}.\n__Raison__ : {}\n__Prend fin le__ : {}", keyword, guild_name, reason, when));
-            } else {
-                msg.content(format!("Vous avez été **{}** du serveur {}.\n__Raison__ : {}", keyword, guild_name, reason));
-            }
-            msg
-        }).await {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                let user = &member.user;
-                let username = format!("{}#{}", user.name, user.discriminator);
-                Err(format!("Impossible d'envoyer le message de bannissement à l'utilisateur {}: {}", username, e))
-            }
-        }
-    }
     async fn add_until(&self, who: u64, when: i64, what: TypeModeration) -> Action {
         let mut data = self.data.write().await;
         let mut data = data.write();
@@ -291,97 +266,179 @@ impl Moderation {
             .map(|idx| {data.mod_until.remove(idx);})
             .unwrap_or_default();
     }
-    async fn ban_mute(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>, what: TypeModeration) -> Result<message::Message, String> {
-        let (user, reason) = Self::get_arguments(app_cmd)?;
-        let time = match get_argument!(app_cmd, "pendant", String) {
-            Some(v) => {
+    // endregion
+    // region: actions
+    async fn moderate(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>, what: TypeModeration, disable: bool) -> Result<message::Message, String>
+    {
+        let user_cmd = &app_cmd.0.member.as_ref().unwrap().user;
+        let what_str = format!("{}{}", if disable {"un"} else {""}, what.as_str());
+        let user = get_argument!(app_cmd, "qui", User)
+            .map(|v| v.0)
+            .ok_or_else(|| "Vous devez mentionner un membre.".to_string())
+            .and_then(|user| if user.id != user_cmd.id {
+                Ok(user)
+            } else {
+                Err(format!("Vous ne pouvez pas vous {} vous-même.", &what_str))
+            })?;
+        let reason = if !disable {
+            Some(get_argument!(app_cmd, "pourquoi", String)
+                .map(|v| v)
+                .ok_or_else(|| "Raison non specifiée.".to_string())?)
+        } else {
+            None
+        };
+        let time = match (disable, get_argument!(app_cmd, "pendant", String)) {
+            (false, Some(v)) => {
                 let duration_second = match time::parse(v) {
                     Ok(v) => v as _,
                     Err(e) => return Ok(message::error(e).set_ephemeral(true))
                 };
                 let duration = chrono::Duration::seconds(duration_second);
-                let time_point = chrono::Utc::now() + duration;
-                Some((time_point.timestamp(), time_point))
+                let time_point = chrono::Local::now() + duration;
+                Some((time_point.timestamp(), time_point, v))
             },
-            None => None
+            _ => None
         };
-        if user.id == app_cmd.0.member.as_ref().unwrap().user.id {
-            return Err("Vous vous êtes mentionné vous même dans `qui`.".into());
-        }
-        let username = format!("{}#{}", user.name, user.discriminator);
-        let guild_name = match guild_id.name(ctx).await {
-            Some(v) => v,
-            _ => "Coin des développeurs".to_string()
+        let muted_role = if what == TypeModeration::Mute {
+            let muted_role = self.data.read().await.read().muted_role;
+            if muted_role == 0 {
+                return Err("Le rôle de mute n'est pas défini.".into());
+            }
+            Some(RoleId(muted_role))
+        } else {
+            None
         };
-        let mut member = guild_id.member(ctx, user.id).await.map_err(|e| format!("Impossible d'obtenir le membre depuis le serveur: {}", e))?;
-        let formatted_when = time.map(|(_, when)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
-        self.warn_member(ctx, &member, what.as_str(), formatted_when.as_deref(), reason.as_str(), guild_name.as_str()).await?;
-        match what {
-            TypeModeration::Ban => {
-                if self.owners.iter().any(|u| u == &user.id) {
-                    return Err("Vous ne pouvez pas bannir un propriétaire du bot.".into());
-                }
-                member.ban_with_reason(ctx, 0, reason).await.map_err(|e| format!("Impossible de bannir le membre: {}", e))?
-            },
-            TypeModeration::Mute => {
-                let muted_role = self.data.read().await.read().muted_role;
-                if muted_role == 0 {
-                    return Err("Le rôle de mute n'est pas défini.".into());
-                }
-                member.add_role(ctx, RoleId(muted_role)).await.map_err(|e| format!("Impossible de mute le membre: {}", e))?;
-            },
+        if !disable {
+            let when = time.map(|(_, when, _)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
+            match self.warn_member(
+                ctx, 
+                &user, 
+                &what_str, 
+                when.as_ref().map(|v| v.as_str()), 
+                reason.map(|v| v.as_str()).unwrap(), 
+                guild_id.name(ctx).await.unwrap().as_str()
+            ).await{
+                Err(e) => println!("[WARN] Impossible d'avertir le membre: {}", e),
+                _ => ()
+            }
         }
+        Self::do_action(
+            ctx,
+            guild_id,
+            user.id,
+            what,
+            disable,
+            reason,
+            muted_role,
+        ).await
+            .map_err(|e| format!("Impossible de {} le membre: {}", what_str, e))?;
         
         tokio::join!(
             self.remove_task(user.id, what),
             self.remove_until(user.id.0, what)
         );
-        let msg = match time {
-            Some((timestamp, date_time)) => {
-                let action = self.add_until(user.id.0, timestamp, what).await;
-                self.make_task(ctx.clone(), guild_id, action).await;
-                format!("Le membre <@{}> ({}) a été {} temporairement du serveur {}, fini le {} UTC.", user.id, username, what.as_str(), guild_name, formatted_when.unwrap())
-            },
-            None => format!("Le membre <@{}> ({}) a été {} du serveur {}.", user.id, username, what.as_str(), guild_name)
-        };
-        println!("{}", msg);
-        let mut msg = message::success(msg);
-        msg.embed.as_mut().unwrap().field("Raison", reason, false);
+        
+        let username = format!("{}#{} (<@{}>)", user.name, user.discriminator, user.id);
+        let who_did = format!("{}#{}", user_cmd.name, user_cmd.discriminator);
+        
+        Self::write_log(
+            &username, 
+            &who_did, 
+            &what_str, 
+            reason.map(|v| v.as_str()), 
+            time.map(|v| v.2.as_str())
+        ).await;
+
+        let mut msg = message::success(format!("{} a été {}.", username, what_str));
+        if let Some(reason) = reason {
+            msg.embed.as_mut().unwrap().field("Raison", reason, false);
+        }
+        if let Some((timestamp, datetime, duration)) = time {
+            self.make_task(ctx.clone(), guild_id, self.add_until(user.id.0, timestamp, what).await).await;
+            msg.embed.as_mut().unwrap().field("Pendant", duration, false);
+            msg.embed.as_mut().unwrap().field("Prend fin", datetime.format("%d/%m/%Y à %H:%M:%S").to_string(), true);
+        }
         Ok(msg)
     }
-    async fn unmute_unban(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>, what: TypeModeration) -> Result<message::Message, String> {
-        let user = get_argument!(app_cmd, "qui", User)
-            .map(|v| v.0)
-            .ok_or_else(|| "Vous devez mentionner un membre.".to_string())?;
-        match what {
-            TypeModeration::Ban => {
-                if !guild_id.bans(ctx).await
-                    .map_err(|e| format!("Impossible d'obtenir les bans depuis le serveur: {}", e))?
-                    .into_iter()
-                    .any(|b| b.user.id == user.id) {
-                    return Ok(message::error(format!("Le membre <@{}> n'est pas banni.", user.id)));
-                }
-                guild_id.unban(ctx, user.id).await
-                    .map_err(|e| format!("Impossible de unban le membre: {}", e))?;
-            },
-            TypeModeration::Mute => {
-                let muted_role = self.data.read().await.read().muted_role;
-                if muted_role == 0 {
-                    return Err("Le rôle de mute n'est pas défini.".into());
-                }
-                let mut member = guild_id.member(ctx, user.id).await
-                    .map_err(|e| format!("Impossible d'obtenir le membre depuis le serveur: {}", e))?;
-                if !member.roles.iter().any(|r| r.0 == muted_role) {
-                    return Ok(message::error(format!("Le membre <@{}> n'est pas mute.", user.id)));
-                }
-                member.remove_role(ctx, RoleId(muted_role)).await
-                    .map_err(|e| format!("Impossible de unmute le membre: {}", e))?;
-            },
+    async fn warn_member(&self, ctx: &Context, user: &User, keyword: &str, when: Option<&str>, reason: &str, guild_name: &str) -> Result<(), String> {
+        match user.direct_message(ctx, |msg| {
+            if let Some(when) = when {
+                msg.content(format!("Vous avez été temporairement **{}** du serveur {}.\n__Raison__ : {}\n__Prend fin le__ : {}", keyword, guild_name, reason, when));
+            } else {
+                msg.content(format!("Vous avez été **{}** du serveur {}.\n__Raison__ : {}", keyword, guild_name, reason));
+            }
+            msg
+        }).await {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                let username = format!("{}#{}", user.name, user.discriminator);
+                Err(format!("Impossible d'envoyer le message de bannissement à l'utilisateur {}: {}", username, e))
+            }
         }
-        tokio::join!(
-            self.remove_task(user.id, TypeModeration::Mute),
-            self.remove_until(user.id.0, TypeModeration::Mute)
-        );
-        Ok(message::success(format!("<@{}> a été un{}.", user.id, what.as_str())))
+    }
+    async fn do_action(
+        ctx: &Context,
+        guild_id: GuildId,
+        user: UserId,
+        what: TypeModeration,
+        disable: bool,
+        reason: Option<&String>,
+        muted_role: Option<RoleId>,
+    ) -> serenity::Result<()> 
+    {
+        match (what, disable, reason) {
+            (TypeModeration::Ban, false, Some(reason)) => guild_id.ban_with_reason(&ctx, user, 0, reason).await?,
+            (TypeModeration::Ban, false, None) => guild_id.ban(&ctx, user, 0).await?,
+            (TypeModeration::Mute, false, _) => {
+                if let Some(muted_role) = muted_role {
+                    let mut member = guild_id.member(ctx, user).await?;
+                    member.add_role(ctx, muted_role).await?;
+                }
+            },
+            (TypeModeration::Ban, true, _) => guild_id.unban(&ctx, user).await?,
+            (TypeModeration::Mute, true, _) => {
+                if let Some(muted_role) = muted_role {
+                    let mut member = guild_id.member(ctx, user).await?;
+                    member.remove_role(ctx, muted_role).await?;
+                }
+            }
+        };
+        Ok(())
+    }
+    // endregion
+    async fn write_log(who: &str, who_did: &str, what: &str, why:Option<&str>, during: Option<&str>)
+    {
+        use tokio::fs::OpenOptions;
+        use std::io::Write;
+        let file_path = utils::DATA_DIR.join("modo.log");
+        let file = match OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&file_path).await {
+                Ok(v) => v,
+                Err(e) => {
+                    println!("Impossible d'ouvrir le fichier de log: {}", e);
+                    return;
+                }
+            };
+        let now = chrono::Local::now();
+        let mut file: std::fs::File = file.into_std().await;
+        let file = &mut file;
+        match (|| -> std::io::Result<()>{
+            write!(file, "{:=<10}\nWhen: {}\nWho: {}\nWhat: {}\nWho did: {}\n", "", now.to_rfc3339(), who, what, who_did)?;
+            if let Some(why) = why {
+                write!(file, "Why: {}\n", why)?;
+            }
+            if let Some(during) = during {
+                write!(file, "During: {}\n", during)?;
+            }
+            Ok(())
+        })() {
+            Ok(_) => (),
+            Err(e) => {
+                println!("Impossible d'écrire dans le fichier de log: {}", e);
+                return;
+            }
+        }
     }
 }
