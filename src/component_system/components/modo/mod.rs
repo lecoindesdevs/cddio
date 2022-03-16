@@ -248,22 +248,6 @@ impl Moderation {
         let (_, _, stop_task) = tasks.remove(idx);
         stop_task.send(()).unwrap_or(());
     }
-    async fn warn_member(&self, ctx: &Context, user: &User, keyword: &str, when: Option<&str>, reason: &str, guild_name: &str) -> Result<(), String> {
-        match user.direct_message(ctx, |msg| {
-            if let Some(when) = when {
-                msg.content(format!("Vous avez été temporairement **{}** du serveur {}.\n__Raison__ : {}\n__Prend fin le__ : {}", keyword, guild_name, reason, when));
-            } else {
-                msg.content(format!("Vous avez été **{}** du serveur {}.\n__Raison__ : {}", keyword, guild_name, reason));
-            }
-            msg
-        }).await {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                let username = format!("{}#{}", user.name, user.discriminator);
-                Err(format!("Impossible d'envoyer le message de bannissement à l'utilisateur {}: {}", username, e))
-            }
-        }
-    }
     async fn add_until(&self, who: u64, when: i64, what: TypeModeration) -> Action {
         let mut data = self.data.write().await;
         let mut data = data.write();
@@ -371,6 +355,22 @@ impl Moderation {
             msg.embed.as_mut().unwrap().field("Prend fin", datetime.format("%d/%m/%Y à %H:%M:%S").to_string(), true);
         }
         Ok(msg)
+    }
+    async fn warn_member(&self, ctx: &Context, user: &User, keyword: &str, when: Option<&str>, reason: &str, guild_name: &str) -> Result<(), String> {
+        match user.direct_message(ctx, |msg| {
+            if let Some(when) = when {
+                msg.content(format!("Vous avez été temporairement **{}** du serveur {}.\n__Raison__ : {}\n__Prend fin le__ : {}", keyword, guild_name, reason, when));
+            } else {
+                msg.content(format!("Vous avez été **{}** du serveur {}.\n__Raison__ : {}", keyword, guild_name, reason));
+            }
+            msg
+        }).await {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                let username = format!("{}#{}", user.name, user.discriminator);
+                Err(format!("Impossible d'envoyer le message de bannissement à l'utilisateur {}: {}", username, e))
+            }
+        }
     }
     async fn do_action(
         ctx: &Context,
