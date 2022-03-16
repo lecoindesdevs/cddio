@@ -394,7 +394,7 @@ impl Moderation {
         Self::write_log(&username, &who_did, &what, None, None).await;
         Ok(message::success(format!("{} a été {}.", username, what)))
     }
-    async fn moderate(ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>, what: TypeModeration, disable: bool, data: RwLock<Data<ModerationData>>) -> Result<message::Message, String>
+    async fn moderate(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>, what: TypeModeration, disable: bool) -> Result<message::Message, String>
     {
         let user_cmd = &app_cmd.0.member.as_ref().unwrap().user;
         let what_str = format!("{}{}", if disable {"un"} else {""}, what.as_str());
@@ -420,13 +420,13 @@ impl Moderation {
                     Err(e) => return Ok(message::error(e).set_ephemeral(true))
                 };
                 let duration = chrono::Duration::seconds(duration_second);
-                let time_point = chrono::Utc::now() + duration;
+                let time_point = chrono::Local::now() + duration;
                 Some((time_point.timestamp(), time_point, v))
             },
             _ => None
         };
         let muted_role = if what == TypeModeration::Mute {
-            let muted_role = data.read().await.read().muted_role;
+            let muted_role = self.data.read().await.read().muted_role;
             if muted_role == 0 {
                 return Err("Le rôle de mute n'est pas défini.".into());
             }
@@ -434,6 +434,20 @@ impl Moderation {
         } else {
             None
         };
+        if !disable {
+            let when = time.map(|(_, when, _)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
+            match self.warn_member(
+                ctx, 
+                &user, 
+                &what_str, 
+                when.as_ref().map(|v| v.as_str()), 
+                reason.map(|v| v.as_str()).unwrap(), 
+                guild_id.name(ctx).await.unwrap().as_str()
+            ).await{
+                Err(e) => println!("[WARN] Impossible d'avertir le membre: {}", e),
+                _ => ()
+            }
+        }
         Self::do_action(
             ctx,
             guild_id,
@@ -445,12 +459,30 @@ impl Moderation {
         ).await
             .map_err(|e| format!("Impossible de {} le membre: {}", what_str, e))?;
         
+        tokio::join!(
+            self.remove_task(user.id, what),
+            self.remove_until(user.id.0, what)
+        );
+        
         let username = format!("{}#{} (<@{}>)", user.name, user.discriminator, user.id);
         let who_did = format!("{}#{}", user_cmd.name, user_cmd.discriminator);
         
-        let mut msg = message::success(format!("{} a été {}.", username, what.as_str()));
+        Self::write_log(
+            &username, 
+            &who_did, 
+            &what_str, 
+            reason.map(|v| v.as_str()), 
+            time.map(|v| v.2.as_str())
+        ).await;
+
+        let mut msg = message::success(format!("{} a été {}.", username, what_str));
         if let Some(reason) = reason {
             msg.embed.as_mut().unwrap().field("Raison", reason, false);
+        }
+        if let Some((timestamp, datetime, duration)) = time {
+            self.make_task(ctx.clone(), guild_id, self.add_until(user.id.0, timestamp, what).await).await;
+            msg.embed.as_mut().unwrap().field("Pendant", duration, false);
+            msg.embed.as_mut().unwrap().field("Prend fin", datetime.format("%d/%m/%Y à %H:%M:%S").to_string(), true);
         }
         Ok(msg)
     }
