@@ -248,17 +248,6 @@ impl Moderation {
         let (_, _, stop_task) = tasks.remove(idx);
         stop_task.send(()).unwrap_or(());
     }
-    fn get_arguments<'a>(app_cmd: &'a ApplicationCommandEmbed<'a>) -> Result<(&'a User, &'a String), String>{
-        let user = match get_argument!(app_cmd, "qui", User) {
-            Some(v) => v.0,
-            None => return Err("Vous devez mentionner un membre.".into())
-        };
-        let reason = match get_argument!(app_cmd, "pourquoi", String) {
-            Some(v) => v,
-            None => return Err("La raison est nécessaire.".into())
-        };
-        Ok((user, reason))
-    }
     async fn warn_member(&self, ctx: &Context, user: &User, keyword: &str, when: Option<&str>, reason: &str, guild_name: &str) -> Result<(), String> {
         match user.direct_message(ctx, |msg| {
             if let Some(when) = when {
@@ -290,108 +279,6 @@ impl Moderation {
             .position(|a| a.user_id == who && a.type_mod == what)
             .map(|idx| {data.mod_until.remove(idx);})
             .unwrap_or_default();
-    }
-    async fn ban_mute(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>, what: TypeModeration) -> Result<message::Message, String> {
-        let (user, reason) = Self::get_arguments(app_cmd)?;
-        let time = match get_argument!(app_cmd, "pendant", String) {
-            Some(v) => {
-                let duration_second = match time::parse(v) {
-                    Ok(v) => v as _,
-                    Err(e) => return Ok(message::error(e).set_ephemeral(true))
-                };
-                let duration = chrono::Duration::seconds(duration_second);
-                let time_point = chrono::Utc::now() + duration;
-                Some((time_point.timestamp(), time_point, v))
-            },
-            None => None
-        };
-        let user_cmd = &app_cmd.0.member.as_ref().unwrap().user;
-        
-        if user.id == user_cmd.id {
-            return Err("Vous vous êtes mentionné vous même dans `qui`.".into());
-        }
-        let username = format!("{}#{}", user.name, user.discriminator);
-        let guild_name = match guild_id.name(ctx).await {
-            Some(v) => v,
-            _ => "Coin des développeurs".to_string()
-        };
-        let mut member = guild_id.member(ctx, user.id).await.map_err(|e| format!("Impossible d'obtenir le membre depuis le serveur: {}", e))?;
-        let formatted_when = time.map(|(_, when, _)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
-        self.warn_member(ctx, &member.user, what.as_str(), formatted_when.as_deref(), reason.as_str(), guild_name.as_str()).await?;
-        match what {
-            TypeModeration::Ban => {
-                if self.owners.iter().any(|u| u == &user.id) {
-                    return Err("Vous ne pouvez pas bannir un propriétaire du bot.".into());
-                }
-                member.ban_with_reason(ctx, 0, reason).await.map_err(|e| format!("Impossible de bannir le membre: {}", e))?
-            },
-            TypeModeration::Mute => {
-                let muted_role = self.data.read().await.read().muted_role;
-                if muted_role == 0 {
-                    return Err("Le rôle de mute n'est pas défini.".into());
-                }
-                member.add_role(ctx, RoleId(muted_role)).await.map_err(|e| format!("Impossible de mute le membre: {}", e))?;
-            },
-        }
-        
-        tokio::join!(
-            self.remove_task(user.id, what),
-            self.remove_until(user.id.0, what)
-        );
-        let msg = match time {
-            Some((timestamp, date_time, _)) => {
-                let action = self.add_until(user.id.0, timestamp, what).await;
-                self.make_task(ctx.clone(), guild_id, action).await;
-                format!("Le membre <@{}> ({}) a été {} temporairement du serveur {}, fini le {} UTC.", user.id, username, what.as_str(), guild_name, formatted_when.unwrap())
-            },
-            None => format!("Le membre <@{}> ({}) a été {} du serveur {}.", user.id, username, what.as_str(), guild_name)
-        };
-        println!("{}", msg);
-        let mut msg = message::success(msg);
-        msg.embed.as_mut().unwrap().field("Raison", reason, false);
-        let who_did = format!("{}#{}", user_cmd.name, user_cmd.discriminator);
-        Self::write_log(&username, &who_did, what.as_str(), Some(reason), time.map(|v| v.2.as_str())).await;
-        Ok(msg)
-    }
-    async fn unmute_unban(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>, what: TypeModeration) -> Result<message::Message, String> {
-        let user = get_argument!(app_cmd, "qui", User)
-            .map(|v| v.0)
-            .ok_or_else(|| "Vous devez mentionner un membre.".to_string())?;
-        match what {
-            TypeModeration::Ban => {
-                if !guild_id.bans(ctx).await
-                    .map_err(|e| format!("Impossible d'obtenir les bans depuis le serveur: {}", e))?
-                    .into_iter()
-                    .any(|b| b.user.id == user.id) {
-                    return Ok(message::error(format!("Le membre <@{}> n'est pas banni.", user.id)));
-                }
-                guild_id.unban(ctx, user.id).await
-                    .map_err(|e| format!("Impossible de unban le membre: {}", e))?;
-            },
-            TypeModeration::Mute => {
-                let muted_role = self.data.read().await.read().muted_role;
-                if muted_role == 0 {
-                    return Err("Le rôle de mute n'est pas défini.".into());
-                }
-                let mut member = guild_id.member(ctx, user.id).await
-                    .map_err(|e| format!("Impossible d'obtenir le membre depuis le serveur: {}", e))?;
-                if !member.roles.iter().any(|r| r.0 == muted_role) {
-                    return Ok(message::error(format!("Le membre <@{}> n'est pas mute.", user.id)));
-                }
-                member.remove_role(ctx, RoleId(muted_role)).await
-                    .map_err(|e| format!("Impossible de unmute le membre: {}", e))?;
-            },
-        }
-        tokio::join!(
-            self.remove_task(user.id, TypeModeration::Mute),
-            self.remove_until(user.id.0, TypeModeration::Mute)
-        );
-        let username = format!("{}#{} (<@{}>)", user.name, user.discriminator, user.id);
-        let what = format!("un{}", what.as_str());
-        let user_cmd = &app_cmd.0.member.as_ref().unwrap().user;
-        let who_did = format!("{}#{}", user_cmd.name, user_cmd.discriminator);
-        Self::write_log(&username, &who_did, &what, None, None).await;
-        Ok(message::success(format!("{} a été {}.", username, what)))
     }
     async fn moderate(&self, ctx: &Context, guild_id: GuildId, app_cmd: &ApplicationCommandEmbed<'_>, what: TypeModeration, disable: bool) -> Result<message::Message, String>
     {
