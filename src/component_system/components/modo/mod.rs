@@ -259,8 +259,8 @@ impl Moderation {
         };
         Ok((user, reason))
     }
-    async fn warn_member(&self, ctx: &Context, member: &Member, keyword: &str, when: Option<&str>, reason: &str, guild_name: &str) -> Result<(), String> {
-        match member.user.direct_message(ctx, |msg| {
+    async fn warn_member(&self, ctx: &Context, user: &User, keyword: &str, when: Option<&str>, reason: &str, guild_name: &str) -> Result<(), String> {
+        match user.direct_message(ctx, |msg| {
             if let Some(when) = when {
                 msg.content(format!("Vous avez été temporairement **{}** du serveur {}.\n__Raison__ : {}\n__Prend fin le__ : {}", keyword, guild_name, reason, when));
             } else {
@@ -270,7 +270,6 @@ impl Moderation {
         }).await {
             Ok(_) => Ok(()),
             Err(e) => {
-                let user = &member.user;
                 let username = format!("{}#{}", user.name, user.discriminator);
                 Err(format!("Impossible d'envoyer le message de bannissement à l'utilisateur {}: {}", username, e))
             }
@@ -318,7 +317,7 @@ impl Moderation {
         };
         let mut member = guild_id.member(ctx, user.id).await.map_err(|e| format!("Impossible d'obtenir le membre depuis le serveur: {}", e))?;
         let formatted_when = time.map(|(_, when, _)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
-        self.warn_member(ctx, &member, what.as_str(), formatted_when.as_deref(), reason.as_str(), guild_name.as_str()).await?;
+        self.warn_member(ctx, &member.user, what.as_str(), formatted_when.as_deref(), reason.as_str(), guild_name.as_str()).await?;
         match what {
             TypeModeration::Ban => {
                 if self.owners.iter().any(|u| u == &user.id) {
