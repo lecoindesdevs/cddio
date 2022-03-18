@@ -76,6 +76,10 @@ impl cmp::Component for Moderation {
     }
 }
 
+fn format_username(user: &User) -> String {
+    format!("{}#{:0>4}", user.name, user.discriminator)
+}
+
 impl Moderation {
     pub fn new(app_id: ApplicationId, owners: Vec<UserId>) -> Moderation {
         let ban = cmd::Command::new("ban")
@@ -205,7 +209,7 @@ impl Moderation {
             },
             TypeModeration::Ban => guild_id.unban(&ctx, action.user_id).await,
         };
-        let username = UserId(action.user_id).to_user(&ctx).await.map(|user| format!("{}#{} ({})", user.name, user.discriminator, action.user_id)).unwrap_or_else(|_| action.user_id.to_string());
+        let username = UserId(action.user_id).to_user(&ctx).await.map(|user| format!("{} ({})", format_username(&user), action.user_id)).unwrap_or_else(|_| action.user_id.to_string());
         if let Err(e) = action_done {
             eprintln!("modo::task erreur {}: {}", username, e.to_string());
         } else { 
@@ -338,8 +342,8 @@ impl Moderation {
             self.remove_until(user.id.0, what)
         );
         
-        let username = format!("{}#{} (<@{}>)", user.name, user.discriminator, user.id);
-        let who_did = format!("{}#{}", user_cmd.name, user_cmd.discriminator);
+        let username = format!("{} (<@{}>)", format_username(user), user.id);
+        let who_did = format_username(user_cmd);
         
         Self::write_log(
             &username, 
@@ -371,8 +375,7 @@ impl Moderation {
         }).await {
             Ok(_) => Ok(()),
             Err(e) => {
-                let username = format!("{}#{}", user.name, user.discriminator);
-                Err(format!("Impossible d'envoyer le message de bannissement à l'utilisateur {}: {}", username, e))
+                Err(format!("Impossible d'envoyer le message de bannissement à l'utilisateur {}: {}", format_username(user), e))
             }
         }
     }
