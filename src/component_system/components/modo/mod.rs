@@ -425,7 +425,7 @@ impl Moderation {
         let mut file: std::fs::File = file.into_std().await;
         let file = &mut file;
         match (|| -> std::io::Result<()>{
-            write!(file, "{:=<10}\nWhen: {}\nWho: {}\nWhat: {}\nWho did: {}\n", "", now.to_rfc3339(), who, what, who_did)?;
+            write!(file, "{:=<10}\nWhen: {}\nWho: {}\nWhat: {}\nBy: {}\n", "", now.to_rfc3339(), who, what, who_did)?;
             if let Some(why) = why {
                 write!(file, "Why: {}\n", why)?;
             }
