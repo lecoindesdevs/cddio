@@ -134,6 +134,9 @@ impl Moderation {
         match evt {
             Ready(ReadyEvent{ready, ..}) => self.on_ready(ctx, ready).await,
             InteractionCreate(InteractionCreateEvent{interaction: ApplicationCommand(c), ..}) => self.on_applications_command(ctx, c).await,
+            GuildBanAdd(GuildBanAddEvent{guild_id, user, ..})  => self.on_discord_action(ctx, guild_id.clone(), user, "ban").await,
+            GuildBanRemove(GuildBanRemoveEvent{guild_id, user, ..}) => self.on_discord_action(ctx, guild_id.clone(), user, "unban").await,
+            GuildMemberRemove(GuildMemberRemoveEvent{guild_id, user, ..}) => self.on_discord_action(ctx, guild_id.clone(), user, "kick").await,
             _ => Ok(()),
         }
     }
@@ -185,6 +188,34 @@ impl Moderation {
             *resp = msg.into();
             resp
         }).await.map_err(|e| format!("Cannot create response: {}", e))
+    }
+    async fn on_discord_action(&self, ctx: &Context, guild_id: GuildId, target_user: &User, what: &str) -> Result<(), String> {
+        const ACTION_TYPES: [(&str, u8); 3] = [("ban", 22), ("unban", 23), ("kick", 20)];
+        let audit_logs = guild_id.audit_logs(ctx, 
+            ACTION_TYPES.iter().find(|(name, _)| *name == what).map(|(_, id)| *id),
+            None,
+            None,
+            Some(5)
+        ).await.map_err(|e| format!("Impossible d'obtenir les logs d'audit: {}", e.to_string()))?;
+        let found = audit_logs.entries.into_iter()
+            .find(|(_, entry)| entry.target_id.unwrap_or_default() == target_user.id.0);
+        if found.is_none() {
+            return Ok(());
+        }
+        let entry = found.map(|(_, v)| v).unwrap();
+        let username = entry.user_id
+            .to_user(ctx).await
+            .and_then(|u| Ok(format_username(&u)))
+            .or_else(|e| Err(format!("Impossible d'obtenir le nom de l'utilisateur: {}", e.to_string())))?;
+        let target_username = format_username(&target_user);
+        Self::write_log(
+            &target_username,
+            &username,
+            what,
+            entry.reason.as_ref().map(|r| r.as_str()),
+            None
+        ).await;
+        Ok(())
     }
     // endregion: discord interface
     // region: tasks
