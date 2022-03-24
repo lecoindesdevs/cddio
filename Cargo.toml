@@ -17,6 +17,7 @@ chrono = "0.4"
 ron = "0.7"
 lazy_static = "1.4"
 regex = "1.5"
+hashers = "1.0"
 
 [dependencies.serenity]
 version = "0.10"
