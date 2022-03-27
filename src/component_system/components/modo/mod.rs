@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use futures_locks::RwLock;
 use serde::{Deserialize, Serialize};
 use serenity::{async_trait, client::Context};
-use serenity::model::{interactions::application_command::ApplicationCommandInteraction, id::{ApplicationId, GuildId}, guild::Member, event::ReadyEvent, prelude::*};
+use serenity::model::{interactions::application_command::ApplicationCommandInteraction, id::{ApplicationId, GuildId}, event::ReadyEvent, prelude::*};
 use super::utils::{app_command::{ApplicationCommandEmbed, get_argument}, Data, message};
 use tokio::sync::oneshot::Sender;
 use super::utils;
@@ -91,7 +91,7 @@ struct ModerateParameters {
     pub type_mod: TypeModeration,
     pub user_by: UserId,
     pub reason: Option<String>,
-    pub duration: Option<(u64, String)>,
+    pub duration: Option<u64>,
 }
 
 #[async_trait]
@@ -228,10 +228,7 @@ impl Moderation {
             user_by: userby_id,
             reason: get_argument!(app_cmd, "pourquoi", String),
             duration: match get_argument!(app_cmd, "pendant", String) {
-                Some(v) => Some((
-                    time::parse(v).map_err(|e| format!("Paramètre pendant: Impossible de parser la durée: {}", e))?,
-                    v.clone()
-                )),
+                Some(v) => Some(time::parse(v).map_err(|e| format!("Paramètre pendant: Impossible de parser la durée: {}", e))?),
                 None => None
             },
         };
@@ -358,28 +355,12 @@ impl Moderation {
     // region: actions
     async fn moderate(&self, ctx: &Context, params: ModerateParameters) -> Result<message::Message, String>
     {
-        
-        // let what_str = format!("{}{}", if disable {"un"} else {""}, what.as_str());
-        // let user = get_argument!(app_cmd, "qui", User)
-        //     .map(|v| v.0)
-        //     .ok_or_else(|| "Vous devez mentionner un membre.".to_string())
-        //     .and_then(|user| if user.id != user_cmd.id {
-        //         Ok(user)
-        //     } else {
-        //         Err(format!("Vous ne pouvez pas vous {} vous-même.", &what_str))
-        //     })?;
-        // let reason = if !disable {
-        //     Some(get_argument!(app_cmd, "pourquoi", String)
-        //         .map(|v| v)
-        //         .ok_or_else(|| "Raison non specifiée.".to_string())?)
-        // } else {
-        //     None
-        // };
-        let time = match params.duration {
+        let time = match &params.duration {
             Some(v) => {
-                let duration = chrono::Duration::seconds(v.0 as _);
+                let duration = chrono::Duration::seconds(*v as _);
                 let time_point = chrono::Local::now() + duration;
-                Some((time_point.timestamp(), time_point, v))
+                let duration_str = time::format_duration(*v);
+                Some((time_point.timestamp(), time_point, duration_str))
             }
             _ => None
         };
@@ -394,14 +375,14 @@ impl Moderation {
         };
         let user = params.user_id.to_user(&ctx).await.or_else(|_| Err("Impossible de trouver l'utilisateur.".to_string()))?;
         if !params.type_mod.is_sanction() {
-            let when = time.map(|(_, when, _)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
+            let when = time.as_ref().map(|(_, when, _)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
             match self.warn_member(
                 ctx, 
                 &user,
                 params.type_mod.into(), 
                 when.as_ref().map(|v| v.as_str()), 
-                params.reason.map(|v| v.as_str()).unwrap(), 
-                params.guild_id.name(ctx).await.unwrap().as_str()
+                params.reason.as_ref().map(|v| v.as_str()).unwrap(), 
+                params.guild_id.as_ref().name(ctx).await.unwrap().as_str()
             ).await{
                 Err(e) => println!("[WARN] Impossible d'avertir le membre: {}", e),
                 _ => ()
@@ -427,16 +408,16 @@ impl Moderation {
             &username, 
             &who_did, 
             params.type_mod.as_str(), 
-            params.reason.map(|v| v.as_str()), 
-            time.map(|v| v.2.1.as_str())
+            params.reason.as_ref().map(|v| v.as_str()), 
+            time.as_ref().map(|v| v.2.as_str()),
         ).await;
 
         let mut msg = message::success(format!("{} a été {}.", username, params.type_mod.as_str()));
-        if let Some(reason) = reason {
+        if let Some(reason) = params.reason {
             msg.embed.as_mut().unwrap().field("Raison", reason, false);
         }
         if let Some((timestamp, datetime, duration)) = time {
-            self.make_task(ctx.clone(), guild_id, self.add_until(user.id.0, timestamp, what).await).await;
+            self.make_task(ctx.clone(), params.guild_id, self.add_until(user.id.0, timestamp, params.type_mod).await).await;
             msg.embed.as_mut().unwrap().field("Pendant", duration, false);
             msg.embed.as_mut().unwrap().field("Prend fin", datetime.format("%d/%m/%Y à %H:%M:%S").to_string(), true);
         }
@@ -463,7 +444,7 @@ impl Moderation {
         muted_role: Option<RoleId>,
     ) -> serenity::Result<()> 
     {
-        match (params.type_mod, params.reason) {
+        match (params.type_mod, &params.reason) {
             (TypeModeration::Ban, Some(reason)) => params.guild_id.ban_with_reason(&ctx, params.user_id, 0, reason).await?,
             (TypeModeration::Ban, None) => params.guild_id.ban(&ctx, params.user_id, 0).await?,
             (TypeModeration::Mute, _) => {
@@ -472,7 +453,7 @@ impl Moderation {
                     member.add_role(ctx, muted_role).await?;
                 }
             },
-            (TypeModeration::Kick, Some(reason)) => params.guild_id.kick_with_reason(&ctx, params.user_id, reason).await?,
+            (TypeModeration::Kick, Some(reason)) => params.guild_id.kick_with_reason(&ctx, params.user_id, reason.as_str()).await?,
             (TypeModeration::Kick, None) => params.guild_id.kick(&ctx, params.user_id).await?,
             (TypeModeration::Unban, _) => params.guild_id.unban(&ctx, params.user_id).await?,
             (TypeModeration::UnMute, _) => {
@@ -520,9 +501,51 @@ impl Moderation {
             }
         }
     }
-    pub fn mute(&self, ctx: Context, guild_id: GuildId, user: UserId, reason: Option<String>, time: Option<chrono::Duration>){
-        tokio::spawn(async move {
-            self.moderate(ctx, guild_id, user, TypeModeration::Mute, false, reason, time).await
-        });
+    // region Action throught other components
+    pub async fn mute(&self, ctx: Context, guild_id: GuildId, user: UserId, reason: Option<String>, time: Option<chrono::Duration>) -> Result<(), String> {
+        let params = ModerateParameters {
+            guild_id,
+            user_id: user,
+            user_by: ctx.cache.current_user().await.id,
+            type_mod: TypeModeration::Mute,
+            reason,
+            duration: time.map(|time| (time.num_seconds() as u64)),
+        };
+        
+        match self.moderate(&ctx, params).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e.to_string()),
+        }
     }
+    pub async fn ban(&self, ctx: Context, guild_id: GuildId, user: UserId, reason: Option<String>, time: Option<chrono::Duration>) -> Result<(), String> {
+        let params = ModerateParameters {
+            guild_id,
+            user_id: user,
+            user_by: ctx.cache.current_user().await.id,
+            type_mod: TypeModeration::Ban,
+            reason,
+            duration: time.map(|time| (time.num_seconds() as u64)),
+        };
+        
+        match self.moderate(&ctx, params).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+    pub async fn kick(&self, ctx: Context, guild_id: GuildId, user: UserId, reason: Option<String>) -> Result<(), String> {
+        let params = ModerateParameters {
+            guild_id,
+            user_id: user,
+            user_by: ctx.cache.current_user().await.id,
+            type_mod: TypeModeration::Kick,
+            reason,
+            duration: None,
+        };
+        
+        match self.moderate(&ctx, params).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+    // endregion
 }
