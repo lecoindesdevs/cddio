@@ -1,8 +1,8 @@
-use std::collections::{HashSet, HashMap};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::component_system::Component;
-use crate::component_system::{self as cmp, command_parser as cmd};
+use crate::component_system as cmp;
 use futures_locks::RwLock;
 use serenity::model::id::GuildId;
 use serenity::{model::{*, prelude::*}, async_trait};
