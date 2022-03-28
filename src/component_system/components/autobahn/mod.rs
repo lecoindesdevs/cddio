@@ -15,12 +15,16 @@ type MessageHash = u64;
 struct MessageInfo {
     time: chrono::DateTime<chrono::Utc>,
     who: (id::GuildId, id::UserId),
-    id: MessageId
+    id: (ChannelId, MessageId)
 }
 
-struct Autobahn {
-    sent_messages: RwLock<HashMap<MessageHash, MessageInfo>>,
-    cmp_moderation: Arc<Moderation>
+pub struct Autobahn {
+    sent_messages: RwLock<Vec<(MessageHash, MessageInfo)>>,
+    cmp_moderation: Arc<Moderation>,
+
+    max_messages: usize,
+    max_time: chrono::Duration,
+    mute_time: chrono::Duration,
 }
 
 #[async_trait]
@@ -40,8 +44,11 @@ impl Component for Autobahn {
 impl Autobahn {
     pub fn new(cmp_moderation: Arc<Moderation>) -> Autobahn {
         Autobahn {
-            sent_messages: RwLock::new(HashMap::new()),
-            cmp_moderation
+            sent_messages: RwLock::new(Vec::new()),
+            cmp_moderation,
+            max_messages: 4,
+            max_time: chrono::Duration::minutes(20),
+            mute_time: chrono::Duration::days(1),
         }
     }
     async fn on_message_create(&self, ctx: &cmp::Context, msg: &channel::Message) -> Result<(), String> {
@@ -53,33 +60,62 @@ impl Autobahn {
         let msg_info = MessageInfo {
             time: chrono::Utc::now(),
             who: (guild_id, msg.author.id),
-            id: msg.id
+            id: (msg.channel_id, msg.id)
         };
-        {
-            self.update_sent_messages();
-            let nb_found = self.sent_messages.read().await.iter()
-                .filter(|(k,v)| k == &&msg_hash && v.who == msg_info.who)
-                .count();
-            if nb_found > 4 {
-                self.mute(ctx, guild_id, msg.author.id).await?;
-                return Ok(());
+        
+        self.remove_old_messages().await;
+        
+        let nb_found = self.sent_messages.read().await.iter()
+            .filter(|(k,v)| k == &msg_hash && v.who == msg_info.who)
+            .count();
+        if nb_found > self.max_messages {
+            match msg.delete(ctx).await {
+                Ok(_) => (),
+                Err(e) => println!("autobahn: Failed to delete messages: {}", e)
             }
-        }
-        self.sent_messages.write().await.insert(msg_hash, msg_info);
+            self.delete_messages(ctx, |(_, msg)| msg.who == msg_info.who).await;
+            self.retain_messages(|(k,v)| k == &msg_hash && v.who == msg_info.who).await;
+            self.mute(ctx, guild_id, msg.author.id).await?;
+            return Ok(());
+        } else {
+            self.sent_messages.write().await.push((msg_hash, msg_info));
+        } 
+        
         Ok(())
     }
     async fn mute(&self, ctx: &cmp::Context, guild_id: GuildId, user_id: UserId) -> Result<(), String> {
-        let res = self.cmp_moderation.mute(ctx, guild_id, user_id, Some("Suspicion de spam".to_string()), Some(chrono::Duration::hours(24))).await;
+        let res = self.cmp_moderation.mute(ctx, guild_id, user_id, Some("Suspicion de spam".to_string()), Some(self.mute_time)).await;
         match res {
             Ok(_) => Ok(()),
             Err(why) => Err(format!("Erreur autobahn mute : {}", why))
         }
     }
-    async fn update_sent_messages(&self) {
-        let now = chrono::Utc::now();
+    async fn delete_messages<F>(&self, ctx: &cmp::Context, filter: F)
+        where F: Fn(&&(MessageHash, MessageInfo)) -> bool
+    {
+        let mut msg_to_delete: HashMap<ChannelId, Vec<MessageId>> = HashMap::new();
+        self.sent_messages.read().await.iter()
+            .filter(filter)
+            .for_each(|(_, msg)| {
+                msg_to_delete.entry(msg.id.0)
+                    .or_insert_with(Vec::new)
+                    .push(msg.id.1);
+            });
+        for (channel, msgs) in msg_to_delete.into_iter() {
+            match channel.delete_messages(ctx, &msgs).await {
+                Ok(_) => (),
+                Err(e) => println!("autobahn: Failed to delete messages: {}", e)
+            }
+        }
+    }
+    async fn retain_messages<F>(&self,filter: F)
+        where F: Fn(&(MessageHash, MessageInfo)) -> bool
+    {
         let mut sent_messages = self.sent_messages.write().await;
-        *sent_messages = sent_messages.drain()
-            .filter(|(_,v)| now-v.time < chrono::Duration::seconds(20))
-            .collect();
+        sent_messages.retain(filter);
+    }
+    async fn remove_old_messages(&self) {
+        let now = chrono::Utc::now();
+        self.retain_messages(|(_,v)| now-v.time < self.max_time).await;
     }
 }
