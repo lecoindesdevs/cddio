@@ -37,9 +37,10 @@ impl Component for Autobahn {
 }
 
 impl Autobahn {
-    pub fn new() -> Autobahn {
+    pub fn new(cmp_moderation: Arc<Moderation>) -> Autobahn {
         Autobahn {
-            sent_messages: RwLock::new(HashMap::new())
+            sent_messages: RwLock::new(HashMap::new()),
+            cmp_moderation
         }
     }
     async fn on_message_create(&self, ctx: &cmp::Context, msg: &channel::Message) -> Result<(), String> {
@@ -66,7 +67,11 @@ impl Autobahn {
         Ok(())
     }
     async fn mute(&self, ctx: &cmp::Context, guild_id: GuildId, user_id: UserId) -> Result<(), String> {
-        todo!()
+        let res = self.cmp_moderation.mute(ctx, guild_id, user_id, Some("Suspicion de spam".to_string()), Some(chrono::Duration::hours(24))).await;
+        match res {
+            Ok(_) => Ok(()),
+            Err(why) => Err(format!("Erreur autobahn mute : {}", why))
+        }
     }
     async fn update_sent_messages(&self) {
         let now = chrono::Utc::now();
