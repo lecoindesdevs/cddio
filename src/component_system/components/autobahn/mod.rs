@@ -73,9 +73,9 @@ impl Autobahn {
                 Ok(_) => (),
                 Err(e) => println!("autobahn: Failed to delete messages: {}", e)
             }
-            self.delete_messages(ctx, |(_, msg)| msg.who == msg_info.who).await;
-            self.retain_messages(|(k,v)| k == &msg_hash && v.who == msg_info.who).await;
             self.mute(ctx, guild_id, msg.author.id).await?;
+            self.delete_messages(ctx, |(_, msg)| msg.who == msg_info.who).await;
+            self.retain_messages(|(_,msg)| !(msg.who == msg_info.who)).await;
             return Ok(());
         } else {
             self.sent_messages.write().await.push((msg_hash, msg_info));
