@@ -1,4 +1,5 @@
 
+use std::ops::Deref;
 use serenity::async_trait;
 use serenity::client::{Context, RawEventHandler};
 pub use serenity::model::event::Event;
@@ -27,7 +28,7 @@ impl RawEventHandler for EventDispatcher {
         let components = self.cmp_manager.read().await.get_components().clone();
         tokio::spawn(async move {
             for component in components {
-                let component = component.read().await;
+                let component = component.deref();
                 if let Err(what) = component.event(&ctx, &evt).await {
                     println!("[{}] Module {} command error: {}\nEvent: {:?}\n\n",
                         chrono::Local::now().format("%Y-%m-%d %H:%M:%S"), 

@@ -151,7 +151,6 @@ impl SlashCommands {
                 let guilds = &ready.ready.guilds;
                 let mut app_commands = CreateApplicationCommands::default();
                 for compo in components {
-                    let compo = compo.read().await;
                     let node = match compo.node() {
                         Some(group) => group,
                         None => continue

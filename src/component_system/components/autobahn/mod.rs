@@ -1,4 +1,5 @@
 use std::collections::{HashSet, HashMap};
+use std::sync::Arc;
 
 use crate::component_system::Component;
 use crate::component_system::{self as cmp, command_parser as cmd};
@@ -18,7 +19,7 @@ struct MessageInfo {
 
 struct Autobahn {
     sent_messages: RwLock<HashMap<MessageHash, MessageInfo>>,
-    cmp_moderation: cmp::ArcRwBox<Moderation>
+    cmp_moderation: Arc<Moderation>
 }
 
 #[async_trait]

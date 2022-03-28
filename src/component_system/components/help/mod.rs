@@ -206,7 +206,6 @@ impl Help {
         let comps = comps.get_components();
         
         for cmp in comps {
-            let cmp = cmp.read().await;
             let node = match cmp.node() {
                 Some(v) => v,
                 None => continue
@@ -237,7 +236,6 @@ impl Help {
         let comps = comps.get_components();
         let mut commands = Vec::new();
         for comp in comps {
-            let comp = comp.read().await;
             if let Some(node) = comp.node() {
                 commands.extend(
                     node.list_commands()
