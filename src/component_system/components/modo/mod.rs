@@ -501,7 +501,7 @@ impl Moderation {
     }
     // region Actions throught other components
     #[allow(dead_code)]
-    pub async fn mute(&self, ctx: &Context, guild_id: GuildId, user: UserId, reason: Option<String>, time: Option<chrono::Duration>) -> Result<(), String> {
+    pub async fn mute(&self, ctx: &Context, guild_id: GuildId, user: UserId, reason: Option<String>, time: Option<chrono::Duration>) -> Result<message::Message, String> {
         let params = ModerateParameters {
             guild_id,
             user_id: user,
@@ -512,12 +512,12 @@ impl Moderation {
         };
         
         match self.moderate(ctx, params).await {
-            Ok(_) => Ok(()),
+            Ok(v) => Ok(v),
             Err(e) => Err(e.to_string()),
         }
     }
     #[allow(dead_code)]
-    pub async fn ban(&self, ctx: &Context, guild_id: GuildId, user: UserId, reason: Option<String>, time: Option<chrono::Duration>) -> Result<(), String> {
+    pub async fn ban(&self, ctx: &Context, guild_id: GuildId, user: UserId, reason: Option<String>, time: Option<chrono::Duration>) -> Result<message::Message, String> {
         let params = ModerateParameters {
             guild_id,
             user_id: user,
@@ -528,12 +528,12 @@ impl Moderation {
         };
         
         match self.moderate(ctx, params).await {
-            Ok(_) => Ok(()),
+            Ok(v) => Ok(v),
             Err(e) => Err(e.to_string()),
         }
     }
     #[allow(dead_code)]
-    pub async fn kick(&self, ctx: &Context, guild_id: GuildId, user: UserId, reason: Option<String>) -> Result<(), String> {
+    pub async fn kick(&self, ctx: &Context, guild_id: GuildId, user: UserId, reason: Option<String>) -> Result<message::Message, String> {
         let params = ModerateParameters {
             guild_id,
             user_id: user,
@@ -544,7 +544,7 @@ impl Moderation {
         };
         
         match self.moderate(ctx, params).await {
-            Ok(_) => Ok(()),
+            Ok(v) => Ok(v),
             Err(e) => Err(e.to_string()),
         }
     }
