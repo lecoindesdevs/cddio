@@ -210,7 +210,7 @@ impl Moderation {
             None => return Err("Vous devez être dans un serveur pour utiliser cette commande.".into())
         };
         let command_name = app_cmd.fullname();
-        let userby_id = app_cmd.0.member.ok_or_else(|| "Impossible de récumérer le membre qu'a fait la commande.")?.user.id;
+        let userby_id = app_cmd.0.member.as_ref().ok_or_else(|| "Impossible de récumérer le membre qu'a fait la commande.")?.user.id;
 
         let params = ModerateParameters{
             guild_id,
@@ -224,7 +224,7 @@ impl Moderation {
                 })?,
             type_mod: command_name.into(),
             user_by: userby_id,
-            reason: get_argument!(app_cmd, "pourquoi", String),
+            reason: get_argument!(app_cmd, "pourquoi", String).cloned(),
             duration: match get_argument!(app_cmd, "pendant", String) {
                 Some(v) => Some(time::parse(v).map_err(|e| format!("Paramètre pendant: Impossible de parser la durée: {}", e))?),
                 None => None
@@ -499,8 +499,9 @@ impl Moderation {
             }
         }
     }
-    // region Action throught other components
-    pub async fn mute(&self, ctx: Context, guild_id: GuildId, user: UserId, reason: Option<String>, time: Option<chrono::Duration>) -> Result<(), String> {
+    // region Actions throught other components
+    #[allow(dead_code)]
+    pub async fn mute(&self, ctx: &Context, guild_id: GuildId, user: UserId, reason: Option<String>, time: Option<chrono::Duration>) -> Result<(), String> {
         let params = ModerateParameters {
             guild_id,
             user_id: user,
@@ -510,12 +511,13 @@ impl Moderation {
             duration: time.map(|time| (time.num_seconds() as u64)),
         };
         
-        match self.moderate(&ctx, params).await {
+        match self.moderate(ctx, params).await {
             Ok(_) => Ok(()),
             Err(e) => Err(e.to_string()),
         }
     }
-    pub async fn ban(&self, ctx: Context, guild_id: GuildId, user: UserId, reason: Option<String>, time: Option<chrono::Duration>) -> Result<(), String> {
+    #[allow(dead_code)]
+    pub async fn ban(&self, ctx: &Context, guild_id: GuildId, user: UserId, reason: Option<String>, time: Option<chrono::Duration>) -> Result<(), String> {
         let params = ModerateParameters {
             guild_id,
             user_id: user,
@@ -525,12 +527,13 @@ impl Moderation {
             duration: time.map(|time| (time.num_seconds() as u64)),
         };
         
-        match self.moderate(&ctx, params).await {
+        match self.moderate(ctx, params).await {
             Ok(_) => Ok(()),
             Err(e) => Err(e.to_string()),
         }
     }
-    pub async fn kick(&self, ctx: Context, guild_id: GuildId, user: UserId, reason: Option<String>) -> Result<(), String> {
+    #[allow(dead_code)]
+    pub async fn kick(&self, ctx: &Context, guild_id: GuildId, user: UserId, reason: Option<String>) -> Result<(), String> {
         let params = ModerateParameters {
             guild_id,
             user_id: user,
@@ -540,7 +543,7 @@ impl Moderation {
             duration: None,
         };
         
-        match self.moderate(&ctx, params).await {
+        match self.moderate(ctx, params).await {
             Ok(_) => Ok(()),
             Err(e) => Err(e.to_string()),
         }
