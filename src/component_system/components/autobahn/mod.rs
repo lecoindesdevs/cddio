@@ -58,7 +58,7 @@ impl Autobahn {
         {
             self.update_sent_messages();
             let nb_found = self.sent_messages.read().await.iter()
-                .filter(|(k,v)| k == &&msg_hash)
+                .filter(|(k,v)| k == &&msg_hash && v.who == msg_info.who)
                 .count();
             if nb_found > 4 {
                 self.mute(ctx, guild_id, msg.author.id).await?;
