@@ -15,6 +15,7 @@ type MessageHash = u64;
 struct MessageInfo {
     time: chrono::DateTime<chrono::Utc>,
     who: (id::GuildId, id::UserId),
+    id: MessageId
 }
 
 struct Autobahn {
@@ -51,7 +52,8 @@ impl Autobahn {
         let msg_hash = hashers::fx_hash::fxhash64(msg.content.as_bytes());
         let msg_info = MessageInfo {
             time: chrono::Utc::now(),
-            who: (guild_id, msg.author.id)
+            who: (guild_id, msg.author.id),
+            id: msg.id
         };
         {
             self.update_sent_messages();
