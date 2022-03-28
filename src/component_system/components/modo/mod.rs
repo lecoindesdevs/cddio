@@ -79,7 +79,6 @@ struct ModerationData {
 #[derive(Debug)]
 pub struct Moderation {
     node: cmd::Node,
-    owners: Vec<UserId>,
     app_id: ApplicationId,
     data: RwLock<Data<ModerationData>>,
     tasks: RwLock<Vec<(UserId, TypeModeration, Sender<()>)>>,
@@ -117,7 +116,7 @@ fn format_username(user: &User) -> String {
 }
 
 impl Moderation {
-    pub fn new(app_id: ApplicationId, owners: Vec<UserId>) -> Moderation {
+    pub fn new(app_id: ApplicationId) -> Moderation {
         let ban = cmd::Command::new("ban")
             .set_help("Bannir un membre du serveur. Temporaire si le parametre *pendant* est renseigné.")
             .add_param(cmd::Argument::new("qui")
@@ -159,7 +158,6 @@ impl Moderation {
                 Ok(data) => RwLock::new(data),
                 Err(e) => panic!("Data moderation: {:?}", e)
             },
-            owners,
             tasks: RwLock::new(Vec::new()),
         }
     }
