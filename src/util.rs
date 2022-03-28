@@ -16,22 +16,3 @@ macro_rules! vdq {
         }
     };
 }
-pub struct ArcRw<T>(Arc<RwLock<T>>);
-pub type ArcRwBox<T> = ArcRw<Box<T>>;
-
-impl<T> ArcRw<T> {
-    pub fn new(v: T) -> Self {
-        ArcRw(Arc::new(RwLock::new(v)))
-    }
-    pub async fn read(&self) -> RwLockReadGuard<T> {
-        self.0.read().await
-    }
-    pub async fn write(&self) -> RwLockWriteGuard<T> {
-        self.0.write().await
-    }
-}
-impl<T> Clone for ArcRw<T> {
-    fn clone(&self) -> Self {
-        Self(Arc::clone(&self.0))
-    }
-}
