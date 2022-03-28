@@ -108,12 +108,14 @@ impl Autobahn {
             }
         }
     }
+    #[inline]
     async fn retain_messages<F>(&self,filter: F)
         where F: Fn(&(MessageHash, MessageInfo)) -> bool
     {
         let mut sent_messages = self.sent_messages.write().await;
         sent_messages.retain(filter);
     }
+    #[inline]
     async fn remove_old_messages(&self) {
         let now = chrono::Utc::now();
         self.retain_messages(|(_,v)| now-v.time < self.max_time).await;
