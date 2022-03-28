@@ -372,7 +372,7 @@ impl Moderation {
             None
         };
         let user = params.user_id.to_user(&ctx).await.or_else(|_| Err("Impossible de trouver l'utilisateur.".to_string()))?;
-        if !params.type_mod.is_sanction() {
+        if params.type_mod.is_sanction() {
             let when = time.as_ref().map(|(_, when, _)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
             match self.warn_member(
                 ctx, 

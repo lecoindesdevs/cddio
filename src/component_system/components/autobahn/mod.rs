@@ -47,7 +47,7 @@ impl Autobahn {
             sent_messages: RwLock::new(Vec::new()),
             cmp_moderation,
             max_messages: 4,
-            max_time: chrono::Duration::minutes(20),
+            max_time: chrono::Duration::seconds(20),
             mute_time: chrono::Duration::days(1),
         }
     }
@@ -67,7 +67,7 @@ impl Autobahn {
         
         let nb_found = self.sent_messages.read().await.iter()
             .filter(|(k,v)| k == &msg_hash && v.who == msg_info.who)
-            .count();
+            .count()+1;
         if nb_found > self.max_messages {
             match msg.delete(ctx).await {
                 Ok(_) => (),
