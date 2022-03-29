@@ -371,6 +371,18 @@ impl Moderation {
         } else {
             None
         };
+        let mut roles: [usize;2] = [0, 0];
+        let riter = roles.iter_mut();
+        for user in [params.user_id, params.user_by] {
+            let top_role_user = params.guild_id.member(ctx, params.user_id).await?.roles[0];    
+            let pos_role_user = params.guild_id.roles(ctx).await?.iter().position(|r| *r.0 == top_role_user).unwrap_or(0);
+            if let Some(r) = riter.next() {
+                *r = pos_role_user;
+            }
+        }
+        if roles[0] >= roles[1] {
+            return Err("Le rôle du membre à modérer est supérieur ou égal au rôle du modérateur.".into());
+        }
         let user = params.user_id.to_user(&ctx).await.or_else(|_| Err("Impossible de trouver l'utilisateur.".to_string()))?;
         if params.type_mod.is_sanction() {
             let when = time.as_ref().map(|(_, when, _)| when.format("%d/%m/%Y à %H:%M:%S").to_string());
