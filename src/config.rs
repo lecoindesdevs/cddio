@@ -1,5 +1,5 @@
-use std::{collections::HashMap, ops::{Deref, DerefMut}, path::PathBuf, sync::{Arc, RwLock, Weak, mpsc}};
-use serde::{Deserialize, Serialize, Serializer};
+use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
 
 /// Configuration de l'application
 /// 

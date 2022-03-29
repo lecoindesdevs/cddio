@@ -22,7 +22,7 @@
 //! [`Component`]: crate::component::Component
 //! [Bot::new]: crate::bot::Bot::new()
 //! [`misc`]: crate::component::components::misc
-
+#![allow(unused_macros, dead_code)]
 mod bot;
 mod component_system;
 mod config;

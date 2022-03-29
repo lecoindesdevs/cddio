@@ -14,7 +14,7 @@ use serenity::async_trait;
 use serenity::client::Context;
 use serenity::model::channel::{Message, ReactionType};
 use serenity::model::event::Event;
-use crate::component_system::components::utils::app_command::get_optional_argument_result;
+
 use crate::component_system::components::utils::commands::ToCommand;
 use crate::component_system::{self as cmp, FrameworkConfig, command_parser as cmd};
 use super::utils;
@@ -109,7 +109,7 @@ impl Tickets {
     pub fn new() -> Self {
         use serenity::model::interactions::application_command::ApplicationCommandOptionType;
 
-        let mut node = cmd::Node::new().add_group(
+        let node = cmd::Node::new().add_group(
             cmd::Group::new("tickets")
                 .set_help("Gestion des tickets")
                 .set_permission("owners")

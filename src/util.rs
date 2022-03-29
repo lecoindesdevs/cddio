@@ -1,9 +1,4 @@
 //! Fonctions utiles pour l'ensemble du projet
-
-use std::{ops::{Deref, DerefMut}, sync::Arc};
-
-use futures_locks::{RwLock, RwLockReadGuard, RwLockWriteGuard};
-
 #[doc = "Macro pour créer un VecDeque de la même manière que vec!"]
 #[doc(alias = "std::collections::VecDeque")]
 #[macro_export]
