@@ -4,6 +4,7 @@
 //! Chacun peuvent contenir un set de commandes et d'acquisition événements et réponde à certaines taches de leur domaine.
 //! Un composant est sensé s'autogérer mais Mais rien n'empêche la communication entre ces derniers.
 
+use std::sync::Arc;
 use serenity::async_trait;
 
 mod event;
@@ -19,9 +20,7 @@ pub use framework::{Framework , FrameworkConfig};
 pub use framework::{Context, Message};
 pub use serenity::model::event::Event;
 
-use crate::util::{ArcRw, ArcRwBox};
-
-pub type ArcComponent = ArcRwBox<dyn Component>;
+pub type ArcComponent = Arc<dyn Component>;
 
 /// Retour d'une commande
 pub enum CommandMatch {
@@ -37,7 +36,7 @@ pub enum CommandMatch {
 /// 
 /// Les composants doivent implémenter cette interface pour être utilisés par le framework et l'event dispatcher.
 #[async_trait]
-pub trait Component: Sync + Send
+pub trait Component: Sync + Send 
 {
     /// Nom du composant
     fn name(&self) -> &str;
@@ -71,10 +70,15 @@ pub trait Component: Sync + Send
     fn register_slash(&self, ) {
         
     }
-    /// Helper : convertir un composant en ArcComponent
-    fn to_arc(self) -> ArcComponent 
-    where Self: Sized + 'static
+    
+}
+
+pub trait ComponentExt: Sized {
+    fn to_arc(self) -> Arc<Self> 
     {
-        ArcRw::new(Box::new(self))
+        Arc::new(self)
     }
 }
+impl<T: Component> ComponentExt for T{
+} 
+

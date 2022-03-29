@@ -1,7 +1,9 @@
 //! Core de l'application. 
 //! L'initialisation du bot et la gestion des composants se fait dans ce module.
+use futures_locks::RwLock;
 use serenity::{Client, client::bridge::gateway::GatewayIntents, model::id::{ApplicationId, UserId}};
-use crate::{component_system::{self as cmp, Component, manager::{Manager, ArcManager}}, config::Config, util::ArcRw};
+use crate::{component_system::{self as cmp, ComponentExt, manager::{Manager, ArcManager}}, config::Config};
+
 type Result<T> = serenity::Result<T>;
 
 /// Structure du bot.
@@ -22,7 +24,7 @@ pub struct Bot {
 impl Bot {
     /// Crée un nouveau bot et l'initialise.
     pub async fn new(config: &Config) -> Result<Bot> {
-        let manager = ArcRw::new(Manager::new());
+        let manager = RwLock::new(Manager::new());
         let owners_id = config.owners
             .iter()
             .map(|id| id.parse::<u64>().unwrap())
@@ -32,12 +34,14 @@ impl Bot {
         {
             use cmp::components::*;
             let mut manager_instance = manager.write().await;
+            let moderation = Moderation::new(app_id).to_arc();
             // AJOUTER LES COMPOSANTS ICI A LA SUITE
             manager_instance
                 .add_component(Misc::new(app_id, config.permissions).to_arc())
                 .add_component(Tickets::new().to_arc())
                 .add_component(Help::new(manager.clone()).to_arc())
-                .add_component(Moderation::new(app_id, owners_id.clone()).to_arc())
+                .add_component(moderation.clone())
+                .add_component(Autobahn::new(moderation).to_arc())
                 .add_component(SlashCommands::new(manager.clone(), owners_id, app_id).to_arc());
         };
         

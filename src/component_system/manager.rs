@@ -1,5 +1,6 @@
+use futures_locks::RwLock;
+
 use super::ArcComponent;
-use crate::util::ArcRw;
 
 pub struct Manager {
     components: Vec<ArcComponent>,
@@ -20,4 +21,4 @@ impl Manager {
     }
 }
 
-pub type ArcManager = ArcRw<Manager>;
+pub type ArcManager = RwLock<Manager>;

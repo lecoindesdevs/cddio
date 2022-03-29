@@ -11,6 +11,8 @@ mod slash;
 pub use slash::*;
 mod modo;
 pub use modo::*;
+mod autobahn;
+pub use autobahn::*;
 
 // Fonctions utiles pour les composants
 mod utils;

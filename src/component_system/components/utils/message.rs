@@ -1,4 +1,4 @@
-use serenity::builder::{CreateEmbed, CreateInteractionResponse, CreateInteractionResponseData, CreateMessage};
+use serenity::builder::{CreateEmbed, CreateInteractionResponse, CreateMessage};
 use serenity::utils::Colour;
 
 /// Interface de création de message

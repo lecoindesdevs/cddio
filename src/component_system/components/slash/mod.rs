@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use futures_locks::RwLock;
-use serenity::{async_trait, builder::CreateApplicationCommands, client::Context, http::CacheHttp, model::{event::InteractionCreateEvent, id::{ApplicationId, GuildId, UserId}, interactions::application_command::{ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandInteractionDataOptionValue, ApplicationCommandOption, ApplicationCommandPermissionData, ApplicationCommandPermissionType}}};
-use crate::component_system::{self as cmp, command_parser::{self as cmd, Named}, components::utils::{self, app_command::{ApplicationCommandEmbed, get_argument}}, manager::{ArcManager}};
+use serenity::{async_trait, builder::CreateApplicationCommands, client::Context, model::{event::InteractionCreateEvent, id::{ApplicationId, GuildId, UserId}, interactions::application_command::{ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandInteractionDataOptionValue, ApplicationCommandPermissionType}}};
+use crate::component_system::{self as cmp, command_parser as cmd, components::utils::{app_command::{ApplicationCommandEmbed, get_argument}}, manager::{ArcManager}};
 use super::utils::message;
 use crate::component_system::slash;
 
@@ -27,7 +27,7 @@ impl cmp::Component for SlashCommands {
         "slash"
     }
 
-    async fn command(&self, fw_config: &cmp::FrameworkConfig, ctx: &cmp::Context, msg: &cmp::Message) -> cmp::CommandMatch {
+    async fn command(&self, _: &cmp::FrameworkConfig, _: &cmp::Context, _: &cmp::Message) -> cmp::CommandMatch {
         cmp::CommandMatch::NotMatched
     }
 
@@ -151,7 +151,6 @@ impl SlashCommands {
                 let guilds = &ready.ready.guilds;
                 let mut app_commands = CreateApplicationCommands::default();
                 for compo in components {
-                    let compo = compo.read().await;
                     let node = match compo.node() {
                         Some(group) => group,
                         None => continue

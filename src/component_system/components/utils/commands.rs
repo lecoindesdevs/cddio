@@ -1,5 +1,5 @@
 pub use serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue;
-use serenity::{model::{interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandInteractionData}, id::{UserId, ChannelId, RoleId, GuildId}}, client::Context};
+use serenity::model::{interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandInteractionData}, id::{UserId, ChannelId, RoleId}};
 
 use crate::component_system::command_parser::matching;
 #[derive(Debug)]
