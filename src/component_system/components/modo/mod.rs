@@ -372,10 +372,10 @@ impl Moderation {
             None
         };
         let mut roles: [usize;2] = [0, 0];
-        let riter = roles.iter_mut();
+        let mut riter = roles.iter_mut();
         for user in [params.user_id, params.user_by] {
-            let top_role_user = params.guild_id.member(ctx, params.user_id).await?.roles[0];    
-            let pos_role_user = params.guild_id.roles(ctx).await?.iter().position(|r| *r.0 == top_role_user).unwrap_or(0);
+            let top_role_user = params.guild_id.member(ctx, user).await.or_else (|e| Err(format!("Impossible de récupérer un membre du serveur: {}", e)))?.roles[0];    
+            let pos_role_user = params.guild_id.roles(ctx).await.or_else (|e| Err(format!("Impossible d'obtenir les roles du serveur: {}", e)))?.iter().position(|r| *r.0 == top_role_user).unwrap_or(0);
             if let Some(r) = riter.next() {
                 *r = pos_role_user;
             }
