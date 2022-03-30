@@ -371,17 +371,34 @@ impl Moderation {
         } else {
             None
         };
+        'check: loop {
         let mut roles: [usize;2] = [0, 0];
         let mut riter = roles.iter_mut();
+            let guild_roles = match params.guild_id.roles(&ctx).await {
+                Ok(v) => v,
+                Err(e) => return Err(format!("Impossible d'avoir les rôles du serveur {}: {}", params.guild_id.0, e))
+            };
         for user in [params.user_id, params.user_by] {
-            let top_role_user = params.guild_id.member(ctx, user).await.or_else (|e| Err(format!("Impossible de récupérer un membre du serveur: {}", e)))?.roles[0];    
-            let pos_role_user = params.guild_id.roles(ctx).await.or_else (|e| Err(format!("Impossible d'obtenir les roles du serveur: {}", e)))?.iter().position(|r| *r.0 == top_role_user).unwrap_or(0);
+                let userroles = params.guild_id
+                    .member(ctx, user).await
+                    .or_else (|e| Err(format!("Impossible de récupérer un membre du serveur: {}", e)))?
+                    .roles(ctx).await;
+                let top_role = match userroles {
+                    Some(roles) if roles.is_empty() => break 'check,
+                    Some(roles) => roles[0].id,
+                    None => break 'check,
+                };
+                let pos_role_user = guild_roles.iter()
+                    .position(|r| *r.0 == top_role)
+                    .unwrap_or(0);
             if let Some(r) = riter.next() {
                 *r = pos_role_user;
             }
         }
-        if roles[0] >= roles[1] {
-            return Err("Le rôle du membre à modérer est supérieur ou égal au rôle du modérateur.".into());
+            if roles[0] <= roles[1] {
+                return Err("Le membre à modérer a un rôle plus élevé ou égal au rôle du modérateur.".into());
+            }
+            break;
         }
         let user = params.user_id.to_user(&ctx).await.or_else(|_| Err("Impossible de trouver l'utilisateur.".to_string()))?;
         if params.type_mod.is_sanction() {
