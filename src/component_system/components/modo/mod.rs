@@ -408,7 +408,7 @@ impl Moderation {
                 &user,
                 params.type_mod.into(), 
                 when.as_ref().map(|v| v.as_str()), 
-                params.reason.as_ref().map(|v| v.as_str()).unwrap(), 
+                params.reason.as_ref().map(|v| v.as_str()), 
                 params.guild_id.as_ref().name(ctx).await.unwrap().as_str()
             ).await{
                 Err(e) => println!("[WARN] Impossible d'avertir le membre: {}", e),
@@ -450,13 +450,17 @@ impl Moderation {
         }
         Ok(msg)
     }
-    async fn warn_member(&self, ctx: &Context, user: &User, keyword: &str, when: Option<&str>, reason: &str, guild_name: &str) -> Result<(), String> {
+    async fn warn_member(&self, ctx: &Context, user: &User, keyword: &str, when: Option<&str>, reason: Option<&str>, guild_name: &str) -> Result<(), String> {
         match user.direct_message(ctx, |msg| {
-            if let Some(when) = when {
-                msg.content(format!("Vous avez été temporairement **{}** du serveur {}.\n__Raison__ : {}\n__Prend fin le__ : {}", keyword, guild_name, reason, when));
+            let mut msg_content = if let Some(when) = when {
+                format!("Vous avez été temporairement **{}** du serveur {}.\n__Prend fin le__ : {}", keyword, guild_name, when)
             } else {
-                msg.content(format!("Vous avez été **{}** du serveur {}.\n__Raison__ : {}", keyword, guild_name, reason));
+                format!("Vous avez été **{}** du serveur {}.", keyword, guild_name)
+            };
+            if let Some(reason) = reason {
+                msg_content = format!("{}\n__Raison__ : {}", msg_content, reason);
             }
+            msg.content(msg_content);
             msg
         }).await {
             Ok(_) => Ok(()),
