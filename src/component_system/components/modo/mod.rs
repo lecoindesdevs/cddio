@@ -136,6 +136,18 @@ impl Moderation {
         let mute = ban.clone()
             .set_name("mute")
             .set_help("Attribue le rôle *muted* à un membre. Temporaire si le parametre *pendant* est renseigné.");
+        let kick = cmd::Command::new("kick")
+            .set_help("Expulser un membre du serveur.")
+            .add_param(cmd::Argument::new("qui")
+                .set_value_type(cmd::ValueType::User)
+                .set_help("Le membre à expulser")
+                .set_required(true)
+            )
+            .add_param(cmd::Argument::new("pourquoi")
+                .set_value_type(cmd::ValueType::String)
+                .set_help("La raison de l'expulsion")
+                .set_required(false)
+            );
         let unban = cmd::Command::new("unban")
             .set_help("Unban un membre")
             .add_param(cmd::Argument::new("qui")
@@ -149,6 +161,7 @@ impl Moderation {
         let node = cmd::Node::new()
             .add_command(ban)
             .add_command(mute)
+            .add_command(kick)
             .add_command(unban)
             .add_command(unmute);
         Moderation {
