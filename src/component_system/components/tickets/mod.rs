@@ -173,29 +173,30 @@ impl Tickets {
         }
     }
     /// Execute les commandes du composant __non slash__
-    async fn r_command(&self, _: &FrameworkConfig, ctx: &Context, msg: &Message) -> cmp::CommandMatch {
-        let args = cmd::split_shell(&msg.content[1..]);
+    async fn r_command(&self, _: &FrameworkConfig, _ctx: &Context, _msg: &Message) -> cmp::CommandMatch {
+        // let args = cmd::split_shell(&msg.content[1..]);
         
-        let matched = match utils::try_match(ctx, msg, &self.node, args).await {
-            Ok(v) => v,
-            Err(e) => return e
-        };
-        println!("matched: {:?}", matched);
-        let guild_id = match msg.guild_id {
-            Some(id) => id,
-            None => return cmp::CommandMatch::Error("Cette commande n'est pas disponible en message privé.".to_string())
-        };
-        let command = matched.to_command();
-        println!("{:?}", command);
-        let c_msg = match self.commands(ctx, guild_id, command).await {
-            Ok(v) => v,
-            Err(Some(e)) => return cmp::CommandMatch::Error(e),
-            Err(None) => return cmp::CommandMatch::NotMatched,
-        };
-        match utils::send::custom(ctx, msg.channel_id, c_msg).await {
-            Ok(_) => cmp::CommandMatch::Matched,
-            Err(e) => cmp::CommandMatch::Error(format!("Erreur lors de l'envoi du message de réponse: {}", e.to_string()))
-        }
+        // let matched = match utils::try_match(ctx, msg, &self.node, args).await {
+        //     Ok(v) => v,
+        //     Err(e) => return e
+        // };
+        // println!("matched: {:?}", matched);
+        // let guild_id = match msg.guild_id {
+        //     Some(id) => id,
+        //     None => return cmp::CommandMatch::Error("Cette commande n'est pas disponible en message privé.".to_string())
+        // };
+        // let command = matched.to_command();
+        // println!("{:?}", command);
+        // let c_msg = match self.commands(ctx, guild_id, command).await {
+        //     Ok(v) => v,
+        //     Err(Some(e)) => return cmp::CommandMatch::Error(e),
+        //     Err(None) => return cmp::CommandMatch::NotMatched,
+        // };
+        // match utils::send::custom(ctx, msg.channel_id, c_msg).await {
+        //     Ok(_) => cmp::CommandMatch::Matched,
+        //     Err(e) => cmp::CommandMatch::Error(format!("Erreur lors de l'envoi du message de réponse: {}", e.to_string()))
+        // }
+        cmp::CommandMatch::NotMatched
     }
     /// Dispatch un enevement reçu par le bot
     async fn r_event(&self, ctx: &Context, evt: &Event) -> Result<(), String> {
