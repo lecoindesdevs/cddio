@@ -658,18 +658,14 @@ impl Tickets {
         Ok(true)
     }
     async fn is_ticket_owner(ctx: &Context, channel: &GuildChannel, user_by: UserId) -> Result<bool, String> {
-        let pins = bench_block!({
-            match channel.pins(ctx).await {
-                Ok(pins) => pins,
-                Err(e) => return Err(format!("{}", e))
-            }
-        });
-        let first_message = bench_block!({
-            match pins.last() {
-                Some(pin) => pin,
-                None => return Ok(false)
-            }
-        });
+        let pins = match channel.pins(ctx).await {
+            Ok(pins) => pins,
+            Err(e) => return Err(format!("{}", e))
+        };
+        let first_message = match pins.last() {
+            Some(pin) => pin,
+            None => return Ok(false)
+        };
         Ok(first_message.mentions.iter().find(|m| m.id == user_by).is_some())
     }
     
@@ -717,8 +713,8 @@ impl Tickets {
             Err(e) => return Err(e),
             _ => () 
         }
-        let res_ticket_owner = bench_block!{{Self::is_ticket_owner(ctx, &guild_channel, user_by).await}};
-        let res_staff = bench_block!{{Self::is_staff(ctx, guild_id, user_by).await}};
+        let res_ticket_owner = Self::is_ticket_owner(ctx, &guild_channel, user_by).await;
+        let res_staff = Self::is_staff(ctx, guild_id, user_by).await;
         match (res_ticket_owner, res_staff) {
             (Err(e), _) | (_, Err(e)) => return Err(e),
             (Ok(false), Ok(false)) => return Err("Vous n'avez pas les droits pour ajouter un membre.".to_string()),
