@@ -378,7 +378,7 @@ impl Tickets {
                         cmps
                     })
             ).await {
-                Ok(_)=>(),
+                Ok(msg) => new_channel.pin(ctx, msg.id).await?,
                 Err(e) => eprintln!("Error sending message to new channel: {}", e)
             }
         msg_cmp.create_interaction_response(ctx, |resp| 
