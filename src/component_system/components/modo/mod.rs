@@ -40,6 +40,12 @@ impl TypeModeration {
             _ => false
         }
     }
+    fn is_a_command(cmd: &str) -> bool {
+        match cmd {
+            "ban" | "mute" | "unban" | "unmute" | "kick" => true,
+            _ => false
+        }
+    }
 }
 impl<T: AsRef<str>> From<T> for TypeModeration {
     fn from(s: T) -> Self {
@@ -218,11 +224,16 @@ impl Moderation {
             return Ok(());
         }
         let app_cmd = ApplicationCommandEmbed::new(app_command);
+        let command_name = app_cmd.fullname();
+        if !TypeModeration::is_a_command(command_name.as_str()) {
+            return Ok(());
+        }
         let guild_id = match app_cmd.get_guild_id() {
             Some(v) => v,
             None => return Err("Vous devez être dans un serveur pour utiliser cette commande.".into())
         };
-        let command_name = app_cmd.fullname();
+        
+
         let userby_id = app_cmd.0.member.as_ref().ok_or_else(|| "Impossible de récumérer le membre qu'a fait la commande.")?.user.id;
 
         let params = ModerateParameters{
