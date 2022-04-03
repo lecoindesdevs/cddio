@@ -1,4 +1,4 @@
-use serenity::builder::{CreateEmbed, CreateInteractionResponse, CreateMessage};
+use serenity::builder::{CreateEmbed, CreateInteractionResponse, EditInteractionResponse, CreateMessage};
 use serenity::utils::Colour;
 
 /// Interface de création de message
@@ -59,6 +59,16 @@ impl From<Message> for CreateInteractionResponse {
             data
         });
         response.kind(InteractionResponseType::ChannelMessageWithSource);
+        response
+    }
+}
+impl From<Message> for EditInteractionResponse {
+    fn from(message: Message) -> Self {
+        let mut response = Self::default();
+        response.content(message.message);
+        if let Some(embed) = message.embed {
+            response.create_embed(|e| {*e = embed; e});
+        }
         response
     }
 }
