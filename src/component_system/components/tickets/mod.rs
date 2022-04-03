@@ -124,6 +124,9 @@ impl Tickets {
                         )
                     )
                 )
+                .add_command(cmd::Command::new("close")
+                    .set_help("Ferme le salon")
+                )
                 .add_group(cmd::Group::new("categories")
                     .set_help("Gestion des catégories de tickets.")
                     .add_command(cmd::Command::new("add")
@@ -146,11 +149,6 @@ impl Tickets {
                             .set_required(false)
                             .set_help("Description de la catégorie de ticket")
                         )
-                        
-                        // .add_param(cmd::Argument::new("emoji")
-                        //     .set_required(false)
-                        //     .set_help("Emoji décoration")
-                        // )
                     )
                     .add_command(cmd::Command::new("remove")
                         .set_help("Supprime une catégorie de ticket")
@@ -220,7 +218,7 @@ impl Tickets {
             Interaction::MessageComponent(v) => self.on_msg_component(ctx, v).await,
         }
     }
-    async fn commands(&self, ctx: &Context, guild_id: GuildId, command: commands::Command) -> Result<message::Message, Option<String>> {
+    async fn commands(&self, ctx: &Context, guild_id: GuildId, command: commands::Command, app_cmd: &utils::app_command::ApplicationCommandEmbed<'_>) -> Result<Option<message::Message>, Option<String>> {
         match command.fullname().as_str() {
             "tickets.channel.set" => {
                 let channel = match command.get_argument("id") {
@@ -228,7 +226,13 @@ impl Tickets {
                     Some(_) => return Err(Some("id: paramètre mal formé".to_string())),
                     None => return Err(Some("id: paramètre manquant".to_string()))
                 };
-                Ok(self.set_channel(ctx, guild_id, channel.0).await)
+                Ok(Some(self.set_channel(ctx, guild_id, channel.0).await))
+            },
+            "tickets.close" => {
+                match self.close_channel(ctx, guild_id, app_cmd.0.channel_id).await {
+                    Ok(_) => Ok(None),
+                    Err(e) => Err(Some(e))
+                }
             },
             "tickets.categories.add" => {
                 let name = match command.get_argument("name") {
@@ -251,7 +255,7 @@ impl Tickets {
                     Some(_) => return Err(Some("id: paramètre mal formé".to_string())),
                     None => return Err(Some("id: paramètre manquant".to_string()))
                 };
-                Ok(self.category_add(ctx, guild_id, name, desc, channel.0, prefix).await)
+                Ok(Some(self.category_add(ctx, guild_id, name, desc, channel.0, prefix).await))
             }
             "tickets.categories.remove" => {
                 let name = match command.get_argument("name") {
@@ -259,9 +263,9 @@ impl Tickets {
                     Some(_) => return Err(Some("name: paramètre mal formé".to_string())),
                     None => return Err(Some("name: paramètre manquant".to_string()))
                 };
-                Ok(self.category_remove(ctx, name).await)
+                Ok(Some(self.category_remove(ctx, name).await))
             },
-            "tickets.categories.list" => Ok(self.categories_list(ctx, guild_id).await),
+            "tickets.categories.list" => Ok(Some(self.categories_list(ctx, guild_id).await)),
             _ => return Err(None)
         }
     }
@@ -274,18 +278,22 @@ impl Tickets {
         };
         let command = app_command.to_command();
         println!("{:?}", command);
-        let c_msg = match self.commands(ctx, guild_id, command).await {
+        let c_msg = match self.commands(ctx, guild_id, command, &app_cmd).await {
             Ok(v) => v,
             Err(None) => return Ok(()),
             Err(Some(e)) => return Err(e)
         };
-        app_command.create_interaction_response(ctx, |resp|{
-            *resp = c_msg.into();
-            resp
-        }).await.or_else(|e| {
-            eprintln!("Cannot create response: {}", e);
-            Err(e.to_string())
-        })
+        if let Some(c_msg) = c_msg {
+            app_command.create_interaction_response(ctx, |resp|{
+                *resp = c_msg.into();
+                resp
+            }).await.or_else(|e| {
+                eprintln!("Cannot create response: {}", e);
+                Err(e.to_string())
+            })
+        } else {
+            Ok(())
+        }
     }
     /// Dispatch les composants de message (boutons, menu déroulant) reçu par le bot
     async fn on_msg_component(&self, ctx: &Context, msg_component: &MessageComponentInteraction) -> Result<(), String> {
@@ -586,6 +594,43 @@ impl Tickets {
 
             msg
         }).await
+    }
+    async fn close_channel(&self, ctx: &Context, guild_id: GuildId, channel_id: ChannelId) -> Result<(), String> {
+        use serenity::model::interactions::message_component::*;
+        let channel = guild_id.channels(ctx).await.unwrap().into_iter().find(|channel| channel.0.0 == channel_id.0);
+        let (channel, guild_channel) = match channel {
+            Some(c) => c,
+            None => return Err("Le salon n'existe pas.".to_string())
+        };
+        // L'idée est de savoir si le premier message du salon a un bouton de fermeture de ticket
+        let pins = match guild_channel.pins(ctx).await {
+            Ok(pins) => pins,
+            Err(e) => return Err(format!("{}", e))
+        };
+        let first_message = match pins.last() {
+            Some(pin) => pin,
+            None => return Err("Le salon n'a pas de message épinglé.".to_string())
+        };
+        let msg_comp = match first_message.components.first() {
+            Some(comp) => comp,
+            None => return Err("Aucun bouton détecté sur le premier message epinglé.".to_string())
+        };
+        let msg_comp = match msg_comp.components.first() {
+            Some(comp) => comp,
+            None => return Err("Aucun bouton détecté sur le premier message epinglé.".to_string())
+        };
+        if let ActionRowComponent::Button(Button{ custom_id: Some(c), ..}) = msg_comp {
+            if c != "tickets_close" {
+                return Err("Le premier message épinglé n'a pas de bouton pour fermer le ticket.".to_string())
+            }
+        } else {
+            return Err("Le premier message épinglé n'a pas de bouton.".to_string())
+        }
+        // Le channel est détecté comme un ticket, on le ferme
+        match channel.delete(ctx).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Impossible de fermer le ticket: {}", e.to_string()))
+        }
     }
     /// Ajoute une catégorie de ticket
     async fn category_add(&self, ctx: &Context, guild_id: GuildId, name: String, desc: Option<String>, channel_id: u64, prefix: String) -> message::Message {
