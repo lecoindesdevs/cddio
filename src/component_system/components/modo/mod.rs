@@ -40,6 +40,12 @@ impl TypeModeration {
             _ => false
         }
     }
+    fn is_a_command(cmd: &str) -> bool {
+        match cmd {
+            "ban" | "mute" | "unban" | "unmute" | "kick" => true,
+            _ => false
+        }
+    }
 }
 impl<T: AsRef<str>> From<T> for TypeModeration {
     fn from(s: T) -> Self {
@@ -136,6 +142,18 @@ impl Moderation {
         let mute = ban.clone()
             .set_name("mute")
             .set_help("Attribue le rôle *muted* à un membre. Temporaire si le parametre *pendant* est renseigné.");
+        let kick = cmd::Command::new("kick")
+            .set_help("Expulser un membre du serveur.")
+            .add_param(cmd::Argument::new("qui")
+                .set_value_type(cmd::ValueType::User)
+                .set_help("Le membre à expulser")
+                .set_required(true)
+            )
+            .add_param(cmd::Argument::new("pourquoi")
+                .set_value_type(cmd::ValueType::String)
+                .set_help("La raison de l'expulsion")
+                .set_required(false)
+            );
         let unban = cmd::Command::new("unban")
             .set_help("Unban un membre")
             .add_param(cmd::Argument::new("qui")
@@ -149,6 +167,7 @@ impl Moderation {
         let node = cmd::Node::new()
             .add_command(ban)
             .add_command(mute)
+            .add_command(kick)
             .add_command(unban)
             .add_command(unmute);
         Moderation {
@@ -205,11 +224,16 @@ impl Moderation {
             return Ok(());
         }
         let app_cmd = ApplicationCommandEmbed::new(app_command);
+        let command_name = app_cmd.fullname();
+        if !TypeModeration::is_a_command(command_name.as_str()) {
+            return Ok(());
+        }
         let guild_id = match app_cmd.get_guild_id() {
             Some(v) => v,
             None => return Err("Vous devez être dans un serveur pour utiliser cette commande.".into())
         };
-        let command_name = app_cmd.fullname();
+        
+
         let userby_id = app_cmd.0.member.as_ref().ok_or_else(|| "Impossible de récumérer le membre qu'a fait la commande.")?.user.id;
 
         let params = ModerateParameters{
@@ -408,7 +432,7 @@ impl Moderation {
                 &user,
                 params.type_mod.into(), 
                 when.as_ref().map(|v| v.as_str()), 
-                params.reason.as_ref().map(|v| v.as_str()).unwrap(), 
+                params.reason.as_ref().map(|v| v.as_str()), 
                 params.guild_id.as_ref().name(ctx).await.unwrap().as_str()
             ).await{
                 Err(e) => println!("[WARN] Impossible d'avertir le membre: {}", e),
@@ -440,23 +464,29 @@ impl Moderation {
         ).await;
 
         let mut msg = message::success(format!("{} a été {}.", username, params.type_mod.as_str()));
-        if let Some(reason) = params.reason {
-            msg.embed.as_mut().unwrap().field("Raison", reason, false);
-        }
-        if let Some((timestamp, datetime, duration)) = time {
-            self.make_task(ctx.clone(), params.guild_id, self.add_until(user.id.0, timestamp, params.type_mod).await).await;
-            msg.embed.as_mut().unwrap().field("Pendant", duration, false);
-            msg.embed.as_mut().unwrap().field("Prend fin", datetime.format("%d/%m/%Y à %H:%M:%S").to_string(), true);
+        if let Some(embed) = msg.last_embed_mut() {
+            if let Some(reason) = params.reason {
+                embed.field("Raison", reason, false);
+            }
+            if let Some((timestamp, datetime, duration)) = time {
+                self.make_task(ctx.clone(), params.guild_id, self.add_until(user.id.0, timestamp, params.type_mod).await).await;
+                embed.field("Pendant", duration, false);
+                embed.field("Prend fin", datetime.format("%d/%m/%Y à %H:%M:%S").to_string(), true);
+            }
         }
         Ok(msg)
     }
-    async fn warn_member(&self, ctx: &Context, user: &User, keyword: &str, when: Option<&str>, reason: &str, guild_name: &str) -> Result<(), String> {
+    async fn warn_member(&self, ctx: &Context, user: &User, keyword: &str, when: Option<&str>, reason: Option<&str>, guild_name: &str) -> Result<(), String> {
         match user.direct_message(ctx, |msg| {
-            if let Some(when) = when {
-                msg.content(format!("Vous avez été temporairement **{}** du serveur {}.\n__Raison__ : {}\n__Prend fin le__ : {}", keyword, guild_name, reason, when));
+            let mut msg_content = if let Some(when) = when {
+                format!("Vous avez été temporairement **{}** du serveur {}.\n__Prend fin le__ : {}", keyword, guild_name, when)
             } else {
-                msg.content(format!("Vous avez été **{}** du serveur {}.\n__Raison__ : {}", keyword, guild_name, reason));
+                format!("Vous avez été **{}** du serveur {}.", keyword, guild_name)
+            };
+            if let Some(reason) = reason {
+                msg_content = format!("{}\n__Raison__ : {}", msg_content, reason);
             }
+            msg.content(msg_content);
             msg
         }).await {
             Ok(_) => Ok(()),

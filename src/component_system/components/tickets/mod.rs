@@ -5,14 +5,14 @@ use std::path::PathBuf;
 use futures::StreamExt;
 use futures_locks::RwLock;
 use serde::{Deserialize, Serialize};
-use serenity::model::id::{ChannelId, GuildId};
+use serenity::model::id::{ChannelId, GuildId, UserId};
 use serenity::model::interactions::Interaction;
 use serenity::model::interactions::application_command::ApplicationCommandInteraction;
 use serenity::model::interactions::message_component::{ButtonStyle, MessageComponentInteraction};
 use serenity::prelude::Mentionable;
 use serenity::async_trait;
 use serenity::client::Context;
-use serenity::model::channel::{Message, ReactionType};
+use serenity::model::channel::{Message, ReactionType, GuildChannel};
 use serenity::model::event::Event;
 
 use crate::component_system::components::utils::commands::ToCommand;
@@ -36,6 +36,12 @@ macro_rules! err_println {
                 Err(e) => eprintln!($msg_format, e)
             }
         }
+    };
+}
+
+macro_rules! bench_block {
+    {$code:block} => {
+        Some((chrono::offset::Utc::now(), $code, chrono::offset::Utc::now())).map(|(start, r, end)| {println!("{}: {}", line!(), end - start); r}).unwrap()
     };
 }
 
@@ -86,9 +92,6 @@ struct CategoryTicket {
     tickets: Vec<String>,
 }
 
-
-
-
 #[async_trait]
 impl crate::component_system::Component for Tickets {
     fn name(&self) -> &str {
@@ -109,8 +112,8 @@ impl Tickets {
     pub fn new() -> Self {
         use serenity::model::interactions::application_command::ApplicationCommandOptionType;
 
-        let node = cmd::Node::new().add_group(
-            cmd::Group::new("tickets")
+        let node = cmd::Node::new()
+            .add_group(cmd::Group::new("tickets")
                 .set_help("Gestion des tickets")
                 .set_permission("owners")
                 .add_group(cmd::Group::new("channel")
@@ -123,6 +126,9 @@ impl Tickets {
                             .set_help("Identifiant du message")
                         )
                     )
+                )
+                .add_command(cmd::Command::new("close")
+                    .set_help("Ferme le salon")
                 )
                 .add_group(cmd::Group::new("categories")
                     .set_help("Gestion des catégories de tickets.")
@@ -146,11 +152,6 @@ impl Tickets {
                             .set_required(false)
                             .set_help("Description de la catégorie de ticket")
                         )
-                        
-                        // .add_param(cmd::Argument::new("emoji")
-                        //     .set_required(false)
-                        //     .set_help("Emoji décoration")
-                        // )
                     )
                     .add_command(cmd::Command::new("remove")
                         .set_help("Supprime une catégorie de ticket")
@@ -164,6 +165,14 @@ impl Tickets {
                     )
                 )
                 
+            )
+            .add_command(cmd::Command::new("ticket_add_member")
+                .set_help("Ajoute une personne au ticket")
+                .add_param(cmd::Argument::new("qui")
+                    .set_required(true)
+                    .set_value_type(ApplicationCommandOptionType::User)
+                    .set_help("Qui ajouter au ticket")
+                )
             );
         Tickets{
             node,
@@ -175,29 +184,30 @@ impl Tickets {
         }
     }
     /// Execute les commandes du composant __non slash__
-    async fn r_command(&self, _: &FrameworkConfig, ctx: &Context, msg: &Message) -> cmp::CommandMatch {
-        let args = cmd::split_shell(&msg.content[1..]);
+    async fn r_command(&self, _: &FrameworkConfig, _ctx: &Context, _msg: &Message) -> cmp::CommandMatch {
+        // let args = cmd::split_shell(&msg.content[1..]);
         
-        let matched = match utils::try_match(ctx, msg, &self.node, args).await {
-            Ok(v) => v,
-            Err(e) => return e
-        };
-        println!("matched: {:?}", matched);
-        let guild_id = match msg.guild_id {
-            Some(id) => id,
-            None => return cmp::CommandMatch::Error("Cette commande n'est pas disponible en message privé.".to_string())
-        };
-        let command = matched.to_command();
-        println!("{:?}", command);
-        let c_msg = match self.commands(ctx, guild_id, command).await {
-            Ok(v) => v,
-            Err(Some(e)) => return cmp::CommandMatch::Error(e),
-            Err(None) => return cmp::CommandMatch::NotMatched,
-        };
-        match utils::send::custom(ctx, msg.channel_id, c_msg).await {
-            Ok(_) => cmp::CommandMatch::Matched,
-            Err(e) => cmp::CommandMatch::Error(format!("Erreur lors de l'envoi du message de réponse: {}", e.to_string()))
-        }
+        // let matched = match utils::try_match(ctx, msg, &self.node, args).await {
+        //     Ok(v) => v,
+        //     Err(e) => return e
+        // };
+        // println!("matched: {:?}", matched);
+        // let guild_id = match msg.guild_id {
+        //     Some(id) => id,
+        //     None => return cmp::CommandMatch::Error("Cette commande n'est pas disponible en message privé.".to_string())
+        // };
+        // let command = matched.to_command();
+        // println!("{:?}", command);
+        // let c_msg = match self.commands(ctx, guild_id, command).await {
+        //     Ok(v) => v,
+        //     Err(Some(e)) => return cmp::CommandMatch::Error(e),
+        //     Err(None) => return cmp::CommandMatch::NotMatched,
+        // };
+        // match utils::send::custom(ctx, msg.channel_id, c_msg).await {
+        //     Ok(_) => cmp::CommandMatch::Matched,
+        //     Err(e) => cmp::CommandMatch::Error(format!("Erreur lors de l'envoi du message de réponse: {}", e.to_string()))
+        // }
+        cmp::CommandMatch::NotMatched
     }
     /// Dispatch un enevement reçu par le bot
     async fn r_event(&self, ctx: &Context, evt: &Event) -> Result<(), String> {
@@ -220,15 +230,34 @@ impl Tickets {
             Interaction::MessageComponent(v) => self.on_msg_component(ctx, v).await,
         }
     }
-    async fn commands(&self, ctx: &Context, guild_id: GuildId, command: commands::Command) -> Result<message::Message, Option<String>> {
+    async fn commands(&self, ctx: &Context, guild_id: GuildId, command: commands::Command, app_cmd: &utils::app_command::ApplicationCommandEmbed<'_>) -> Result<Option<message::Message>, Option<String>> {
         match command.fullname().as_str() {
+            "ticket_add_member" => {
+                let user_add = match command.get_argument("qui") {
+                    Some(&commands::Argument{value: commands::Value::User(v), ..}) => v,
+                    Some(_) => return Err(Some("qui: paramètre mal formé".to_string())),
+                    None => return Err(Some("qui: paramètre manquant".to_string()))
+                };
+                let user_by = match &app_cmd.0.member {
+                    Some(v) => v.user.id.clone(),
+                    None => return Err(Some("Cette commande n'est pas disponible en message privé.".to_string()))
+                };
+                
+                Ok(Some(self.add_member(ctx, guild_id, app_cmd.0.channel_id, user_by, user_add).await?))
+            }
             "tickets.channel.set" => {
                 let channel = match command.get_argument("id") {
                     Some(&commands::Argument{value: commands::Value::Channel(v), ..}) => v,
                     Some(_) => return Err(Some("id: paramètre mal formé".to_string())),
                     None => return Err(Some("id: paramètre manquant".to_string()))
                 };
-                Ok(self.set_channel(ctx, guild_id, channel.0).await)
+                Ok(Some(self.set_channel(ctx, guild_id, channel.0).await))
+            },
+            "tickets.close" => {
+                match self.close_channel(ctx, guild_id, app_cmd.0.channel_id).await {
+                    Ok(_) => Ok(None),
+                    Err(e) => Err(Some(e))
+                }
             },
             "tickets.categories.add" => {
                 let name = match command.get_argument("name") {
@@ -251,7 +280,7 @@ impl Tickets {
                     Some(_) => return Err(Some("id: paramètre mal formé".to_string())),
                     None => return Err(Some("id: paramètre manquant".to_string()))
                 };
-                Ok(self.category_add(ctx, guild_id, name, desc, channel.0, prefix).await)
+                Ok(Some(self.category_add(ctx, guild_id, name, desc, channel.0, prefix).await))
             }
             "tickets.categories.remove" => {
                 let name = match command.get_argument("name") {
@@ -259,33 +288,49 @@ impl Tickets {
                     Some(_) => return Err(Some("name: paramètre mal formé".to_string())),
                     None => return Err(Some("name: paramètre manquant".to_string()))
                 };
-                Ok(self.category_remove(ctx, name).await)
+                Ok(Some(self.category_remove(ctx, name).await))
             },
-            "tickets.categories.list" => Ok(self.categories_list(ctx, guild_id).await),
+            "tickets.categories.list" => Ok(Some(self.categories_list(ctx, guild_id).await)),
             _ => return Err(None)
         }
     }
     /// Dispatch les commandes slash reçu par le bot
     async fn on_app_command(&self, ctx: &Context, app_command: &ApplicationCommandInteraction) -> Result<(), String> {
+        use serenity::model::prelude::*;
         let app_cmd = utils::app_command::ApplicationCommandEmbed::new(app_command);
+        if !self.node.has_command_name(app_cmd.fullname_vec().into_iter()) {
+            return Ok(());
+        }
         let guild_id = match app_cmd.get_guild_id() {
             Some(v) => v,
             None => return Err("Vous devez être dans un serveur pour utiliser cette commande.".into())
         };
-        let command = app_command.to_command();
-        println!("{:?}", command);
-        let c_msg = match self.commands(ctx, guild_id, command).await {
-            Ok(v) => v,
-            Err(None) => return Ok(()),
-            Err(Some(e)) => return Err(e)
-        };
+        
         app_command.create_interaction_response(ctx, |resp|{
-            *resp = c_msg.into();
-            resp
+            resp.kind(InteractionResponseType::DeferredChannelMessageWithSource)
         }).await.or_else(|e| {
             eprintln!("Cannot create response: {}", e);
             Err(e.to_string())
-        })
+        })?;
+        let command = app_command.to_command();
+        println!("{:?}", command);
+        let c_msg = match self.commands(ctx, guild_id, command, &app_cmd).await {
+            Ok(v) => v,
+            Err(None) => return Ok(()),
+            Err(Some(e)) => Some(message::error(e))
+        };
+        
+        if let Some(c_msg) = c_msg {
+            app_command.edit_original_interaction_response(ctx, |resp|{
+                *resp = c_msg.into();
+                resp
+            }).await.or_else(|e| {
+                eprintln!("Cannot create response: {}", e);
+                Err(e.to_string())
+            }).and(Ok(()))
+        } else {
+            Ok(())
+        }
     }
     /// Dispatch les composants de message (boutons, menu déroulant) reçu par le bot
     async fn on_msg_component(&self, ctx: &Context, msg_component: &MessageComponentInteraction) -> Result<(), String> {
@@ -378,9 +423,10 @@ impl Tickets {
                         cmps
                     })
             ).await {
-                Ok(_)=>(),
+                Ok(msg) => new_channel.pin(ctx, msg.id).await?,
                 Err(e) => eprintln!("Error sending message to new channel: {}", e)
             }
+        
         msg_cmp.create_interaction_response(ctx, |resp| 
             resp
                 .interaction_response_data(|resp_data|
@@ -587,6 +633,106 @@ impl Tickets {
             msg
         }).await
     }
+    async fn is_a_ticket(ctx: &Context, guild_channel: &GuildChannel) -> Result<bool, String> {
+        use serenity::model::interactions::message_component::*;
+        // L'idée est de savoir si le premier message du salon a un bouton de fermeture de ticket
+        let pins = match guild_channel.pins(ctx).await {
+            Ok(pins) => pins,
+            Err(e) => return Err(format!("{}", e))
+        };
+        let first_message = match pins.last() {
+            Some(pin) => pin,
+            None => return Ok(false)
+        };
+        let msg_comp = match first_message.components.first() {
+            Some(comp) => comp,
+            None => return Ok(false)
+        };
+        let msg_comp = match msg_comp.components.first() {
+            Some(comp) => comp,
+            None => return Ok(false)
+        };
+        if let ActionRowComponent::Button(Button{ custom_id: Some(c), ..}) = msg_comp {
+            if c != "tickets_close" {
+                return Ok(false)
+            }
+        } else {
+            return Ok(false)
+        }
+        Ok(true)
+    }
+    async fn is_ticket_owner(ctx: &Context, channel: &GuildChannel, user_by: UserId) -> Result<bool, String> {
+        let pins = match channel.pins(ctx).await {
+            Ok(pins) => pins,
+            Err(e) => return Err(format!("{}", e))
+        };
+        let first_message = match pins.last() {
+            Some(pin) => pin,
+            None => return Ok(false)
+        };
+        Ok(first_message.mentions.iter().find(|m| m.id == user_by).is_some())
+    }
+    
+    async fn is_staff(ctx: &Context, guild_id: GuildId, user_by: UserId) -> Result<bool, String> {
+        let roles = match guild_id.roles(ctx).await {
+            Ok(roles) => roles,
+            Err(e) => return Err(format!("{}", e))
+        };
+        let staff_role = match roles.into_iter().find(|role| role.1.name == "staff") {
+            Some(role) => role,
+            None => return Err("Le rôle 'staff' n'existe pas.".to_string())
+        };
+        let member = match guild_id.member(ctx, user_by).await {
+            Ok(member) => member,
+            Err(e) => return Err(format!("{}", e))
+        };
+        Ok(member.roles.into_iter().find(|role| role == &staff_role.0).is_some())
+    }
+    
+    async fn close_channel(&self, ctx: &Context, guild_id: GuildId, channel_id: ChannelId) -> Result<(), String> {
+        let channel = guild_id.channels(ctx).await.unwrap().into_iter().find(|channel| channel.0.0 == channel_id.0);
+        let (channel, guild_channel) = match channel {
+            Some(c) => c,
+            None => return Err("Le salon n'existe pas.".to_string())
+        };
+        match Self::is_a_ticket(ctx, &guild_channel).await {
+            Ok(false) => return Err("Le salon n'est pas un ticket.".to_string()),
+            Err(e) => return Err(e),
+            _ => () 
+        }
+        match channel.delete(ctx).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Impossible de fermer le ticket: {}", e.to_string()))
+        }
+    }
+    async fn add_member(&self, ctx: &Context, guild_id: GuildId, channel_id: ChannelId, user_by: UserId, user: UserId) -> Result<message::Message, String> {
+        use serenity::model::prelude::*;
+        let channel = guild_id.channels(ctx).await.unwrap().into_iter().find(|channel| channel.0.0 == channel_id.0);
+        let (channel, guild_channel) = match channel {
+            Some(c) => c,
+            None => return Err("Le salon n'existe pas.".to_string())
+        };
+        match Self::is_a_ticket(ctx, &guild_channel).await {
+            Ok(false) => return Err("Le salon n'est pas un ticket.".to_string()),
+            Err(e) => return Err(e),
+            _ => () 
+        }
+        let res_ticket_owner = Self::is_ticket_owner(ctx, &guild_channel, user_by).await;
+        let res_staff = Self::is_staff(ctx, guild_id, user_by).await;
+        match (res_ticket_owner, res_staff) {
+            (Err(e), _) | (_, Err(e)) => return Err(e),
+            (Ok(false), Ok(false)) => return Err("Vous n'avez pas les droits pour ajouter un membre.".to_string()),
+            _ => ()
+        }
+        match channel.create_permission(ctx, &PermissionOverwrite {
+            allow: Permissions::READ_MESSAGES,
+            deny: Default::default(),
+            kind: PermissionOverwriteType::Member(user),
+        }).await {
+            Ok(_) => Ok(message::success(format!("La personne a bien été ajoutée."))),
+            Err(e) => Err(format!("Impossible d'ajouter le membre: {}", e.to_string()))
+        }
+    }
     /// Ajoute une catégorie de ticket
     async fn category_add(&self, ctx: &Context, guild_id: GuildId, name: String, desc: Option<String>, channel_id: u64, prefix: String) -> message::Message {
         if let Some(_) = self.data.read().await.read().categories.iter().find(|v| v.name == name) {
@@ -655,7 +801,7 @@ impl Tickets {
             }
         }
         let mut msg = message::Message::default();
-        msg.embed = Some({
+        msg.embeds = vec!({
             use serenity::builder::CreateEmbed;
             let mut embed = CreateEmbed::default();
             embed

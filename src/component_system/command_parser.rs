@@ -311,12 +311,13 @@ impl Command {
             None => None,
         }
     }
-    pub fn try_match_slash<'a>(&'a self, args: &[&'a str]) -> Result<(), ()> {
-        if args.is_empty() || args[0] != self.name{
-            Err(())
-        } else {
-            Ok(())
+    pub fn has_command_name(&self, mut args: impl Iterator<Item = impl AsRef<str>>) -> bool {
+        if let Some(name) = args.next() {
+            if self.name.as_str() == name.as_ref() {
+                return true;
+            }
         }
+        false
     }
     pub fn try_match<'a>(&'a self, permission: Option<&'a str>, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>> {
         if args.is_empty() {
@@ -439,21 +440,13 @@ impl Group {
             .collect::<Vec<_>>();
         self.node.generate_ids(&groups);
     }
-    pub fn try_match_slash<'a>(&'a self, args: &[&'a str]) -> Result<(), ()> {
-        if args.is_empty() || args[0] != self.name{
-            return Err(());
-        }
-        for grp in self.node.groups.list() {
-            if grp.try_match_slash(&args[1..]).is_ok() {
-                return Ok(());
+    pub fn has_command_name(&self, mut args: impl Iterator<Item = impl AsRef<str>>+Clone) -> bool {
+        if let Some(name) = args.next() {
+            if self.name.as_str() == name.as_ref() {
+                return self.node.has_command_name(args);
             }
         }
-        for cmd in self.node.commands.list() {
-            if cmd.try_match_slash(&args[1..]).is_ok() {
-                return Ok(());
-            }
-        }
-        Err(())
+        false
     }
     pub fn try_match<'a>(&'a self, permission: Option<&'a str>, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>> {
         self.node.try_match(permission, args)
@@ -505,6 +498,19 @@ impl Node {
             let grp_name_ref = grp_name.as_str();
             grp.node().list_commands_names().into_iter().map(|c| format!("{} {}", grp_name_ref, c)).collect::<Vec<_>>()
         }).chain(self.commands.list().map(|cmd| cmd.name().into())).collect()
+    }
+    pub fn has_command_name(&self, args: impl Iterator<Item = impl AsRef<str>>+Clone) -> bool {
+        for grp in self.groups.list() {
+            if grp.has_command_name(args.clone()) {
+                return true;
+            }
+        }
+        for cmd in self.commands.list() {
+            if cmd.has_command_name(args.clone()) {
+                return true;
+            }
+        }
+        false
     }
     pub fn try_match<'a>(&'a self, permission: Option<&'a str>, args: &[&'a str]) -> Result<matching::Command<'a>, ParseError<'a>>  {
         if args.is_empty() {

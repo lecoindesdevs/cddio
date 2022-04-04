@@ -76,9 +76,8 @@ impl Help {
         };
         
         match msg.channel_id.send_message(ctx, |m| {
-            let message::Message{message, embed, .. } = command;
-            m.content(message);
-            m.embed(|e| {*e = embed.unwrap(); e})
+            *m = command.into();
+            m
         }).await {
             Ok(_) => cmp::CommandMatch::Matched,
             Err(e) => cmp::CommandMatch::Error(format!("Impossible d'envoyer le message d'aide: {}", e))
@@ -91,7 +90,7 @@ impl Help {
         }
     }
     async fn on_applications_command(&self, ctx: &Context, app_command: &ApplicationCommandInteraction) -> Result<(), String> {
-        let message::Message{message, embed, ephemeral } = match self.commands(app_command.to_command()).await {
+        let message::Message{message, embeds, ephemeral } = match self.commands(app_command.to_command()).await {
             Ok(v) => v,
             Err(Some(e)) => return Err(e),
             Err(None) => return Ok(()),
@@ -99,9 +98,7 @@ impl Help {
         app_command.create_interaction_response(ctx, |resp|
             resp.interaction_response_data(|data| {
                 data.content(message);
-                if let Some(e) = embed {
-                    data.add_embed(e);
-                }
+                data.embeds(embeds);
                 if ephemeral {
                     data.flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL);
                 }
@@ -193,7 +190,7 @@ impl Help {
                 };
                 Ok(message::Message {
                     message: String::new(),
-                    embed: Some(msg_to_send),
+                    embeds: vec![msg_to_send],
                     ephemeral,
                     ..Default::default()
                 })

@@ -337,11 +337,14 @@ impl SlashCommands {
             Ok(v) => v,
             Err(_) => Vec::new()
         }.into_iter().filter(|c| c.application_id == self.app_id);
+        let perms = perms.filter_map(|v| commands.find(|c| c.id == v.id).map(|command| (command.name, v.permissions)));
 
-        let perms = perms
-            .filter_map(|v| commands.find(|c| c.id == v.id).map(|command| (command.name, v.permissions)))
-            .map(|info_perms| {
-                let list_perm = info_perms.1
+        let mut msg = message::success("");
+
+        if let Some(embed) = msg.last_embed_mut() {
+            embed.title("Permission des commandes");
+            embed.fields(perms.map(|v| {
+                let list_perm = v.1
                     .into_iter()
                     .map(|perm| {
                         let user = match perm.kind {
@@ -350,15 +353,16 @@ impl SlashCommands {
                             _ => "*unknown*".to_string(),
                         };
                         let permission = match perm.permission {
-                            true => "est autorisé",
-                            false => "est refusé",
+                            true => '✅',
+                            false => '❌',
                         };
-                        format!("{} {}.\n", user, permission)
+                        format!("{} {}\n", permission, user)
                     })
                     .collect::<String>();
-                format!("*Commande __{}__*\n\n{}", info_perms.0, list_perm)
-            })
-            .collect::<String>();
-        message::success(perms)
+                (v.0.to_string(), list_perm, true)
+            }));
+        }
+
+        return msg;
     }
 }

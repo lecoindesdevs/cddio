@@ -1,4 +1,4 @@
-use serenity::builder::{CreateEmbed, CreateInteractionResponse, CreateMessage};
+use serenity::builder::{CreateEmbed, CreateInteractionResponse, EditInteractionResponse, CreateMessage};
 use serenity::utils::Colour;
 
 /// Interface de création de message
@@ -9,7 +9,7 @@ use serenity::utils::Colour;
 /// Interface succeptible de changer en fonction des besoins
 pub struct Message{
     pub message: String,
-    pub embed: Option<CreateEmbed>,
+    pub embeds: Vec<CreateEmbed>,
     pub ephemeral: bool,
 }
 
@@ -24,12 +24,18 @@ impl Message {
         self.ephemeral = ephemeral;
         self
     }
+    pub fn last_embed(&self) -> Option<&CreateEmbed> {
+        self.embeds.last()
+    }
+    pub fn last_embed_mut(&mut self) -> Option<&mut CreateEmbed> {
+        self.embeds.last_mut()
+    }
 }
 impl Default for Message {
     fn default() -> Self {
         Message {
             message: String::new(),
-            embed: None,
+            embeds: Vec::new(),
             ephemeral: false,
         }
     }
@@ -38,9 +44,7 @@ impl From<Message> for CreateMessage<'static> {
     fn from(message: Message) -> Self {
         let mut res = CreateMessage::default();
         res.content(message.message);
-        if let Some(embed) = message.embed {
-            res.embed(|e| {*e = embed; e});
-        }
+        res.add_embeds(message.embeds);
         res
     }
 }
@@ -53,12 +57,18 @@ impl From<Message> for CreateInteractionResponse {
                 data.flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL);
             }
             data.content(message.message);
-            if let Some(embed) = message.embed {
-                data.create_embed(|e| {*e = embed; e});
-            }
+            data.embeds(message.embeds.into_iter());
             data
         });
         response.kind(InteractionResponseType::ChannelMessageWithSource);
+        response
+    }
+}
+impl From<Message> for EditInteractionResponse {
+    fn from(message: Message) -> Self {
+        let mut response = Self::default();
+        response.content(message.message);
+        response.set_embeds(message.embeds);
         response
     }
 }
@@ -83,7 +93,7 @@ pub fn custom_embed<S1, S2, C>(title:S1, message: S2, color: C) -> Message
         .description(message)
         .color(color);
     Message {
-        embed: Some(embed),
+        embeds: vec![embed],
         ..Default::default()
     }
 }
