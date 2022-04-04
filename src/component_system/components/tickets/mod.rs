@@ -302,6 +302,9 @@ impl Tickets {
             Some(v) => v,
             None => return Err("Vous devez être dans un serveur pour utiliser cette commande.".into())
         };
+        if !self.node.has_command_name(app_cmd.fullname_vec().into_iter()) {
+            return Ok(());
+        }
         app_command.create_interaction_response(ctx, |resp|{
             resp.kind(InteractionResponseType::DeferredChannelMessageWithSource)
         }).await.or_else(|e| {
