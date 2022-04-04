@@ -50,10 +50,7 @@ impl<'a> ApplicationCommandEmbed<'a> {
         }
         ApplicationCommandEmbed(interaction, command)
     }
-    /// Retourne le nom de la commande complète.
-    /// 
-    /// Ca inclut le nom des sous groupes et de la commande tel que `groupe.sous_groupe.commande`
-    pub fn fullname(&self) -> String {
+    pub fn fullname_vec<'b>(&'b self) -> Vec<&'b str> {
         let mut names = vec![self.0.data.name.as_str()];
         let mut cmd = self.0.data.options.first();
         // s'inspirer de la fonction get_command pour produire le nom
@@ -61,7 +58,13 @@ impl<'a> ApplicationCommandEmbed<'a> {
             names.push(name.as_str());
             cmd = options.first();
         }
-        names.join(".")
+        names
+    }
+    /// Retourne le nom de la commande complète.
+    /// 
+    /// Ca inclut le nom des sous groupes et de la commande tel que `groupe.sous_groupe.commande`
+    pub fn fullname(&self) -> String {
+        self.fullname_vec().join(".")
     }
     /// Retourne l'id du serveur sur lequel la commande a été effectuée.
     pub fn get_guild_id(&self) -> Option<GuildId> {
