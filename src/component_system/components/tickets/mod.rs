@@ -797,7 +797,7 @@ impl Tickets {
             }
         }
         let mut msg = message::Message::default();
-        msg.embed = Some({
+        msg.embeds = vec!({
             use serenity::builder::CreateEmbed;
             let mut embed = CreateEmbed::default();
             embed

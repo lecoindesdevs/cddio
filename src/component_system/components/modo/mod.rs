@@ -464,13 +464,15 @@ impl Moderation {
         ).await;
 
         let mut msg = message::success(format!("{} a été {}.", username, params.type_mod.as_str()));
-        if let Some(reason) = params.reason {
-            msg.embed.as_mut().unwrap().field("Raison", reason, false);
-        }
-        if let Some((timestamp, datetime, duration)) = time {
-            self.make_task(ctx.clone(), params.guild_id, self.add_until(user.id.0, timestamp, params.type_mod).await).await;
-            msg.embed.as_mut().unwrap().field("Pendant", duration, false);
-            msg.embed.as_mut().unwrap().field("Prend fin", datetime.format("%d/%m/%Y à %H:%M:%S").to_string(), true);
+        if let Some(embed) = msg.last_embed_mut() {
+            if let Some(reason) = params.reason {
+                embed.field("Raison", reason, false);
+            }
+            if let Some((timestamp, datetime, duration)) = time {
+                self.make_task(ctx.clone(), params.guild_id, self.add_until(user.id.0, timestamp, params.type_mod).await).await;
+                embed.field("Pendant", duration, false);
+                embed.field("Prend fin", datetime.format("%d/%m/%Y à %H:%M:%S").to_string(), true);
+            }
         }
         Ok(msg)
     }
