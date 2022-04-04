@@ -298,13 +298,14 @@ impl Tickets {
     async fn on_app_command(&self, ctx: &Context, app_command: &ApplicationCommandInteraction) -> Result<(), String> {
         use serenity::model::prelude::*;
         let app_cmd = utils::app_command::ApplicationCommandEmbed::new(app_command);
+        if !self.node.has_command_name(app_cmd.fullname_vec().into_iter()) {
+            return Ok(());
+        }
         let guild_id = match app_cmd.get_guild_id() {
             Some(v) => v,
             None => return Err("Vous devez être dans un serveur pour utiliser cette commande.".into())
         };
-        if !self.node.has_command_name(app_cmd.fullname_vec().into_iter()) {
-            return Ok(());
-        }
+        
         app_command.create_interaction_response(ctx, |resp|{
             resp.kind(InteractionResponseType::DeferredChannelMessageWithSource)
         }).await.or_else(|e| {
