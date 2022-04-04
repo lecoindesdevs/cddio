@@ -15,13 +15,15 @@ use super::super::{CommandMatch, Component, FrameworkConfig};
 use super::utils::app_command::ApplicationCommandEmbed;
 use super::utils::message;
 use crate::component_system::command_parser as cmd;
+use crate::component_system::manager::ArcManager;
 use super::{utils};
 
 
 pub struct Misc {
     node: cmd::Node,
     app_id: ApplicationId,
-    bot_permissions: u64
+    bot_permissions: u64,
+    cmp_manager: ArcManager
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -96,14 +98,18 @@ impl Component for Misc {
 }
 
 impl Misc {
-    pub fn new(app_id: ApplicationId, bot_permissions: u64) -> Misc {
-        Misc{
+    pub fn new(app_id: ApplicationId, bot_permissions: u64, cmp_manager: ArcManager) -> Misc {
+        Misc {
             node: cmd::Node::new()
                 .add_command(cmd::Command::new("ping")
                     .set_help("Permet d'avoir une réponse du bot")
+                )
+                .add_command(cmd::Command::new("list_components")
+                    .set_help("Liste les composants du bot et leurs commandes") 
                 ),
             app_id,
-            bot_permissions
+            bot_permissions,
+            cmp_manager
         }
     }
     pub async fn send_message(ctx: &Context, msg: &Message, txt: &str) -> CommandMatch{
@@ -118,12 +124,18 @@ impl Misc {
             return Ok(());
         }
         let app_cmd = ApplicationCommandEmbed::new(app_command);
+        if !self.node.has_command_name(app_cmd.fullname_vec().into_iter()) {
+            return Ok(());
+        }
         if let None = app_cmd.get_guild_id() {
             return Err("Vous devez être dans un serveur pour utiliser cette commande.".into())
         };
+        
+
         let command_name = app_cmd.fullname();
         let msg = match command_name.as_str() {
             "ping" => message::success("Pong!"),
+            "list_components" => self.list_components().await,
             _ => return Ok(())
         };
         app_command.create_interaction_response(ctx, |resp|{
@@ -133,5 +145,26 @@ impl Misc {
             eprintln!("Cannot create response: {}", e);
             Err(e.to_string())
         })
+    }
+    async fn list_components(&self) -> message::Message {
+        let mut msg = message::custom_embed("Liste des composants", "", 0x1ed760);
+        let embed = msg.last_embed_mut().unwrap();
+        let data = self.cmp_manager.read().await;
+        for c in data.get_components().iter() {
+            let mut cmd_list = String::new();
+            match c.node() {
+                Some(node) => {
+                    for cmd in node.list_commands_names() {
+                        cmd_list.push_str(&format!("`{}`\n", cmd));
+                    }
+                },
+                None => {
+                    cmd_list.push_str("Aucune commande disponible.");
+                }
+            }
+            embed.field(format!("Composant {}", c.name()), cmd_list, true);
+        }
+        msg
+        // message::success("Pong!")
     }
 }
