@@ -353,10 +353,10 @@ impl SlashCommands {
                             _ => "*unknown*".to_string(),
                         };
                         let permission = match perm.permission {
-                            true => "est autorisé",
-                            false => "est refusé",
+                            true => '✅',
+                            false => '❌',
                         };
-                        format!("{} {}.\n", user, permission)
+                        format!("{} {}\n", permission, user)
                     })
                     .collect::<String>();
                 (v.0.to_string(), list_perm, true)
