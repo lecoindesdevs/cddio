@@ -13,6 +13,8 @@ mod modo;
 pub use modo::*;
 mod autobahn;
 pub use autobahn::*;
+mod test_component2;
+// pub use test_component2::*;
 
 // Fonctions utiles pour les composants
 mod utils;
