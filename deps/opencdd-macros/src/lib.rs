@@ -9,37 +9,33 @@ lazy_static::lazy_static!(
 );
 
 #[proc_macro_attribute]
-pub fn command(attr: TokenStream, item: TokenStream) -> TokenStream {
-    // println!("attr: \"{}\"", attr.to_string());
-    // println!("item: \"{:?}\"", item);
-    let mut counter = TEST_COUNTER.lock().unwrap();
-    *counter += 1;
-    println!("(command) counter: {}", counter);
+pub fn command(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 #[proc_macro_attribute]
-pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
-    // println!("attr: \"{}\"", attr.to_string());
-    // println!("item: \"{:?}\"", item);
-    let mut counter = TEST_COUNTER.lock().unwrap();
-    *counter += 1;
-    println!("(component) counter: {}", counter);
+pub fn event(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 #[proc_macro_attribute]
-pub fn commands(attr: TokenStream, item: TokenStream) -> TokenStream {
-    // println!("attr: \"{}\"", attr.to_string());
-
+pub fn commands(_attr: TokenStream, item: TokenStream) -> TokenStream {
     expand_commands(item.into()).unwrap_or_else(syn::Error::into_compile_error).into()
-
-    // println!("item: \"{:?}\"", item);
-    // let mut counter = TEST_COUNTER.lock().unwrap();
-    // *counter += 1;
-    // println!("(commands) counter: {}", counter);
-    // item
 }
-
-
+#[derive(Debug, Clone)]
+struct Function {
+    signature: syn::Signature,
+    body: syn::Block,
+}
+#[derive(Debug, Clone)]
+enum ComponentInterface {
+    Command{
+        function: Function
+    },
+    Event {
+        event_name: syn::Ident,
+        function: Function
+    },
+    Other(syn::ImplItem)
+}
 
 fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::TokenStream> {
     use syn::*;
@@ -48,23 +44,64 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
         Err(e) => return Err(syn::Error::new(e.span(), "Implémentation d'une structure attendue."))
     };
     
-    let commands = implement.items.iter().filter_map(|item| {
+    let interfs = implement.items.iter().cloned().filter_map(|item| {
         match item {
-            ImplItem::Method(ImplItemMethod { attrs, sig: Signature{ident, ..}, .. }) => {
+            ImplItem::Method(ImplItemMethod { attrs, sig, block, .. }) => {
                 if attrs.iter().any(|attr| attr.path.is_ident("command")) {
-                    Some(ident.clone())
+                    Some(ComponentInterface::Command{
+                        function: Function{
+                            signature: sig.clone(),
+                            body: block.clone()
+                        }
+                    })
+                } else if let Some(attr) = attrs.iter().find(|attr| attr.path.is_ident("event")) {
+                    let evt_name = match attr.parse_args::<Ident>() {
+                        Ok(item) => item,
+                        Err(_) => return None
+                    };
+                    Some(ComponentInterface::Event { 
+                        event_name: evt_name, 
+                        function: Function {
+                            signature: sig.clone(),
+                            body: block.clone()
+                        }
+
+                    })
                 } else {
                     None
                 }
             },
-            _ => None,
+            _ => Some(ComponentInterface::Other(item)),
         }
     });
-    for command in commands {
-        println!("command: {}", command);
+    for interf in interfs {
+        match interf {
+            ComponentInterface::Command { function } => {
+                
+            },
+            ComponentInterface::Event { event_name, function } => {
+                todo!()
+            },
+            ComponentInterface::Other(item) => {
+                todo!()
+            }
+        }
     }
+    let events: Vec<Ident> = vec![];
+    let commands: Vec<Ident> = vec![];
+    let evt = quote! {
+        match event {
+            serenity::model::event::Event::InteractionCreate(interaction) => {
+                let command_name = todo!();
+                match command_name {
+                    #(#commands), *
+                }
+            },
+            #(#events), *
+            _ => {}
+        }
+    };
     
-    //todo!()
     Ok(quote!{
         #implement
     }.into())
