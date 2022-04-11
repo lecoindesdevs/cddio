@@ -1,24 +1,19 @@
 use opencdd_macros::*;
+use serenity::{model::event::Event, client::Context};
 
 trait Component2 {
-
-}
-trait Command {
-
+    fn event(&mut self, ctx: &Context, event: &Event);
 }
 
-struct Test {
-    commands: std::collections::HashMap<String, Box<dyn Command>>
-}
+struct Test;
 
 #[commands]
 impl Test {
-    
     #[command]
-    fn test(&self) {
+    fn command_test(&self) {
         println!("test");
     }
-
+    #[event(MessageCreate)]
     fn test2(&self) {
         println!("test2");
     }
