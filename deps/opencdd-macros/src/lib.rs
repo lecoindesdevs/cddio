@@ -114,7 +114,7 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
         }
     }
     let impl_event = quote! {
-        impl Component2 for #struct_name {
+        impl ComponentEvent for #struct_name {
             fn event(&mut self, ctx: &serenity::client::Context, event: &serenity::model::event::Event) {
                 match event {
                     serenity::model::event::Event::InteractionCreate(serenity::model::event::InteractionCreateEvent{interaction: serenity::model::interactions::Interaction::ApplicationCommand(orig_app_command), ..}) => {

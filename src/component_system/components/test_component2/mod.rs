@@ -1,10 +1,10 @@
 use opencdd_macros::*;
 use serenity::{model::event::Event, client::Context};
-use serenity::model::id::{ChannelId, GuildId, UserId, RoleId};
+use serenity::model::id::RoleId;
 
 use super::utils::app_command::ApplicationCommandEmbed;
 
-trait Component2 {
+trait ComponentEvent {
     fn event(&mut self, ctx: &Context, event: &Event);
 }
 
