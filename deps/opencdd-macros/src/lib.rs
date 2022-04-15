@@ -10,14 +10,14 @@ lazy_static::lazy_static!(
     static ref TEST_COUNTER: Mutex<i32> = Mutex::new(0);
 );
 
-#[proc_macro_attribute]
-pub fn command(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    item
-}
-#[proc_macro_attribute]
-pub fn event(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    item
-}
+// #[proc_macro_attribute]
+// pub fn command(_attr: TokenStream, item: TokenStream) -> TokenStream {
+//     item
+// }
+// #[proc_macro_attribute]
+// pub fn event(_attr: TokenStream, item: TokenStream) -> TokenStream {
+//     item
+// }
 #[proc_macro_attribute]
 pub fn commands(_attr: TokenStream, item: TokenStream) -> TokenStream {
     expand_commands(item.into()).unwrap_or_else(syn::Error::into_compile_error).into()
@@ -42,11 +42,18 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
         Ok(item) => item,
         Err(e) => return Err(syn::Error::new(e.span(), "Implémentation d'une structure attendue."))
     };
+    println!("{:#?}", implement.self_ty);
     let struct_name = match implement.self_ty.as_ref() {
         syn::Type::Path(v) => v,
         v => return Err(syn::Error::new_spanned(v, "Implémentation d'une structure attendue."))
     };
-    
+    // let test1 = vec![1,2];
+    // let test2 = vec![3, 4];
+    // let tok = quote! {
+    //     #(#test1, #test2);*
+    // };
+    // println!("{}", tok);
+
     
     let interfs = implement.items.into_iter()
         .filter_map(|item| {
@@ -88,12 +95,12 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
     for interf in interfs {
         match interf {
             ComponentInterface::Command { function } => {
-                let func_name = function.function_name().to_string();
+                let command_str = function.function_name().to_string();
                 let func_call = function.function_call_event()?;
                 println!("{}", func_call);
                 let func_decl = function.function_decl();
                 commands.push(quote! {
-                    #func_name => #func_call,
+                    #command_str => {#func_call}
                 });
                 impl_items.push(quote! {
                     #func_decl
@@ -107,22 +114,33 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
             }
         }
     }
-    let events: Vec<Ident> = vec![];
-    let commands: Vec<Ident> = vec![];
-    let evt = quote! {
-        match event {
-            serenity::model::event::Event::InteractionCreate(interaction) => {
-                let command_name = todo!();
-                match command_name {
-                    #(#commands), *
+    let impl_event = quote! {
+        impl Component2 for #struct_name {
+            fn event(&mut self, ctx: &Context, event: &Event) {
+                match event {
+                    serenity::model::event::Event::InteractionCreate(serenity::model::event::InteractionCreateEvent{interaction: serenity::model::interactions::Interaction::ApplicationCommand(orig_app_command), ..}) => {
+                        let app_command = super::utils::app_command::ApplicationCommandEmbed::new(orig_app_command);
+                        let command_name = app_command.fullname();
+                        match command_name.as_str() {
+                            #(#commands), *
+                            _ => ()
+                        }
+                    },
+                    #(#events), *
+                    _ => ()
                 }
-            },
-            #(#events), *
-            _ => {}
+            }
         }
     };
-    
-    Ok(quote!{
-        #implement
-    }.into())
+    let impl_functions = quote! {
+        impl #struct_name {
+            #(#impl_items)*
+        }
+    };
+    let result = quote! {
+        #impl_event
+        #impl_functions
+    };
+    println!("{0:=<30}\n{1: ^30}\n{0:=<30}\n{result:#}", "", "FINAL RESULT");
+    Ok(result.into())
 }

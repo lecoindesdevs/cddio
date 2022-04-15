@@ -9,6 +9,7 @@ pub struct Function {
 struct Argument { 
     variable_name: pm2::TokenStream,
     decode_expr: Option<pm2::TokenStream>,
+    is_self: bool,
 }
 
 impl Function {
@@ -21,8 +22,10 @@ impl Function {
         let mut args_call = vec![];
         let mut args_decode = vec![];
         for arg in args {
-            let Argument { variable_name, decode_expr } = Self::discord_argument(arg)?;
-            args_call.push(quote! { #variable_name });
+            let Argument { variable_name, decode_expr, is_self } = Self::discord_argument(arg)?;
+            if !is_self {
+                args_call.push(quote! { #variable_name });
+            }
             if let Some(decode_expr) = decode_expr {
                 args_decode.push(quote! { #decode_expr });
             }
@@ -69,20 +72,23 @@ impl Function {
                     let value_decoded = Self::argument_decode(&arg_name_str, &inner_ty)?;
                     Ok(Argument {
                         variable_name: quote! { #arg_name },
-                        decode_expr: Some(quote! { let #arg_name =  #value_decoded; })
+                        decode_expr: Some(quote! { let #arg_name =  #value_decoded.cloned(); }),
+                        is_self: false
                     })
                 } else {
                     let value_decoded = Self::argument_decode(&arg_name_str, ty)?;
                     let error_msg = format!("Argument \"{}\" manquant.", arg_name_str);
                     Ok(Argument {
                         variable_name: quote! { #arg_name },
-                        decode_expr: Some(quote! { let #arg_name =  #value_decoded.ok_or_else(|| #error_msg); })
+                        decode_expr: Some(quote! { let #arg_name =  #value_decoded.ok_or_else(|| #error_msg).unwrap().to_owned(); }),
+                        is_self: false
                     })
                 }
             },
             v => Ok(Argument {
                 variable_name: quote! { #v },
-                decode_expr: None
+                decode_expr: None,
+                is_self: true
             })
         }
     }
@@ -112,9 +118,9 @@ impl Function {
             "u64" | "u32" | "u16" | "u8" 
             | "i64" | "i32" | "i16" | "i8" => Self::make_argument_custom_getter(name, quote! {Integer},quote! { Some(s as #ty) } ),
             "bool" => Self::make_argument_getter(name, quote! {Boolean}),
-            "UserId" => Self::make_argument_custom_getter(name, quote! {User}, quote! { Some(s.id()) }),
-            "ChannelId" => Self::make_argument_custom_getter(name, quote! {Channel}, quote! { Some(s.id()) }),
-            "RoleId" => Self::make_argument_custom_getter(name, quote! {Role}, quote! { Some(s.id()) }),
+            "UserId" => Self::make_argument_custom_getter(name, quote! {User}, quote! { Some(s.id) }),
+            "ChannelId" => Self::make_argument_custom_getter(name, quote! {Channel}, quote! { Some(s.id) }),
+            "RoleId" => Self::make_argument_custom_getter(name, quote! {Role}, quote! { Some(s.id) }),
             "f64" | "f32" => Self::make_argument_custom_getter(name, quote! {Float}, quote! { Some(s as #ty) } ),
             _ => return Err(Error::new_spanned(ty, "Type d'argument incompatible.")),
         })
