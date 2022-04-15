@@ -57,35 +57,34 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
     
     let interfs = implement.items.into_iter()
         .filter_map(|item| {
-        match item {
-            ImplItem::Method(ImplItemMethod { attrs, sig, block, .. }) => {
-
-                if attrs.iter().any(|attr| attr.path.is_ident("command")) {
-                    Some(ComponentInterface::Command{
-                        function: Function{
-                            attributes: attrs.into_iter().filter(|attr| !attr.path.is_ident("command")).collect(),
-                            signature: sig.clone(),
-                            body: block.clone()
-                        }
-                    })
-                } else if let Some(attr) = attrs.iter().find(|attr| attr.path.is_ident("event")) {
-                    let evt_name = match attr.parse_args::<Ident>() {
-                        Ok(item) => item,
-                        Err(_) => return None
-                    };
-                    Some(ComponentInterface::Event { 
-                        event_name: evt_name, 
-                        function: Function {
-                            attributes: attrs.into_iter().filter(|attr| !attr.path.is_ident("event")).collect(),
-                            signature: sig.clone(),
-                            body: block.clone()
-                        }
-                    })
-                } else {
-                    None
+        let ImplItemMethod { attrs, sig, block, .. } = match item {
+            ImplItem::Method(v) => v,
+            item => return Some(ComponentInterface::Other(item)),
+        };
+            
+        if attrs.iter().any(|attr| attr.path.is_ident("command")) {
+            Some(ComponentInterface::Command{
+                function: Function{
+                    attributes: attrs.into_iter().filter(|attr| !attr.path.is_ident("command")).collect(),
+                    signature: sig.clone(),
+                    body: block.clone()
                 }
-            },
-            item => Some(ComponentInterface::Other(item)),
+            })
+        } else if let Some(attr) = attrs.iter().find(|attr| attr.path.is_ident("event")) {
+            let evt_name = match attr.parse_args::<Ident>() {
+                Ok(item) => item,
+                Err(_) => return None
+            };
+            Some(ComponentInterface::Event { 
+                event_name: evt_name, 
+                function: Function {
+                    attributes: attrs.into_iter().filter(|attr| !attr.path.is_ident("event")).collect(),
+                    signature: sig.clone(),
+                    body: block.clone()
+                }
+            })
+        } else {
+            None
         }
     });
     let mut events: Vec<proc_macro2::TokenStream> = vec![];
@@ -116,7 +115,7 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
     }
     let impl_event = quote! {
         impl Component2 for #struct_name {
-            fn event(&mut self, ctx: &Context, event: &Event) {
+            fn event(&mut self, ctx: &serenity::client::Context, event: &serenity::model::event::Event) {
                 match event {
                     serenity::model::event::Event::InteractionCreate(serenity::model::event::InteractionCreateEvent{interaction: serenity::model::interactions::Interaction::ApplicationCommand(orig_app_command), ..}) => {
                         let app_command = super::utils::app_command::ApplicationCommandEmbed::new(orig_app_command);
