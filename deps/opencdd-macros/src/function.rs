@@ -52,37 +52,58 @@ impl Function {
                 let arg_name_str = arg_name.to_string();
                 let ty = match ty.as_ref() {
                     Type::Path(TypePath { path, .. }) => path,
-                    _ => return Err(syn::Error::new_spanned(ty, "Argument compatible Discord attendu."))
+                    Type::Reference(TypeReference { elem, .. }) => match elem.as_ref() {
+                        Type::Path(TypePath { path, .. }) => path,
+                        _ => return Err(syn::Error::new_spanned(ty, "Type d'argument innatendu."))
+                    },
+                    _ => return Err(syn::Error::new_spanned(ty, "Type d'argument innatendu."))
                 };
                 let ty_last = match ty.segments.last() {
                     Some(segment) => segment,
                     None => return Err(syn::Error::new_spanned(ty, "discord_argument: Erreur innatendu."))
                 };
                 let ty_name = ty_last.ident.to_string();
-                if ty_name.to_string().as_str() == "Option" {
-                    let inner_ty = match &ty_last.arguments {
-                        PathArguments::AngleBracketed(args) if args.args.len() == 1 => {
-                            match args.args.first().unwrap() {
-                                GenericArgument::Type(Type::Path(ref p)) => &p.path,
-                                _ => return Err(syn::Error::new_spanned(&args.args, "Type chemin attendu."))
-                            }
-                        },
-                        _ => return Err(syn::Error::new_spanned(ty, "Mauvaise déclaration de Option. Utilisation: Option<Type>"))
-                    };
-                    let value_decoded = Self::argument_decode(&arg_name_str, &inner_ty)?;
-                    Ok(Argument {
-                        variable_name: quote! { #arg_name },
-                        decode_expr: Some(quote! { let #arg_name =  #value_decoded.cloned(); }),
-                        is_self: false
-                    })
-                } else {
-                    let value_decoded = Self::argument_decode(&arg_name_str, ty)?;
-                    let error_msg = format!("Argument \"{}\" manquant.", arg_name_str);
-                    Ok(Argument {
-                        variable_name: quote! { #arg_name },
-                        decode_expr: Some(quote! { let #arg_name =  #value_decoded.ok_or_else(|| #error_msg).unwrap().to_owned(); }),
-                        is_self: false
-                    })
+                match ty_name.to_string().as_str() {
+                    "Option" => {
+                        let inner_ty = match &ty_last.arguments {
+                            PathArguments::AngleBracketed(args) if args.args.len() == 1 => {
+                                match args.args.first().unwrap() {
+                                    GenericArgument::Type(Type::Path(ref p)) => &p.path,
+                                    _ => return Err(syn::Error::new_spanned(&args.args, "Type chemin attendu."))
+                                }
+                            },
+                            _ => return Err(syn::Error::new_spanned(ty, "Mauvaise déclaration de Option. Utilisation: Option<Type>"))
+                        };
+                        let value_decoded = Self::argument_decode(&arg_name_str, &inner_ty)?;
+                        Ok(Argument {
+                            variable_name: quote! { #arg_name },
+                            decode_expr: Some(quote! { let #arg_name =  #value_decoded.cloned(); }),
+                            is_self: false
+                        })
+                    }
+                    "ApplicationCommandEmbed" => {
+                        Ok(Argument {
+                            variable_name: quote! { &app_command },
+                            decode_expr: None,
+                            is_self: false
+                        })
+                    }
+                    "Context" => {
+                        Ok(Argument {
+                            variable_name: quote! { &ctx },
+                            decode_expr: None,
+                            is_self: false
+                        })
+                    }
+                    _ => {
+                        let value_decoded = Self::argument_decode(&arg_name_str, ty)?;
+                        let error_msg = format!("Argument \"{}\" manquant.", arg_name_str);
+                        Ok(Argument {
+                            variable_name: quote! { #arg_name },
+                            decode_expr: Some(quote! { let #arg_name =  #value_decoded.ok_or_else(|| #error_msg).unwrap().to_owned(); }),
+                            is_self: false
+                        })
+                    }
                 }
             },
             v => Ok(Argument {
