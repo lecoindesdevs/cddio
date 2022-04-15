@@ -3,6 +3,8 @@
 use std::sync::Mutex;
 use quote::quote;
 use proc_macro::TokenStream;
+mod function;
+use function::Function;
 
 lazy_static::lazy_static!(
     static ref TEST_COUNTER: Mutex<i32> = Mutex::new(0);
@@ -20,11 +22,8 @@ pub fn event(_attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn commands(_attr: TokenStream, item: TokenStream) -> TokenStream {
     expand_commands(item.into()).unwrap_or_else(syn::Error::into_compile_error).into()
 }
-#[derive(Debug, Clone)]
-struct Function {
-    signature: syn::Signature,
-    body: syn::Block,
-}
+
+
 #[derive(Debug, Clone)]
 enum ComponentInterface {
     Command{
