@@ -42,13 +42,21 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
         Ok(item) => item,
         Err(e) => return Err(syn::Error::new(e.span(), "Implémentation d'une structure attendue."))
     };
+    let struct_name = match implement.self_ty.as_ref() {
+        syn::Type::Path(v) => v,
+        v => return Err(syn::Error::new_spanned(v, "Implémentation d'une structure attendue."))
+    };
     
-    let interfs = implement.items.iter().cloned().filter_map(|item| {
+    
+    let interfs = implement.items.into_iter()
+        .filter_map(|item| {
         match item {
             ImplItem::Method(ImplItemMethod { attrs, sig, block, .. }) => {
+
                 if attrs.iter().any(|attr| attr.path.is_ident("command")) {
                     Some(ComponentInterface::Command{
                         function: Function{
+                            attributes: attrs.into_iter().filter(|attr| !attr.path.is_ident("command")).collect(),
                             signature: sig.clone(),
                             body: block.clone()
                         }
@@ -61,28 +69,41 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
                     Some(ComponentInterface::Event { 
                         event_name: evt_name, 
                         function: Function {
+                            attributes: attrs.into_iter().filter(|attr| !attr.path.is_ident("event")).collect(),
                             signature: sig.clone(),
                             body: block.clone()
                         }
-
                     })
                 } else {
                     None
                 }
             },
-            _ => Some(ComponentInterface::Other(item)),
+            item => Some(ComponentInterface::Other(item)),
         }
     });
+    let mut events: Vec<proc_macro2::TokenStream> = vec![];
+    let mut commands: Vec<proc_macro2::TokenStream> = vec![];
+    let mut impl_items: Vec<proc_macro2::TokenStream> = vec![];
+
     for interf in interfs {
         match interf {
             ComponentInterface::Command { function } => {
-                
+                let func_name = function.function_name().to_string();
+                let func_call = function.function_call_event()?;
+                println!("{}", func_call);
+                let func_decl = function.function_decl();
+                commands.push(quote! {
+                    #func_name => #func_call,
+                });
+                impl_items.push(quote! {
+                    #func_decl
+                });
             },
             ComponentInterface::Event { event_name, function } => {
                 todo!()
             },
             ComponentInterface::Other(item) => {
-                todo!()
+                impl_items.push(quote!(#item));
             }
         }
     }
