@@ -24,6 +24,7 @@ struct Parameter {
     name: &'static str,
     type_: &'static str,
     description: &'static str,
+    optional: bool,
 }
 
 
