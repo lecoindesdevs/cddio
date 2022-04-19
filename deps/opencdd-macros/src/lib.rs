@@ -1,39 +1,23 @@
-// https://blog.turbo.fish/proc-macro-basics/#:~:text=Procedural%20macros%20%28often%20shortened%20to%20%22proc-macros%22%29%20are%20a,Rust%20code%20that%20is%20run%20at%20compile%20time.
+mod function;
+mod util;
 
 use std::sync::Mutex;
 use quote::quote;
 use proc_macro::TokenStream;
-mod function;
-use function::Function;
+use function::{Function, FunctionType};
 
 lazy_static::lazy_static!(
     static ref TEST_COUNTER: Mutex<i32> = Mutex::new(0);
 );
 
-// #[proc_macro_attribute]
-// pub fn command(_attr: TokenStream, item: TokenStream) -> TokenStream {
-//     item
-// }
-// #[proc_macro_attribute]
-// pub fn event(_attr: TokenStream, item: TokenStream) -> TokenStream {
-//     item
-// }
 #[proc_macro_attribute]
 pub fn commands(_attr: TokenStream, item: TokenStream) -> TokenStream {
     expand_commands(item.into()).unwrap_or_else(syn::Error::into_compile_error).into()
 }
 
-
-#[derive(Debug, Clone)]
-enum ComponentInterface {
-    Command{
-        function: Function
-    },
-    Event {
-        event_name: syn::Ident,
-        function: Function
-    },
-    Other(syn::ImplItem)
+enum MyImplItem {
+    Command(Function),
+    Other(syn::ImplItem),
 }
 
 fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::TokenStream> {
@@ -42,73 +26,46 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
         Ok(item) => item,
         Err(e) => return Err(syn::Error::new(e.span(), "Implémentation d'une structure attendue."))
     };
-    println!("{:#?}", implement.self_ty);
     let struct_name = match implement.self_ty.as_ref() {
         syn::Type::Path(v) => v,
         v => return Err(syn::Error::new_spanned(v, "Implémentation d'une structure attendue."))
     };
-    // let test1 = vec![1,2];
-    // let test2 = vec![3, 4];
-    // let tok = quote! {
-    //     #(#test1, #test2);*
-    // };
-    // println!("{}", tok);
-
     
     let interfs = implement.items.into_iter()
-        .filter_map(|item| {
-        let ImplItemMethod { attrs, sig, block, .. } = match item {
-            ImplItem::Method(v) => v,
-            item => return Some(ComponentInterface::Other(item)),
+        .map(|item| -> syn::Result<_> {
+        return match item {
+            ImplItem::Method(v) => {
+                let function = Function::new(v)?;
+                Ok(MyImplItem::Command(function))
+            },
+            item => Ok(MyImplItem::Other(item)),
         };
-            
-        if attrs.iter().any(|attr| attr.path.is_ident("command")) {
-            Some(ComponentInterface::Command{
-                function: Function{
-                    attributes: attrs.into_iter().filter(|attr| !attr.path.is_ident("command")).collect(),
-                    signature: sig.clone(),
-                    body: block.clone()
-                }
-            })
-        } else if let Some(attr) = attrs.iter().find(|attr| attr.path.is_ident("event")) {
-            let evt_name = match attr.parse_args::<Ident>() {
-                Ok(item) => item,
-                Err(_) => return None
-            };
-            Some(ComponentInterface::Event { 
-                event_name: evt_name, 
-                function: Function {
-                    attributes: attrs.into_iter().filter(|attr| !attr.path.is_ident("event")).collect(),
-                    signature: sig.clone(),
-                    body: block.clone()
-                }
-            })
-        } else {
-            None
-        }
     });
     let mut events: Vec<proc_macro2::TokenStream> = vec![];
     let mut commands: Vec<proc_macro2::TokenStream> = vec![];
     let mut impl_items: Vec<proc_macro2::TokenStream> = vec![];
 
     for interf in interfs {
+        let interf = interf?;
         match interf {
-            ComponentInterface::Command { function } => {
+            MyImplItem::Command(function ) if function.is(FunctionType::Command) => {
                 let command_str = function.function_name().to_string();
                 let func_call = function.function_call_event()?;
                 println!("{}", func_call);
-                let func_decl = function.function_decl();
                 commands.push(quote! {
                     #command_str => {#func_call}
                 });
                 impl_items.push(quote! {
-                    #func_decl
+                    #function
                 });
             },
-            ComponentInterface::Event { event_name, function } => {
+            MyImplItem::Command(function ) if function.is(FunctionType::Event) => {
                 todo!()
             },
-            ComponentInterface::Other(item) => {
+            MyImplItem::Command(function) => {
+                impl_items.push(quote!(#function));
+            },
+            MyImplItem::Other(item) => {
                 impl_items.push(quote!(#item));
             }
         }
