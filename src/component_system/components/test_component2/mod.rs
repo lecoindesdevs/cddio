@@ -32,14 +32,26 @@ struct Test;
 #[commands]
 impl Test {
     #[command]
-    fn ban(&self, ctx: &Context, appcmd: &ApplicationCommandEmbed, qui: RoleId, pourquoi: String, pendant: Option<String>) {
+    fn ban(&self, 
+        ctx: &Context, 
+        appcmd: &ApplicationCommandEmbed, 
+        #[description("sdkjhfsl")]
+        qui: RoleId, 
+        #[description("sdkjhfsl")]
+        pourquoi: String, 
+        #[description("sdkjhfsl")]
+        pendant: Option<String>) {
         println!("command ban");
         println!("{}", qui);
         println!("{}", pourquoi);
         println!("{:?}", pendant);
     }
     #[command]
-    fn kick(&self, qui: RoleId, pourquoi: String) {
+    fn kick(&self, 
+        #[description("sdkjhfsl")]
+        qui: RoleId, 
+        #[description("sdkjhfsl")]
+        pourquoi: String) {
         println!("command kick");
         println!("{}", qui);
         println!("{}", pourquoi);
