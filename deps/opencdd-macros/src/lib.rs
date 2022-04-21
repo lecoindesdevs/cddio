@@ -1,5 +1,6 @@
 mod function;
 mod util;
+mod log;
 
 use std::sync::Mutex;
 use quote::quote;
@@ -51,7 +52,7 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
             MyImplItem::Command(function ) if function.is(FunctionType::Command) => {
                 let command_str = function.function_name().to_string();
                 let func_call = function.function_call_event()?;
-                println!("{}", func_call);
+                log::log(&func_call);
                 commands.push(quote! {
                     #command_str => {#func_call}
                 });
@@ -97,6 +98,6 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
         #impl_event
         #impl_functions
     };
-    println!("{0:=<30}\n{1: ^30}\n{0:=<30}\n{result:#}", "", "FINAL RESULT");
+    log::log(&format_args!("{0:=<30}\n{1: ^30}\n{0:=<30}\n{result:#}", "", "FINAL RESULT"));
     Ok(result.into())
 }
