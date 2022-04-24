@@ -140,7 +140,7 @@ impl Moderation {
                 .set_help("Pendant combien de temps")
             );
         let mute = cmd::Command::new("Mute")
-            .set_help("Attribue le rôle *muted* à un membre. Temporaire si le parametre *pendant* est renseigné.");
+            .set_help("Attribue le rôle *muted* à un membre. Temporaire si le parametre *pendant* est renseigné.")
             .add_param(cmd::Argument::new("qui")
                 .set_value_type(cmd::ValueType::User)
                 .set_help("Le membre à mute")
