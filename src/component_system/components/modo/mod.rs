@@ -139,22 +139,9 @@ impl Moderation {
                 .set_value_type(cmd::ValueType::String)
                 .set_help("Pendant combien de temps")
             );
-        let mute = cmd::Command::new("Mute")
+        let mute = ban.clone()
+            .set_name("mute")
             .set_help("Attribue le rôle *muted* à un membre. Temporaire si le parametre *pendant* est renseigné.");
-            .add_param(cmd::Argument::new("qui")
-                .set_value_type(cmd::ValueType::User)
-                .set_help("Le membre à mute")
-                .set_required(true)
-            )
-            .add_param(cmd::Argument::new("pourquoi")
-                .set_value_type(cmd::ValueType::String)
-                .set_help("La raison du mute")
-                .set_required(true)
-            )
-            .add_param(cmd::Argument::new("pendant")
-                .set_value_type(cmd::ValueType::String)
-                .set_help("Pendant combien de temps")
-            );
         let kick = cmd::Command::new("kick")
             .set_help("Expulser un membre du serveur.")
             .add_param(cmd::Argument::new("qui")
@@ -174,13 +161,9 @@ impl Moderation {
                 .set_help("Le membre à unban")
                 .set_required(true)
             );
-        let unmute = cmd::Command::new("unmute")
-            .set_help("Retire le rôle *muted* à un membre.")
-            .add_param(cmd::Argument::new("qui")
-                .set_value_type(cmd::ValueType::User)
-                .set_help("Le membre à unmute")
-                .set_required(true)
-            );
+        let unmute = unban.clone()
+            .set_name("unmute")
+            .set_help("Retire le rôle *muted* à un membre.");
         let node = cmd::Node::new()
             .add_command(ban)
             .add_command(mute)
