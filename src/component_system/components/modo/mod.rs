@@ -141,7 +141,7 @@ impl Moderation {
             );
         let mute = ban.clone()
             .set_name("mute")
-            .set_help("Attribue le rôle *muted* à un membre. Temporaire si le parametre *pendant* est renseigné.");
+            .set_help("Attribue le rôle *muted* à un membre. Temporaire si le parametre *pendant* est renseigné.")
         let kick = cmd::Command::new("kick")
             .set_help("Expulser un membre du serveur.")
             .add_param(cmd::Argument::new("qui")
