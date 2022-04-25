@@ -208,14 +208,13 @@ impl Function {
     }
     pub fn function_call_event(&self) -> syn::Result<pm2::TokenStream> {
         let name = &self.function_name();
-        let sig = &self.impl_fn.sig;
         let mut args_call = vec![];
         let mut args_decode = vec![];
         for arg in self.args.iter() {
             match &arg.arg_type {
                 ArgumentType::Parameter{call_variable, decode_expr, ..} => {
                     args_decode.push(decode_expr);
-                    args_call.push(call_variable)
+                    args_call.push(call_variable);
                 },
                 ArgumentType::Internal { call_variable } => args_call.push(call_variable),
                 ArgumentType::SelfArg => continue,
@@ -247,6 +246,5 @@ impl ToTokens for Function {
         let inputs = &self.args;
         let attrs = &self.impl_fn.attrs;
         tokens.extend(quote! { #(#attrs)* #unsafety #constness #asyncness #abi fn #ident (#(#inputs), *) #output #body });
-        
     }
 }
