@@ -56,8 +56,8 @@ impl Function {
         let mut args_decode = vec![];
         for arg in self.args.iter() {
             match &arg.get_type() {
-                ArgumentType::Parameter{call_variable, decode_expr, ..} => {
-                    args_decode.push(decode_expr);
+                ArgumentType::Parameter{call_variable, decoded, ..} => {
+                    args_decode.push(&decoded.expr);
                     args_call.push(call_variable);
                 },
                 ArgumentType::Internal { call_variable } => args_call.push(call_variable),

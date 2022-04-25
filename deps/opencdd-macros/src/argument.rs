@@ -2,23 +2,122 @@ use quote::{quote, ToTokens};
 use proc_macro2 as pm2;
 use super::util::*;
 
-pub enum DeclarativeType {
-    String,
-    Integer,
-    Boolean,
-    User,
-    Channel,
-    Role,
-    Mentionable,
-    Number,
-    Attachment,
+#[derive(Debug, Clone)]
+pub struct Decoded {
+    pub expr: pm2::TokenStream,
+    pub declarative: pm2::TokenStream,
+}
+
+macro_rules! to_decl {
+    ($enum_name:ident) => {
+        quote!{
+            serenity::model::interactions::application_command::ApplicationCommandOptionType::$enum_name
+        }
+    };
+}
+
+impl Decoded {
+    pub fn argument_decode(name: &str, ty: &syn::Path) -> syn::Result<Decoded> {
+        use syn::*;
+        let ty_name = match ty.get_ident() {
+            Some(ident) => ident.to_string(),
+            None => return Err(Error::new_spanned(ty, "Type incomplet."))
+        };
+        Ok(match ty_name.as_str() {
+            "String" => Decoded {
+                expr: Self::reader(name, quote! {String}),
+                declarative: to_decl! {String},
+            },
+            "str" => return Err(syn::Error::new_spanned(ty, "Utilisez String à la place.")),
+            "u64" | "u32" | "u16" | "u8" 
+            | "i64" | "i32" | "i16" | "i8" => Decoded {
+                expr: Self::custom_reader(name, quote! {Integer},quote! { Some(s as #ty) } ),
+                declarative: to_decl! {Integer},
+            },
+            "bool" => Decoded {
+                expr: Self::reader(name, quote! {Boolean}),
+                declarative: to_decl! {Boolean},
+            },
+            "User" => Decoded {
+                expr: Self::custom_reader(name, quote! {User(s, _)}, quote! { Some(s) }),
+                declarative: to_decl! {User},
+            },
+            "UserId" => Decoded {
+                expr: Self::custom_reader(name, quote! {User(s, _)}, quote! { Some(s.id) }),
+                declarative: to_decl! {User},
+            },
+            "Role" => Decoded {
+                expr: Self::reader(name, quote! {Role}),
+                declarative: to_decl! {Role},
+            },
+            "RoleId" => Decoded {
+                expr: Self::custom_reader(name, quote! {Role(s)}, quote! { Some(s.id) }),
+                declarative: to_decl! {Role},
+            },
+            "Mentionable" => Decoded {
+                expr: Self::mentionable_reader(name),
+                declarative: to_decl! {Mentionable},
+            },
+            "PartialChannel" => Decoded{
+                expr: Self::reader(name, quote! {Channel}),
+                declarative: to_decl! {Channel},
+            },
+            "ChannelId" => Decoded {
+                expr: Self::custom_reader(name, quote! {Channel(s)}, quote! { Some(s.id) }),
+                declarative: to_decl! {Channel},
+            },
+            "f64" | "f32" => Decoded {
+                expr: Self::custom_reader(name, quote! {Float(s)}, quote! { Some(s as #ty) } ),
+                declarative: to_decl! {Number},
+            } ,
+            _ => return Err(Error::new_spanned(ty, "Type d'argument incompatible.")),
+        })
+    }
+    fn new(expr: pm2::TokenStream,declarative: pm2::TokenStream) -> Decoded {
+        Decoded { expr, declarative }
+    }
+    fn decl_helper(enum_name: pm2::TokenStream) -> pm2::TokenStream {
+        quote!{
+            serenity::model::interactions::application_command::ApplicationCommandOptionType::#enum_name
+        }
+    }
+    fn custom_reader(name: &str, ty: pm2::TokenStream, expr: pm2::TokenStream) -> pm2::TokenStream {
+        quote! {
+            match app_command.get_argument(#name) {
+                Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
+                    resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::#ty),
+                    ..
+                }) => {#expr},
+                _ => None
+            }
+        }
+    }
+    fn mentionable_reader(name: &str) -> pm2::TokenStream {
+        quote! {
+            match app_command.get_argument(#name) {
+                Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
+                    resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::User(s, _)),
+                    ..
+                }) => {Mentionable::User(s.id)},
+                Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
+                    resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::Role(s)),
+                    ..
+                }) => {Mentionable::Role(s.id)},
+                _ => None
+            }
+        }
+    }
+    fn reader(name: &str, ty: pm2::TokenStream) -> pm2::TokenStream {
+        Self::custom_reader(name, quote!{#ty (s)}, quote! { Some(s) })
+    }
+
 }
 
 #[derive(Debug, Clone)]
 pub enum ArgumentType {
     Parameter{
         call_variable: pm2::TokenStream,
-        decode_expr: pm2::TokenStream,
+        decoded: Decoded,
         description: String,
         optional: bool,
     },
@@ -74,11 +173,17 @@ impl Argument {
                             },
                             _ => return Err(syn::Error::new_spanned(ty, "Mauvaise déclaration de Option. Utilisation: Option<Type>"))
                         };
-                        let value_decoded = Self::argument_decode(&arg_name_str, &inner_ty)?;
+                        let value_decoded = Decoded::argument_decode(&arg_name_str, &inner_ty)?;
                         Ok(Argument {
                             arg_type: ArgumentType::Parameter{
                                 call_variable: quote!{#arg_name},
-                                decode_expr: quote! { let #arg_name =  #value_decoded.cloned(); },
+                                decoded: {
+                                    let expr = value_decoded.expr;
+                                    Decoded{
+                                        expr: quote! { let #arg_name =  #expr.cloned(); },
+                                        .. value_decoded
+                                    }
+                                },
                                 description: Self::get_description(attr_desc).or_else(|_| Err(syn::Error::new_spanned(&arg, "attribut description manquant. Utilisation: description(\"...\").")))?,
                                 optional: true,
                             },
@@ -102,12 +207,18 @@ impl Argument {
                         })
                     }
                     _ => {
-                        let value_decoded = Self::argument_decode(&arg_name_str, &ty)?;
+                        let value_decoded = Decoded::argument_decode(&arg_name_str, &ty)?;
                         let error_msg = format!("Argument \"{}\" manquant.", arg_name_str);
                         Ok(Argument {
                             arg_type: ArgumentType::Parameter{
                                 call_variable: quote!{#arg_name},
-                                decode_expr: quote! { let #arg_name =  #value_decoded.ok_or_else(|| #error_msg).unwrap().to_owned(); },
+                                decoded: {
+                                    let expr = value_decoded.expr;
+                                    Decoded{
+                                        expr: quote! { let #arg_name =  #expr.ok_or_else(|| #error_msg).unwrap().to_owned(); },
+                                        .. value_decoded
+                                    }
+                                },
                                 description: Self::get_description(attr_desc).or_else(|_| Err(syn::Error::new_spanned(&arg, "attribut description manquant. Utilisation: description(\"...\").")))?,
                                 optional: false,
                             },
@@ -158,36 +269,6 @@ impl Argument {
             "f64" | "f32" => Self::make_argument_custom_getter(name, quote! {Float(s)}, quote! { Some(s as #ty) } ),
             _ => return Err(Error::new_spanned(ty, "Type d'argument incompatible.")),
         })
-    }
-    fn make_argument_custom_getter(name: &str, ty: pm2::TokenStream, expr: pm2::TokenStream) -> pm2::TokenStream {
-        quote! {
-            match app_command.get_argument(#name) {
-                Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
-                    resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::#ty),
-                    ..
-                }) => {#expr},
-                _ => None
-            }
-        }
-    }
-    fn make_argument_mentionable(name: &str) -> pm2::TokenStream {
-        quote! {
-            match app_command.get_argument(#name) {
-                Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
-                    resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::User(s, _)),
-                    ..
-                }) => {Mentionable::User(s.id)},
-                Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
-                    resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::Role(s)),
-                    ..
-                }) => {Mentionable::Role(s.id)},
-                _ => None
-            }
-        }
-    }
-    fn make_argument_getter(name: &str, ty: pm2::TokenStream) -> pm2::TokenStream {
-        Self::make_argument_custom_getter(name, quote!{#ty (s)}, quote! { Some(s) })
-    }
     }
 }
 
