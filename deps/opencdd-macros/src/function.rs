@@ -76,7 +76,7 @@ impl Function {
             Command {
                 name: #name,
                 description: "",
-                params: &[
+                args: &[
                     #(#arguments),*
                 ],
             }

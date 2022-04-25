@@ -263,7 +263,7 @@ impl Argument {
             _ => return None
         };
         Some(quote! {
-            Parameter{
+            Argument{
                 name: #name,
                 type_: #decl_ident,
                 description: #description,

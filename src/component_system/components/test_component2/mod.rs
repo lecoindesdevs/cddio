@@ -18,9 +18,9 @@ struct Node {
 struct Command {
     name: &'static str,
     description: &'static str,
-    params: &'static [Parameter],
+    args: &'static [Argument],
 }
-struct Parameter {
+struct Argument {
     name: &'static str,
     type_: serenity :: model :: interactions :: application_command :: ApplicationCommandOptionType,
     description: &'static str,
