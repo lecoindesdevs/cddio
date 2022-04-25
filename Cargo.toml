@@ -23,3 +23,6 @@ opencdd-macros = { path = "deps/opencdd-macros" }
 [dependencies.serenity]
 version = "0.10"
 features = ["unstable_discord_api"]
+
+[features]
+verbose = [ "opencdd-macros/verbose" ]
