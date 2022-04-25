@@ -148,6 +148,9 @@ impl Argument {
             "u64" | "u32" | "u16" | "u8" 
             | "i64" | "i32" | "i16" | "i8" => Self::make_argument_custom_getter(name, quote! {Integer},quote! { Some(s as #ty) } ),
             "bool" => Self::make_argument_getter(name, quote! {Boolean}),
+            "User" => Self::make_argument_custom_getter(name, quote! {User(s, _)}, quote! { Some(s.0) }),
+            "UserId" => Self::make_argument_custom_getter(name, quote! {User(s, _)}, quote! { Some(s.id) }),
+            "Role" => Self::make_argument_getter(name, quote! {Role}),
             "RoleId" => Self::make_argument_custom_getter(name, quote! {Role(s)}, quote! { Some(s.id) }),
             "Mentionable" => Self::make_argument_mentionable(name),
             "PartialChannel" => Self::make_argument_getter(name, quote! {Channel}),
@@ -160,15 +163,31 @@ impl Argument {
         quote! {
             match app_command.get_argument(#name) {
                 Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
-                    resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::#ty(s)),
+                    resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::#ty),
                     ..
                 }) => {#expr},
                 _ => None
             }
         }
     }
+    fn make_argument_mentionable(name: &str) -> pm2::TokenStream {
+        quote! {
+            match app_command.get_argument(#name) {
+                Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
+                    resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::User(s, _)),
+                    ..
+                }) => {Mentionable::User(s.id)},
+                Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
+                    resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::Role(s)),
+                    ..
+                }) => {Mentionable::Role(s.id)},
+                _ => None
+            }
+        }
+    }
     fn make_argument_getter(name: &str, ty: pm2::TokenStream) -> pm2::TokenStream {
-        Self::make_argument_custom_getter(name, ty, quote! { Some(s) })
+        Self::make_argument_custom_getter(name, quote!{#ty (s)}, quote! { Some(s) })
+    }
     }
 }
 
