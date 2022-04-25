@@ -69,6 +69,19 @@ impl Function {
             self.#name(#(#args_call),*)
         })
     }
+    pub fn get_declarative(&self) -> pm2::TokenStream {
+        let arguments = self.args.iter().filter_map(|v| v.get_declarative());
+        let name = self.function_name().to_string();
+        quote! {
+            Command {
+                name: #name,
+                description: "",
+                params: &[
+                    #(#arguments),*
+                ],
+            }
+        }
+    }
     pub fn is(&self, ftype: FunctionType) -> bool {
         self.type_ == ftype
     }

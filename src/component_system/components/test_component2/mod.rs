@@ -22,7 +22,7 @@ struct Command {
 }
 struct Parameter {
     name: &'static str,
-    type_: &'static str,
+    type_: serenity :: model :: interactions :: application_command :: ApplicationCommandOptionType,
     description: &'static str,
     optional: bool,
 }

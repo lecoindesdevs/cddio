@@ -45,6 +45,7 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
     });
     let mut events: Vec<proc_macro2::TokenStream> = vec![];
     let mut commands: Vec<proc_macro2::TokenStream> = vec![];
+    let mut declaratives: Vec<proc_macro2::TokenStream> = vec![];
     let mut impl_items: Vec<proc_macro2::TokenStream> = vec![];
 
     for interf in interfs {
@@ -53,12 +54,16 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
             MyImplItem::Command(function ) if function.is(FunctionType::Command) => {
                 let command_str = function.function_name().to_string();
                 let func_call = function.function_call_event()?;
+                let decl = function.get_declarative();
                 log::log(&func_call);
                 commands.push(quote! {
                     #command_str => {#func_call}
                 });
                 impl_items.push(quote! {
                     #function
+                });
+                declaratives.push(quote! {
+                    #decl
                 });
             },
             MyImplItem::Command(function ) if function.is(FunctionType::Event) => {
@@ -90,6 +95,15 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
             }
         }
     };
+    let impl_declarative = quote! {
+        impl ComponentDeclarative for #struct_name {
+            fn declarative(&self) -> &'static Node {
+                &[
+                    #(#declaratives), *
+                ]
+            }
+        }
+    };
     let impl_functions = quote! {
         impl #struct_name {
             #(#impl_items)*
@@ -98,6 +112,7 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
     let result = quote! {
         #impl_event
         #impl_functions
+        #impl_declarative
     };
     log::log(&format_args!("{0:=<30}\n{1: ^30}\n{0:=<30}\n{result:#}", "", "FINAL RESULT"));
     Ok(result.into())
