@@ -8,10 +8,11 @@ trait ComponentEvent {
     fn event(&mut self, ctx: &Context, event: &Event);
 }
 trait ComponentDeclarative {
-    fn declarative(&self) -> &'static Node;
+    fn declarative(&self) -> &'static [Command];
 }
 
 struct Node {
+    name: &'static str,
     commands: &'static [Command],
     children: &'static [Node],
 }
@@ -31,32 +32,27 @@ struct Argument {
 struct Test;
 
 #[commands]
+#[group(name="tickets", description="Gestion des tickets")]
+#[group(name="ticket", description="Commandes dans un ticket")]
+#[group(parent="ticket", name="member", description="Gestion des membres dans un ticket")]
 impl Test {
-    #[command]
-    fn ban(&self, 
+    #[command(group="tickets", name="create", description="Créer un ticket")]
+    fn tickets_create(&self, 
         ctx: &Context, 
         appcmd: &ApplicationCommandEmbed, 
-        #[description("sdkjhfsl")]
-        qui: RoleId, 
-        #[description("sdkjhfsl")]
-        pourquoi: String, 
-        #[description("sdkjhfsl")]
-        pendant: Option<String>) {
-        println!("command ban");
-        println!("{}", qui);
-        println!("{}", pourquoi);
-        println!("{:?}", pendant);
-    }
-    #[command]
-    fn kick(&self, 
-        #[description("sdkjhfsl")]
-        qui: RoleId, 
-        #[description("sdkjhfsl")]
-        pourquoi: String) {
-        println!("command kick");
-        println!("{}", qui);
-        println!("{}", pourquoi);
-    }
+        #[argument(description="...")]
+        categorie: RoleId, 
+        #[argument(description="...")]
+        pour_qui: User
+    ) {} 
+    #[command(group="ticket", name="add", description="Ajouter un membre au ticket")]
+    fn ticket_member_add(&self, 
+        ctx: &Context, 
+        appcmd: &ApplicationCommandEmbed, 
+        #[argument(description="Qui ajouter au ticket")]
+        ajouter_qui: User
+    ) {}
+    
     // #[event(MessageCreate)]
     // fn test2(&self) {
     //     println!("test2");
