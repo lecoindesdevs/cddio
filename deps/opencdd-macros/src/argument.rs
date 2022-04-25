@@ -247,27 +247,28 @@ impl Argument {
     pub fn get_type(&self) -> &ArgumentType {
         &self.arg_type
     }
-    pub fn argument_decode(name: &str, ty: &syn::Path) -> syn::Result<pm2::TokenStream> {
-        use syn::*;
-        let ty_name = match ty.get_ident() {
-            Some(ident) => ident.to_string(),
-            None => return Err(Error::new_spanned(ty, "Type incomplet."))
+    pub fn get_declarative(&self) -> Option<pm2::TokenStream> {
+        let (description, optional, decl_ident) = match &self.arg_type {
+            ArgumentType::Parameter{description, optional, decoded, ..} => (description, optional, &decoded.declarative),
+            _ => return None
         };
-        Ok(match ty_name.as_str() {
-            "String" => Self::make_argument_getter(name, quote! {String}),
-            "str" => return Err(syn::Error::new_spanned(ty, "Utilisez String à la place.")),
-            "u64" | "u32" | "u16" | "u8" 
-            | "i64" | "i32" | "i16" | "i8" => Self::make_argument_custom_getter(name, quote! {Integer},quote! { Some(s as #ty) } ),
-            "bool" => Self::make_argument_getter(name, quote! {Boolean}),
-            "User" => Self::make_argument_custom_getter(name, quote! {User(s, _)}, quote! { Some(s.0) }),
-            "UserId" => Self::make_argument_custom_getter(name, quote! {User(s, _)}, quote! { Some(s.id) }),
-            "Role" => Self::make_argument_getter(name, quote! {Role}),
-            "RoleId" => Self::make_argument_custom_getter(name, quote! {Role(s)}, quote! { Some(s.id) }),
-            "Mentionable" => Self::make_argument_mentionable(name),
-            "PartialChannel" => Self::make_argument_getter(name, quote! {Channel}),
-            "ChannelId" => Self::make_argument_custom_getter(name, quote! {Channel(s)}, quote! { Some(s.id) }),
-            "f64" | "f32" => Self::make_argument_custom_getter(name, quote! {Float(s)}, quote! { Some(s as #ty) } ),
-            _ => return Err(Error::new_spanned(ty, "Type d'argument incompatible.")),
+        let name = match &self.base {
+            syn::FnArg::Typed(syn::PatType{ref pat, ref ty, ..}) => {
+                let name = match &pat.as_ref() {
+                    syn::Pat::Ident(syn::PatIdent{ref ident, ..}) => ident.to_string(),
+                    _ => return None
+                };
+                name
+            },
+            _ => return None
+        };
+        Some(quote! {
+            Parameter{
+                name: #name,
+                type_: #decl_ident,
+                description: #description,
+                optional: #optional,
+            }
         })
     }
 }
