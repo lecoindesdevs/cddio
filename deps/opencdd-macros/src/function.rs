@@ -4,7 +4,7 @@ use syn::spanned::Spanned;
 use super::util::*;
 use super::argument::{Argument, ArgumentType};
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct CommandAttribute {
     pub name: Option<String>,
     pub description: String,
@@ -32,7 +32,7 @@ impl CommandAttribute {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum FunctionType {
     Command(CommandAttribute),
     Event,
@@ -117,10 +117,6 @@ impl Function {
             }
         }
     }
-    pub fn is(&self, ftype: FunctionType) -> bool {
-        self.fn_type == ftype
-    }
-    
 }
 
 impl ToTokens for Function {
