@@ -32,11 +32,10 @@ impl Argument {
         let arg_span = arg.span();
         match arg {
             syn::FnArg::Typed(arg) => {
-                let arg_name = match arg.pat.as_ref() {
+                let var_name = match arg.pat.as_ref() {
                     Pat::Ident(ident) => ident.ident.clone(),
                     _ => return Err(syn::Error::new_spanned(arg.pat, "Argument de fonction attendu."))
                 };
-                let arg_name_str = arg_name.to_string();
                 let ty = match arg.ty.as_ref() {
                     Type::Path(TypePath { path, .. }) => path,
                     Type::Reference(TypeReference { elem, .. }) => match elem.as_ref() {
@@ -68,7 +67,15 @@ impl Argument {
                             },
                             _ => return Err(syn::Error::new_spanned(ty, "Mauvaise déclaration de Option. Utilisation: Option<Type>"))
                         };
-                        let value_decoded = Reader::argument_decode(&arg_name_str, &inner_ty)?;
+                        let attribute = match attr_desc {
+                            Some(attr) => ArgumentAttribute::from_attr(attr)?,
+                            None => return Err(syn::Error::new(arg_span, "discord_argument: Attribut 'argument' manquant."))
+                        };
+                        let arg_name = match attribute.name.clone() {
+                            Some(name) => name,
+                            None => var_name.to_string()
+                        };
+                        let value_decoded = Reader::argument_decode(&arg_name, &inner_ty)?;
                         Ok(Argument {
                             arg_type: ArgumentType::Parameter{
                                 call_variable: quote!{#arg_name},
@@ -79,10 +86,7 @@ impl Argument {
                                         .. value_decoded
                                     }
                                 },
-                                attribute: match attr_desc {
-                                    Some(attr) => ArgumentAttribute::from_attr(attr)?,
-                                    None => return Err(syn::Error::new(arg_span, "discord_argument: Attribut 'argument' manquant."))
-                                },
+                                attribute,
                                 optional: true,
                             },
                             base: arg,
@@ -105,22 +109,27 @@ impl Argument {
                         })
                     }
                     _ => {
-                        let value_decoded = Reader::argument_decode(&arg_name_str, &ty)?;
-                        let error_msg = format!("Argument \"{}\" manquant.", arg_name_str);
+                        let attribute = match attr_desc {
+                            Some(attr) => ArgumentAttribute::from_attr(attr)?,
+                            None => return Err(syn::Error::new(arg_span, "discord_argument: Attribut 'argument' manquant."))
+                        };
+                        let arg_name = match attribute.name.clone() {
+                            Some(name) => name,
+                            None => var_name.to_string()
+                        };
+                        let value_decoded = Reader::argument_decode(&arg_name, &ty)?;
+                        let error_msg = format!("Argument \"{}\" manquant.", arg_name);
                         Ok(Argument {
                             arg_type: ArgumentType::Parameter{
-                                call_variable: quote!{#arg_name},
+                                call_variable: quote!{#var_name},
                                 decoded: {
                                     let expr = value_decoded.read_expr;
                                     Reader{
-                                        read_expr: quote! { let #arg_name =  #expr.ok_or_else(|| #error_msg).unwrap().to_owned(); },
+                                        read_expr: quote! { let #var_name =  #expr.ok_or_else(|| #error_msg).unwrap().to_owned(); },
                                         .. value_decoded
                                     }
                                 },
-                                attribute: match attr_desc {
-                                    Some(attr) => ArgumentAttribute::from_attr(attr)?,
-                                    None => return Err(syn::Error::new(arg_span, "discord_argument: Attribut 'argument' manquant."))
-                                },
+                                attribute,
                                 optional: false,
                             },
                             base: arg,
