@@ -33,7 +33,9 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
         syn::Type::Path(v) => v,
         v => return Err(syn::Error::new_spanned(v, "Implémentation d'une structure attendue."))
     };
-    
+    let (attrs_group, attrs): (Vec<_>, Vec<_>) = implement.attrs.into_iter().partition(|attr| attr.path.is_ident("group"));
+    let groups = self::group::GroupManager::from_iter(attrs_group.into_iter())?;
+    log::log(&format_args!("{:#?}", groups));
     let interfs = implement.items.into_iter()
         .map(|item| -> syn::Result<_> {
             match item {
@@ -105,6 +107,7 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
         }
     };
     let impl_functions = quote! {
+        #(#attrs)*
         impl #struct_name {
             #(#impl_items)*
         }
