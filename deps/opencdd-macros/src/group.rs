@@ -80,6 +80,8 @@ impl GroupManager {
                 } else {
                     return Err(Error::new(attr_span, "parent group not found"));
                 }
+            } else {
+                group_manager.root.borrow_mut().children.push(Rc::clone(&group));
             }
         }
         Ok(group_manager)
