@@ -11,7 +11,7 @@ pub use attribute::*;
 pub enum ArgumentType {
     Parameter{
         call_variable: pm2::TokenStream,
-        decoded: Reader,
+        reader: Reader,
         attribute: ArgumentAttribute,
         optional: bool,
     },
@@ -79,7 +79,7 @@ impl Argument {
                         Ok(Argument {
                             arg_type: ArgumentType::Parameter{
                                 call_variable: quote!{#arg_name},
-                                decoded: {
+                                reader: {
                                     let expr = value_decoded.read_expr;
                                     Reader{
                                         read_expr: quote! { let #arg_name =  #expr.cloned(); },
@@ -122,7 +122,7 @@ impl Argument {
                         Ok(Argument {
                             arg_type: ArgumentType::Parameter{
                                 call_variable: quote!{#var_name},
-                                decoded: {
+                                reader: {
                                     let expr = value_decoded.read_expr;
                                     Reader{
                                         read_expr: quote! { let #var_name =  #expr.ok_or_else(|| #error_msg).unwrap().to_owned(); },
