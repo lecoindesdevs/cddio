@@ -43,14 +43,14 @@ impl Test {
         #[argument(description="...")]
         categorie: RoleId, 
         #[argument(description="...")]
-        pour_qui: User
+        pour_qui: serenity::model::user::User
     ) {} 
     #[command(group="ticket", name="add", description="Ajouter un membre au ticket")]
     fn ticket_member_add(&self, 
         ctx: &Context, 
         appcmd: &ApplicationCommandEmbed, 
         #[argument(description="Qui ajouter au ticket")]
-        ajouter_qui: User
+        ajouter_qui: serenity::model::user::User
     ) {}
     
     // #[event(MessageCreate)]

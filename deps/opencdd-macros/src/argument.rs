@@ -1,11 +1,41 @@
 use quote::{quote, ToTokens};
 use proc_macro2 as pm2;
+use syn::spanned::Spanned;
 use super::util::*;
 
 #[derive(Debug, Clone)]
 pub struct Decoded {
-    pub expr: pm2::TokenStream,
-    pub declarative: pm2::TokenStream,
+    pub read_expr: pm2::TokenStream,
+    pub option_type: pm2::TokenStream,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArgumentAttribute {
+    name: Option<String>,
+    description: String,
+}
+
+impl ArgumentAttribute {
+    fn from_attr(attr: syn::Attribute) -> syn::Result<Self> {
+        let mut name = None;
+        let mut description = None;
+        let arg_span = attr.span();
+        let args = syn::parse2::<ParenValue<MacroArgs>>(attr.tokens)?;
+        for arg in args.value.args.into_iter() {
+            match (arg.name.to_string().as_str(), arg.value) {
+                ("name", syn::Lit::Str(s)) => name = Some(s.value()),
+                ("description", syn::Lit::Str(s)) => description = Some(s.value()),
+                _ => return Err(syn::Error::new_spanned(arg.name, "Argument inconnu.")),
+            }
+        }
+        if description.is_none() {
+            return Err(syn::Error::new(arg_span, "missing description argument"));
+        }
+        Ok(ArgumentAttribute {
+            name,
+            description: description.unwrap(),
+        })
+    }
 }
 
 macro_rules! to_decl {
@@ -19,62 +49,63 @@ macro_rules! to_decl {
 impl Decoded {
     pub fn argument_decode(name: &str, ty: &syn::Path) -> syn::Result<Decoded> {
         use syn::*;
-        let ty_name = match ty.get_ident() {
-            Some(ident) => ident.to_string(),
+        
+        let ty_name = match ty.segments.last() {
+            Some(segment) => segment.ident.to_string(),
             None => return Err(Error::new_spanned(ty, "Type incomplet."))
         };
         Ok(match ty_name.as_str() {
             "String" => Decoded {
-                expr: Self::reader(name, quote! {String}),
-                declarative: to_decl! {String},
+                read_expr: Self::reader(name, quote! {String}),
+                option_type: to_decl! {String},
             },
             "str" => return Err(syn::Error::new_spanned(ty, "Utilisez String à la place.")),
             "u64" | "u32" | "u16" | "u8" 
             | "i64" | "i32" | "i16" | "i8" => Decoded {
-                expr: Self::custom_reader(name, quote! {Integer},quote! { Some(s as #ty) } ),
-                declarative: to_decl! {Integer},
+                read_expr: Self::custom_reader(name, quote! {Integer},quote! { Some(s as #ty) } ),
+                option_type: to_decl! {Integer},
             },
             "bool" => Decoded {
-                expr: Self::reader(name, quote! {Boolean}),
-                declarative: to_decl! {Boolean},
+                read_expr: Self::reader(name, quote! {Boolean}),
+                option_type: to_decl! {Boolean},
             },
             "User" => Decoded {
-                expr: Self::custom_reader(name, quote! {User(s, _)}, quote! { Some(s) }),
-                declarative: to_decl! {User},
+                read_expr: Self::custom_reader(name, quote! {User(s, _)}, quote! { Some(s) }),
+                option_type: to_decl! {User},
             },
             "UserId" => Decoded {
-                expr: Self::custom_reader(name, quote! {User(s, _)}, quote! { Some(s.id) }),
-                declarative: to_decl! {User},
+                read_expr: Self::custom_reader(name, quote! {User(s, _)}, quote! { Some(s.id) }),
+                option_type: to_decl! {User},
             },
             "Role" => Decoded {
-                expr: Self::reader(name, quote! {Role}),
-                declarative: to_decl! {Role},
+                read_expr: Self::reader(name, quote! {Role}),
+                option_type: to_decl! {Role},
             },
             "RoleId" => Decoded {
-                expr: Self::custom_reader(name, quote! {Role(s)}, quote! { Some(s.id) }),
-                declarative: to_decl! {Role},
+                read_expr: Self::custom_reader(name, quote! {Role(s)}, quote! { Some(s.id) }),
+                option_type: to_decl! {Role},
             },
             "Mentionable" => Decoded {
-                expr: Self::mentionable_reader(name),
-                declarative: to_decl! {Mentionable},
+                read_expr: Self::mentionable_reader(name),
+                option_type: to_decl! {Mentionable},
             },
             "PartialChannel" => Decoded{
-                expr: Self::reader(name, quote! {Channel}),
-                declarative: to_decl! {Channel},
+                read_expr: Self::reader(name, quote! {Channel}),
+                option_type: to_decl! {Channel},
             },
             "ChannelId" => Decoded {
-                expr: Self::custom_reader(name, quote! {Channel(s)}, quote! { Some(s.id) }),
-                declarative: to_decl! {Channel},
+                read_expr: Self::custom_reader(name, quote! {Channel(s)}, quote! { Some(s.id) }),
+                option_type: to_decl! {Channel},
             },
             "f64" | "f32" => Decoded {
-                expr: Self::custom_reader(name, quote! {Float(s)}, quote! { Some(s as #ty) } ),
-                declarative: to_decl! {Number},
+                read_expr: Self::custom_reader(name, quote! {Float(s)}, quote! { Some(s as #ty) } ),
+                option_type: to_decl! {Number},
             } ,
             _ => return Err(Error::new_spanned(ty, "Type d'argument incompatible.")),
         })
     }
     fn new(expr: pm2::TokenStream,declarative: pm2::TokenStream) -> Decoded {
-        Decoded { expr, declarative }
+        Decoded { read_expr: expr, option_type: declarative }
     }
     fn decl_helper(enum_name: pm2::TokenStream) -> pm2::TokenStream {
         quote!{
@@ -118,7 +149,7 @@ pub enum ArgumentType {
     Parameter{
         call_variable: pm2::TokenStream,
         decoded: Decoded,
-        description: String,
+        attribute: ArgumentAttribute,
         optional: bool,
     },
     Internal{
@@ -135,6 +166,7 @@ pub struct Argument {
 impl Argument {
     pub fn new(arg: syn::FnArg) -> syn::Result<Argument> {
         use syn::*;
+        let arg_span = arg.span();
         match arg {
             syn::FnArg::Typed(arg) => {
                 let arg_name = match arg.pat.as_ref() {
@@ -155,7 +187,7 @@ impl Argument {
                     None => return Err(syn::Error::new_spanned(ty, "discord_argument: Erreur innatendu."))
                 };
                 let ty_name = ty_last.ident.to_string();
-                let (attr_desc, attrs): (_, Vec<_>) = arg.attrs.find_and_pop(|attr| attr.path.is_ident("description"));
+                let (attr_desc, attrs): (_, Vec<_>) = arg.attrs.find_and_pop(|attr| attr.path.is_ident("argument"));
                 
                 // let attrs = attrs.into_iter().map(|attr| quote!{#attr}).collect();
                 let arg = syn::FnArg::Typed(syn::PatType { 
@@ -178,13 +210,16 @@ impl Argument {
                             arg_type: ArgumentType::Parameter{
                                 call_variable: quote!{#arg_name},
                                 decoded: {
-                                    let expr = value_decoded.expr;
+                                    let expr = value_decoded.read_expr;
                                     Decoded{
-                                        expr: quote! { let #arg_name =  #expr.cloned(); },
+                                        read_expr: quote! { let #arg_name =  #expr.cloned(); },
                                         .. value_decoded
                                     }
                                 },
-                                description: Self::get_description(attr_desc).or_else(|_| Err(syn::Error::new_spanned(&arg, "attribut description manquant. Utilisation: description(\"...\").")))?,
+                                attribute: match attr_desc {
+                                    Some(attr) => ArgumentAttribute::from_attr(attr)?,
+                                    None => return Err(syn::Error::new(arg_span, "discord_argument: Attribut 'argument' manquant."))
+                                },
                                 optional: true,
                             },
                             base: arg,
@@ -213,13 +248,16 @@ impl Argument {
                             arg_type: ArgumentType::Parameter{
                                 call_variable: quote!{#arg_name},
                                 decoded: {
-                                    let expr = value_decoded.expr;
+                                    let expr = value_decoded.read_expr;
                                     Decoded{
-                                        expr: quote! { let #arg_name =  #expr.ok_or_else(|| #error_msg).unwrap().to_owned(); },
+                                        read_expr: quote! { let #arg_name =  #expr.ok_or_else(|| #error_msg).unwrap().to_owned(); },
                                         .. value_decoded
                                     }
                                 },
-                                description: Self::get_description(attr_desc).or_else(|_| Err(syn::Error::new_spanned(&arg, "attribut description manquant. Utilisation: description(\"...\").")))?,
+                                attribute: match attr_desc {
+                                    Some(attr) => ArgumentAttribute::from_attr(attr)?,
+                                    None => return Err(syn::Error::new(arg_span, "discord_argument: Attribut 'argument' manquant."))
+                                },
                                 optional: false,
                             },
                             base: arg,
@@ -248,28 +286,29 @@ impl Argument {
         &self.arg_type
     }
     pub fn get_declarative(&self) -> Option<pm2::TokenStream> {
-        let (description, optional, decl_ident) = match &self.arg_type {
-            ArgumentType::Parameter{description, optional, decoded, ..} => (description, optional, &decoded.declarative),
-            _ => return None
-        };
-        let name = match &self.base {
-            syn::FnArg::Typed(syn::PatType{ref pat, ref ty, ..}) => {
-                let name = match &pat.as_ref() {
-                    syn::Pat::Ident(syn::PatIdent{ref ident, ..}) => ident.to_string(),
-                    _ => return None
-                };
-                name
-            },
-            _ => return None
-        };
-        Some(quote! {
-            Argument{
-                name: #name,
-                type_: #decl_ident,
-                description: #description,
-                optional: #optional,
-            }
-        })
+        // let (description, optional, decl_ident) = match &self.arg_type {
+        //     ArgumentType::Parameter{description, optional, decoded, ..} => (description, optional, &decoded.option_type),
+        //     _ => return None
+        // };
+        // let name = match &self.base {
+        //     syn::FnArg::Typed(syn::PatType{ref pat, ref ty, ..}) => {
+        //         let name = match &pat.as_ref() {
+        //             syn::Pat::Ident(syn::PatIdent{ref ident, ..}) => ident.to_string(),
+        //             _ => return None
+        //         };
+        //         name
+        //     },
+        //     _ => return None
+        // };
+        // Some(quote! {
+        //     Argument{
+        //         name: #name,
+        //         type_: #decl_ident,
+        //         description: #description,
+        //         optional: #optional,
+        //     }
+        // })
+        todo!()
     }
 }
 
