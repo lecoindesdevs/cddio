@@ -1,3 +1,5 @@
+use proc_macro2::TokenStream;
+
 pub trait FindAndPop<T> {
     /// Finds the first element that satisfies the given predicate,
     /// and removes it from the container.
@@ -36,5 +38,37 @@ impl<T: syn::parse::Parse> syn::parse::Parse for ParenValue<T>  {
             _paren: paren,
             value,
         })
+    }
+}
+
+/// Argument like `a=2`
+pub struct MacroArg {
+    pub name: syn::Ident,
+    pub eq: syn::Token![=],
+    pub value: syn::Lit,
+}
+impl syn::parse::Parse for MacroArg {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let name = input.parse()?;
+        let eq = input.parse()?;
+        let value = input.parse()?;
+        Ok(Self { name, eq, value })
+    }
+}
+impl quote::ToTokens for MacroArg {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.name.to_tokens(tokens);
+        self.eq.to_tokens(tokens);
+        self.value.to_tokens(tokens);
+    }
+}
+/// Arguments like `a=2, b=3`
+pub struct MacroArgs {
+    pub args: syn::punctuated::Punctuated<MacroArg, syn::Token![,]>,
+}
+impl syn::parse::Parse for MacroArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let args = input.parse_terminated(MacroArg::parse)?;
+        Ok(Self { args })
     }
 }
