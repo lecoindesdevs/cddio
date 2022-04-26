@@ -5,7 +5,7 @@ use super::function::Function;
 use crate::util::*;
 
 #[derive(Debug, Clone, Default)]
-struct GroupAttribute {
+pub struct GroupAttribute {
     name: String,
     description: String,
     parent: Option<String>
@@ -32,7 +32,7 @@ impl GroupAttribute {
     }
 }
 #[derive(Debug, Clone, Default)]
-struct Group {
+pub struct Group {
     attr: GroupAttribute,
     children: Vec<RefGroup>,
     functions: Vec<Rc<Function>>
@@ -48,8 +48,8 @@ impl Group {
         }))
     }
 }
-
-struct GroupManager {
+#[derive(Debug, Clone)]
+pub struct GroupManager {
     group_map: HashMap<String, RefGroup>,
     root: RefGroup
 }

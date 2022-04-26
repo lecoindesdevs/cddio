@@ -36,13 +36,13 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
     
     let interfs = implement.items.into_iter()
         .map(|item| -> syn::Result<_> {
-        return match item {
+            match item {
             ImplItem::Method(v) => {
                 let function = Function::new(v)?;
                 Ok(MyImplItem::Command(function))
             },
             item => Ok(MyImplItem::Other(item)),
-        };
+            }
     });
     let mut events: Vec<proc_macro2::TokenStream> = vec![];
     let mut commands: Vec<proc_macro2::TokenStream> = vec![];
@@ -55,7 +55,6 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
             MyImplItem::Command(function @  Function{ fn_type: FunctionType::Command(_), .. }) => {
                 let command_str = function.command_name();
                 let func_call = function.function_call_event()?;
-                log::log(&func_call);
                 commands.push(quote! {
                     #command_str => {#func_call}
                 });
