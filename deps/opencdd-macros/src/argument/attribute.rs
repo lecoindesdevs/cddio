@@ -2,8 +2,8 @@ use syn::spanned::Spanned;
 use crate::util::*;
 #[derive(Debug, Clone)]
 pub struct ArgumentAttribute {
-    name: Option<String>,
-    description: String,
+    pub name: Option<String>,
+    pub description: String,
 }
 
 impl ArgumentAttribute {
