@@ -1,154 +1,17 @@
+mod reader;
+mod attribute;
 use quote::{quote, ToTokens};
 use proc_macro2 as pm2;
 use syn::spanned::Spanned;
 use super::util::*;
-
-#[derive(Debug, Clone)]
-pub struct Decoded {
-    pub read_expr: pm2::TokenStream,
-    pub option_type: pm2::TokenStream,
-}
-
-#[derive(Debug, Clone)]
-pub struct ArgumentAttribute {
-    name: Option<String>,
-    description: String,
-}
-
-impl ArgumentAttribute {
-    fn from_attr(attr: syn::Attribute) -> syn::Result<Self> {
-        let mut name = None;
-        let mut description = None;
-        let arg_span = attr.span();
-        let args = syn::parse2::<ParenValue<MacroArgs>>(attr.tokens)?;
-        for arg in args.value.args.into_iter() {
-            match (arg.name.to_string().as_str(), arg.value) {
-                ("name", syn::Lit::Str(s)) => name = Some(s.value()),
-                ("description", syn::Lit::Str(s)) => description = Some(s.value()),
-                _ => return Err(syn::Error::new_spanned(arg.name, "Argument inconnu.")),
-            }
-        }
-        if description.is_none() {
-            return Err(syn::Error::new(arg_span, "missing description argument"));
-        }
-        Ok(ArgumentAttribute {
-            name,
-            description: description.unwrap(),
-        })
-    }
-}
-
-macro_rules! to_decl {
-    ($enum_name:ident) => {
-        quote!{
-            serenity::model::interactions::application_command::ApplicationCommandOptionType::$enum_name
-        }
-    };
-}
-
-impl Decoded {
-    pub fn argument_decode(name: &str, ty: &syn::Path) -> syn::Result<Decoded> {
-        use syn::*;
-        
-        let ty_name = match ty.segments.last() {
-            Some(segment) => segment.ident.to_string(),
-            None => return Err(Error::new_spanned(ty, "Type incomplet."))
-        };
-        Ok(match ty_name.as_str() {
-            "String" => Decoded {
-                read_expr: Self::reader(name, quote! {String}),
-                option_type: to_decl! {String},
-            },
-            "str" => return Err(syn::Error::new_spanned(ty, "Utilisez String à la place.")),
-            "u64" | "u32" | "u16" | "u8" 
-            | "i64" | "i32" | "i16" | "i8" => Decoded {
-                read_expr: Self::custom_reader(name, quote! {Integer},quote! { Some(s as #ty) } ),
-                option_type: to_decl! {Integer},
-            },
-            "bool" => Decoded {
-                read_expr: Self::reader(name, quote! {Boolean}),
-                option_type: to_decl! {Boolean},
-            },
-            "User" => Decoded {
-                read_expr: Self::custom_reader(name, quote! {User(s, _)}, quote! { Some(s) }),
-                option_type: to_decl! {User},
-            },
-            "UserId" => Decoded {
-                read_expr: Self::custom_reader(name, quote! {User(s, _)}, quote! { Some(s.id) }),
-                option_type: to_decl! {User},
-            },
-            "Role" => Decoded {
-                read_expr: Self::reader(name, quote! {Role}),
-                option_type: to_decl! {Role},
-            },
-            "RoleId" => Decoded {
-                read_expr: Self::custom_reader(name, quote! {Role(s)}, quote! { Some(s.id) }),
-                option_type: to_decl! {Role},
-            },
-            "Mentionable" => Decoded {
-                read_expr: Self::mentionable_reader(name),
-                option_type: to_decl! {Mentionable},
-            },
-            "PartialChannel" => Decoded{
-                read_expr: Self::reader(name, quote! {Channel}),
-                option_type: to_decl! {Channel},
-            },
-            "ChannelId" => Decoded {
-                read_expr: Self::custom_reader(name, quote! {Channel(s)}, quote! { Some(s.id) }),
-                option_type: to_decl! {Channel},
-            },
-            "f64" | "f32" => Decoded {
-                read_expr: Self::custom_reader(name, quote! {Float(s)}, quote! { Some(s as #ty) } ),
-                option_type: to_decl! {Number},
-            } ,
-            _ => return Err(Error::new_spanned(ty, "Type d'argument incompatible.")),
-        })
-    }
-    fn new(expr: pm2::TokenStream,declarative: pm2::TokenStream) -> Decoded {
-        Decoded { read_expr: expr, option_type: declarative }
-    }
-    fn decl_helper(enum_name: pm2::TokenStream) -> pm2::TokenStream {
-        quote!{
-            serenity::model::interactions::application_command::ApplicationCommandOptionType::#enum_name
-        }
-    }
-    fn custom_reader(name: &str, ty: pm2::TokenStream, expr: pm2::TokenStream) -> pm2::TokenStream {
-        quote! {
-            match app_command.get_argument(#name) {
-                Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
-                    resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::#ty),
-                    ..
-                }) => {#expr},
-                _ => None
-            }
-        }
-    }
-    fn mentionable_reader(name: &str) -> pm2::TokenStream {
-        quote! {
-            match app_command.get_argument(#name) {
-                Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
-                    resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::User(s, _)),
-                    ..
-                }) => {Mentionable::User(s.id)},
-                Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
-                    resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::Role(s)),
-                    ..
-                }) => {Mentionable::Role(s.id)},
-                _ => None
-            }
-        }
-    }
-    fn reader(name: &str, ty: pm2::TokenStream) -> pm2::TokenStream {
-        Self::custom_reader(name, quote!{#ty (s)}, quote! { Some(s) })
-    }
-
-}
+pub use reader::*;
+pub use attribute::*;
 
 #[derive(Debug, Clone)]
 pub enum ArgumentType {
     Parameter{
         call_variable: pm2::TokenStream,
-        decoded: Decoded,
+        decoded: Reader,
         attribute: ArgumentAttribute,
         optional: bool,
     },
@@ -205,13 +68,13 @@ impl Argument {
                             },
                             _ => return Err(syn::Error::new_spanned(ty, "Mauvaise déclaration de Option. Utilisation: Option<Type>"))
                         };
-                        let value_decoded = Decoded::argument_decode(&arg_name_str, &inner_ty)?;
+                        let value_decoded = Reader::argument_decode(&arg_name_str, &inner_ty)?;
                         Ok(Argument {
                             arg_type: ArgumentType::Parameter{
                                 call_variable: quote!{#arg_name},
                                 decoded: {
                                     let expr = value_decoded.read_expr;
-                                    Decoded{
+                                    Reader{
                                         read_expr: quote! { let #arg_name =  #expr.cloned(); },
                                         .. value_decoded
                                     }
@@ -242,14 +105,14 @@ impl Argument {
                         })
                     }
                     _ => {
-                        let value_decoded = Decoded::argument_decode(&arg_name_str, &ty)?;
+                        let value_decoded = Reader::argument_decode(&arg_name_str, &ty)?;
                         let error_msg = format!("Argument \"{}\" manquant.", arg_name_str);
                         Ok(Argument {
                             arg_type: ArgumentType::Parameter{
                                 call_variable: quote!{#arg_name},
                                 decoded: {
                                     let expr = value_decoded.read_expr;
-                                    Decoded{
+                                    Reader{
                                         read_expr: quote! { let #arg_name =  #expr.ok_or_else(|| #error_msg).unwrap().to_owned(); },
                                         .. value_decoded
                                     }
