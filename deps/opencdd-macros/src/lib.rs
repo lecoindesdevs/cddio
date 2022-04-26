@@ -51,8 +51,8 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
     for interf in interfs {
         let interf = interf?;
         match interf {
-            MyImplItem::Command(function ) if function.is(FunctionType::Command) => {
-                let command_str = function.function_name().to_string();
+            MyImplItem::Command(function @  Function{ fn_type: FunctionType::Command(_), .. }) => {
+                let command_str = function.command_name();
                 let func_call = function.function_call_event()?;
                 log::log(&func_call);
                 commands.push(quote! {
@@ -66,7 +66,7 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
                 //     #decl
                 // });
             },
-            MyImplItem::Command(function ) if function.is(FunctionType::Event) => {
+            MyImplItem::Command(function @ Function{ fn_type: FunctionType::Event, .. }) => {
                 todo!()
             },
             MyImplItem::Command(function) => {

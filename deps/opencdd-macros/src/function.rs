@@ -1,20 +1,49 @@
 use quote::{quote, ToTokens};
 use proc_macro2 as pm2;
+use syn::spanned::Spanned;
 use super::util::*;
 use super::argument::{Argument, ArgumentType};
 
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct CommandAttribute {
+    pub name: Option<String>,
+    pub description: String,
+    pub group: Option<String>
+}
+impl CommandAttribute {
+    fn from_attr(attr: syn::Attribute) -> syn::Result<Self> {
+        use syn::*;
+        let mut result = CommandAttribute::default();
+        let arg_span = attr.span();
+        let args = parse2::<ParenValue<MacroArgs>>(attr.tokens)?;
+        for arg in args.value.args.into_iter() {
+            match (arg.name.to_string().as_str(), arg.value) {
+                ("name", Lit::Str(s)) => result.name = Some(s.value()),
+                ("description", Lit::Str(s)) => result.description = s.value(),
+                ("group", Lit::Str(s)) => result.group = Some(s.value()),
+                ("name"|"description"|"group", v) => return Err(syn::Error::new_spanned(v, "String literal attendu")),
+                _ => return Err(Error::new_spanned(arg.name, "Argument inconnu.")),
+            }
+        }
+        if result.description.is_empty() {
+            return Err(Error::new(arg_span, "missing description argument"));
+        }
+        Ok(result)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum FunctionType {
-    Command,
+    Command(CommandAttribute),
     Event,
     NoSpecial,
 }
 
 #[derive(Debug, Clone)]
 pub struct Function {
-    impl_fn: syn::ImplItemMethod,
-    type_: FunctionType,
-    args: Vec<Argument>,
+    pub impl_fn: syn::ImplItemMethod,
+    pub fn_type: FunctionType,
+    pub args: Vec<Argument>,
 }
 
 
@@ -35,7 +64,7 @@ impl Function {
         });
         let type_ = match (attr_cmd, attr_evt) {
             (Some(_), Some(_)) => return Err(syn::Error::new_spanned(&impl_fn, "Commande et événement ne peuvent pas être déclarés en même temps.")),
-            (Some(_), None) => FunctionType::Command,
+            (Some(attr), None) => FunctionType::Command(CommandAttribute::from_attr(attr)?),
             (None, Some(_)) => FunctionType::Event,
             (None, None) => FunctionType::NoSpecial,
         };
@@ -43,12 +72,18 @@ impl Function {
         let args = impl_fn.sig.inputs.iter().cloned().map(|arg| Argument::new(arg)).collect::<Result<Vec<_>, _>>()?;
         Ok(Function { 
             impl_fn, 
-            type_,
+            fn_type: type_,
             args,
         })
     }
     pub fn function_name(&self) -> &syn::Ident {
         &self.impl_fn.sig.ident
+    }
+    pub fn command_name(&self) -> String {
+        match self.fn_type {
+            FunctionType::Command(ref attr) => attr.name.clone().unwrap_or_else(|| self.function_name().to_string()),
+            _ => self.function_name().to_string(),
+        }
     }
     pub fn function_call_event(&self) -> syn::Result<pm2::TokenStream> {
         let name = &self.function_name();
@@ -83,8 +118,9 @@ impl Function {
         }
     }
     pub fn is(&self, ftype: FunctionType) -> bool {
-        self.type_ == ftype
+        self.fn_type == ftype
     }
+    
 }
 
 impl ToTokens for Function {
