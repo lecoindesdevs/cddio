@@ -42,7 +42,7 @@ impl Test {
         appcmd: &ApplicationCommandEmbed, 
         #[argument(description="...")]
         categorie: RoleId, 
-        #[argument(description="...")]
+        #[argument(name="who", description="...")]
         pour_qui: serenity::model::user::User
     ) {} 
     #[command(group="ticket", name="add", description="Ajouter un membre au ticket")]
