@@ -2,6 +2,7 @@ mod function;
 mod argument;
 mod util;
 mod log;
+mod group;
 
 use std::sync::Mutex;
 use quote::quote;
