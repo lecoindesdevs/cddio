@@ -8,13 +8,17 @@ trait ComponentEvent {
     fn event(&mut self, ctx: &Context, event: &Event);
 }
 trait ComponentDeclarative {
-    fn declarative(&self) -> &'static [Command];
+    fn declarative(&self) -> &'static Node;
 }
 
 struct Node {
+    children: &'static [ChildNode],
+    commands: &'static [Command]
+}
+struct ChildNode {
     name: &'static str,
-    commands: &'static [Command],
-    children: &'static [Node],
+    description: &'static str,
+    node: Node,
 }
 struct Command {
     name: &'static str,
@@ -45,12 +49,12 @@ impl Test {
         #[argument(name="who", description="...")]
         pour_qui: serenity::model::user::User
     ) {} 
-    #[command(group="ticket", name="add", description="Ajouter un membre au ticket")]
+    #[command(group="member", name="add", description="Ajouter un membre au ticket")]
     fn ticket_member_add(&self, 
         ctx: &Context, 
         appcmd: &ApplicationCommandEmbed, 
         #[argument(description="Qui ajouter au ticket")]
-        ajouter_qui: serenity::model::user::User
+        ajouter_qui: Option<serenity::model::user::User>
     ) {}
     
     // #[event(MessageCreate)]

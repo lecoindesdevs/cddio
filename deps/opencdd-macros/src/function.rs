@@ -111,18 +111,29 @@ impl Function {
             self.#name(#(#args_call),*)
         })
     }
-    pub fn get_declarative(&self) -> pm2::TokenStream {
+    /// Only command have declaratives
+    pub fn get_declarative(&self) -> Option<pm2::TokenStream> {
+        let cmd_attr = match self.fn_type {
+            FunctionType::Command(ref cmd_attr) => cmd_attr,
+            _ => return None,
+        };
         let arguments = self.args.iter().filter_map(|v| v.get_declarative());
-        let name = self.function_name().to_string();
-        quote! {
-            Command {
-                name: #name,
-                description: "",
-                args: &[
-                    #(#arguments),*
-                ],
+        let name = match cmd_attr.name {
+            Some(ref name) => name.clone(),
+            None => self.function_name().to_string(),
+        }; 
+        let description = &cmd_attr.description;
+        Some(
+            quote! {
+                Command {
+                    name: #name,
+                    description: #description,
+                    args: &[
+                        #(#arguments),*
+                    ],
+                }
             }
-        }
+        )
     }
 }
 

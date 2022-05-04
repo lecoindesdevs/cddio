@@ -52,7 +52,33 @@ impl Group {
     pub fn add_function(&mut self, function: RefFunction) {
         self.functions.push(function);
     }
+    pub fn get_declarative(&self) -> pm2::TokenStream {
+        let it_commands = self.functions.iter().map(|f| f.borrow().get_declarative());
+        let it_children = self.children.iter().map(|f| f.borrow().get_declarative());
+        let node = quote! {
+            Node {
+                commands: &[#(#it_commands), *],
+                children: &[#(#it_children), *]
+            }
+        };
+
+        if let Some(attr) = &self.attr {
+            let name = &attr.name;
+            let description = &attr.description;
+            quote!(
+                ChildNode {
+                    name: #name,
+                    description: #description,
+                    node: #node
+                }
+            )
+        } else {
+            node
+        }
+        
+    }
 }
+
 #[derive(Debug, Clone)]
 pub struct GroupManager {
     group_map: HashMap<String, RefGroup>,
@@ -96,5 +122,8 @@ impl GroupManager {
     }
     pub fn find_group(&self, name: &str) -> Option<RefGroup> {
         self.group_map.get(name).cloned()
+    }
+    pub fn get_declarative(&self) -> pm2::TokenStream {
+        self.root.get_declarative()
     }
 }

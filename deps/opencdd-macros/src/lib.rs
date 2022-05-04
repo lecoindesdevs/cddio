@@ -69,14 +69,14 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
                 let function = function.deref();
                 match function.fn_type {
                     FunctionType::Command(ref attrs) => {
-                let command_str = function.command_name();
-                let func_call = function.function_call_event()?;
-                commands.push(quote! {
-                    #command_str => {#func_call}
-                });
-                impl_items.push(quote! {
-                    #function
-                });
+                        let command_str = function.command_name();
+                        let func_call = function.function_call_event()?;
+                        commands.push(quote! {
+                            #command_str => {#func_call}
+                        });
+                        impl_items.push(quote! {
+                            #function
+                        });
                         if let Some(grp) = &attrs.group {
                             let group_found = match groups.find_group(&grp) {
                                 Some(group) => group,
@@ -84,14 +84,14 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
                             };
                             group_found.borrow_mut().add_function(Rc::clone(&base_function));
                         }
-            },
+                    },
                     FunctionType::Event => todo!(),
                     _ => impl_items.push(quote! { #function })
                 }
             },
             other => impl_items.push(quote! { #other })
-            }
         }
+    }
     log::log(&format_args!("{:#?}", groups));
     let impl_event = quote! {
         impl ComponentEvent for #struct_name {
@@ -117,9 +117,19 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
             #(#impl_items)*
         }
     };
+    let declaratives = groups.get_declarative();
+    let impl_declaratives = quote!{
+        impl ComponentDeclarative for #struct_name {
+            fn declarative(&self) -> &'static Node {
+                const decl: Node = #declaratives;
+                &decl
+            } 
+        }
+    };
     let result = quote! {
         #impl_event
         #impl_functions
+        #impl_declaratives
     };
     log::log(&format_args!("{0:=<30}\n{1: ^30}\n{0:=<30}\n{result:#}", "", "FINAL RESULT"));
     Ok(result.into())

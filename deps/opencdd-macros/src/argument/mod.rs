@@ -160,29 +160,29 @@ impl Argument {
         &self.arg_type
     }
     pub fn get_declarative(&self) -> Option<pm2::TokenStream> {
-        // let (description, optional, decl_ident) = match &self.arg_type {
-        //     ArgumentType::Parameter{description, optional, decoded, ..} => (description, optional, &decoded.option_type),
-        //     _ => return None
-        // };
-        // let name = match &self.base {
-        //     syn::FnArg::Typed(syn::PatType{ref pat, ref ty, ..}) => {
-        //         let name = match &pat.as_ref() {
-        //             syn::Pat::Ident(syn::PatIdent{ref ident, ..}) => ident.to_string(),
-        //             _ => return None
-        //         };
-        //         name
-        //     },
-        //     _ => return None
-        // };
-        // Some(quote! {
-        //     Argument{
-        //         name: #name,
-        //         type_: #decl_ident,
-        //         description: #description,
-        //         optional: #optional,
-        //     }
-        // })
-        todo!()
+        let (attr, optional, option_type) = match &self.arg_type {
+            ArgumentType::Parameter{attribute, optional, reader, ..} => (attribute, optional, &reader.option_type),
+            _ => return None
+        };
+        let name = match &self.base {
+            syn::FnArg::Typed(syn::PatType{ref pat, ref ty, ..}) => {
+                let name = match &pat.as_ref() {
+                    syn::Pat::Ident(syn::PatIdent{ref ident, ..}) => ident.to_string(),
+                    _ => return None
+                };
+                name
+            },
+            _ => return None
+        };
+        let description = &attr.description;
+        Some(quote! {
+            Argument{
+                name: #name,
+                type_: #option_type,
+                description: #description,
+                optional: #optional,
+            }
+        })
     }
 }
 
