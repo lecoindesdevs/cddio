@@ -76,14 +76,15 @@ impl Argument {
                             Some(name) => name,
                             None => var_name.to_string()
                         };
+                        let call_variable = &var_name;
                         let value_decoded = Reader::argument_decode(&arg_name, &inner_ty)?;
                         Ok(Argument {
                             arg_type: ArgumentType::Parameter{
-                                call_variable: quote!{#arg_name},
+                                call_variable: quote!{#call_variable},
                                 reader: {
                                     let expr = value_decoded.read_expr;
                                     Reader{
-                                        read_expr: quote! { let #arg_name =  #expr.cloned(); },
+                                        read_expr: quote! { let #call_variable =  #expr.cloned(); },
                                         .. value_decoded
                                     }
                                 },
