@@ -19,6 +19,7 @@ lazy_static = "1.4"
 regex = "1.5"
 hashers = "1.0"
 opencdd-macros = { path = "deps/opencdd-macros" }
+opencdd-components = { path = "deps/opencdd-components" }
 
 [dependencies.serenity]
 version = "0.10"

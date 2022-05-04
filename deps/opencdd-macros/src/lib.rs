@@ -92,9 +92,8 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
             other => impl_items.push(quote! { #other })
         }
     }
-    log::log(&format_args!("{:#?}", groups));
     let impl_event = quote! {
-        impl ComponentEvent for #struct_name {
+        impl opencdd_components::ComponentEvent for #struct_name {
             fn event(&mut self, ctx: &serenity::client::Context, event: &serenity::model::event::Event) {
                 match event {
                     serenity::model::event::Event::InteractionCreate(serenity::model::event::InteractionCreateEvent{interaction: serenity::model::interactions::Interaction::ApplicationCommand(orig_app_command), ..}) => {
@@ -119,9 +118,9 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
     };
     let declaratives = groups.get_declarative();
     let impl_declaratives = quote!{
-        impl ComponentDeclarative for #struct_name {
-            fn declarative(&self) -> &'static Node {
-                const decl: Node = #declaratives;
+        impl opencdd_components::ComponentDeclarative for #struct_name {
+            fn declarative(&self) -> &'static opencdd_components::declarative::Node {
+                const decl: opencdd_components::declarative::Node = #declaratives;
                 &decl
             } 
         }

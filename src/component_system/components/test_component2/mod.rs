@@ -1,37 +1,8 @@
 use opencdd_macros::*;
-use serenity::{model::event::Event, client::Context};
+use serenity::{client::Context};
 use serenity::model::id::RoleId;
 
 use super::utils::app_command::ApplicationCommandEmbed;
-
-trait ComponentEvent {
-    fn event(&mut self, ctx: &Context, event: &Event);
-}
-trait ComponentDeclarative {
-    fn declarative(&self) -> &'static Node;
-}
-
-struct Node {
-    children: &'static [ChildNode],
-    commands: &'static [Command]
-}
-struct ChildNode {
-    name: &'static str,
-    description: &'static str,
-    node: Node,
-}
-struct Command {
-    name: &'static str,
-    description: &'static str,
-    args: &'static [Argument],
-}
-struct Argument {
-    name: &'static str,
-    type_: serenity :: model :: interactions :: application_command :: ApplicationCommandOptionType,
-    description: &'static str,
-    optional: bool,
-}
-
 
 struct Test;
 

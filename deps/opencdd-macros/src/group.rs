@@ -56,7 +56,7 @@ impl Group {
         let it_commands = self.functions.iter().map(|f| f.borrow().get_declarative());
         let it_children = self.children.iter().map(|f| f.borrow().get_declarative());
         let node = quote! {
-            Node {
+            opencdd_components::declarative::Node {
                 commands: &[#(#it_commands), *],
                 children: &[#(#it_children), *]
             }
@@ -66,7 +66,7 @@ impl Group {
             let name = &attr.name;
             let description = &attr.description;
             quote!(
-                ChildNode {
+                opencdd_components::declarative::ChildNode {
                     name: #name,
                     description: #description,
                     node: #node

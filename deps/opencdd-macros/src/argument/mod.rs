@@ -176,7 +176,7 @@ impl Argument {
         };
         let description = &attr.description;
         Some(quote! {
-            Argument{
+            opencdd_components::declarative::Argument{
                 name: #name,
                 type_: #option_type,
                 description: #description,

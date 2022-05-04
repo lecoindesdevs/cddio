@@ -125,7 +125,7 @@ impl Function {
         let description = &cmd_attr.description;
         Some(
             quote! {
-                Command {
+                opencdd_components::declarative::Command {
                     name: #name,
                     description: #description,
                     args: &[
