@@ -1,4 +1,7 @@
+use std::cell::RefCell;
 use std::fmt;
+use std::rc::Rc;
+
 use quote::{quote, ToTokens};
 use proc_macro2 as pm2;
 use syn::spanned::Spanned;
@@ -46,7 +49,7 @@ pub struct Function {
     pub fn_type: FunctionType,
     pub args: Vec<Argument>,
 }
-
+pub type RefFunction = Rc<RefCell<Function>>;
 
 impl Function {
     pub fn new(mut impl_fn: syn::ImplItemMethod) -> syn::Result<Function> {
@@ -76,6 +79,9 @@ impl Function {
             fn_type: type_,
             args,
         })
+    }
+    pub fn new_rc(impl_fn: syn::ImplItemMethod) -> syn::Result<RefFunction> {
+        Ok(Rc::new(RefCell::new(Function::new(impl_fn)?)))
     }
     pub fn function_name(&self) -> &syn::Ident {
         &self.impl_fn.sig.ident

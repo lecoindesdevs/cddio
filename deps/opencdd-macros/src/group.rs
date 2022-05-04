@@ -35,7 +35,7 @@ impl GroupAttribute {
 pub struct Group {
     attr: GroupAttribute,
     children: Vec<RefGroup>,
-    functions: Vec<Rc<Function>>
+    functions: Vec<RefFunction>
 }
 type RefGroup = Rc<RefCell<Group>>;
 
@@ -46,6 +46,9 @@ impl Group {
             children: Vec::new(),
             functions: Vec::new()
         }))
+    }
+    pub fn add_function(&mut self, function: RefFunction) {
+        self.functions.push(function);
     }
 }
 #[derive(Debug, Clone)]

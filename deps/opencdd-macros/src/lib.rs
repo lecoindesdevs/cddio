@@ -7,7 +7,9 @@ mod group;
 use std::sync::Mutex;
 use quote::quote;
 use proc_macro::TokenStream;
-use function::{Function, FunctionType};
+use function::{Function, RefFunction, FunctionType};
+use std::ops::Deref;
+use std::rc::Rc;
 
 lazy_static::lazy_static!(
     static ref TEST_COUNTER: Mutex<i32> = Mutex::new(0);
@@ -19,8 +21,17 @@ pub fn commands(_attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 enum MyImplItem {
-    Command(Function),
+    Command(RefFunction),
     Other(syn::ImplItem),
+}
+
+impl quote::ToTokens for MyImplItem {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        match self {
+            MyImplItem::Command(f) => f.as_ref().borrow().to_tokens(tokens),
+            MyImplItem::Other(i) => i.to_tokens(tokens),
+        }
+    }
 }
 
 fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::TokenStream> {
@@ -40,7 +51,7 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
         .map(|item| -> syn::Result<_> {
             match item {
                 ImplItem::Method(v) => {
-                    let function = Function::new(v)?;
+                    let function = Function::new_rc(v)?;
                     Ok(MyImplItem::Command(function))
                 },
                 item => Ok(MyImplItem::Other(item)),
@@ -53,7 +64,11 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
     for interf in interfs {
         let interf = interf?;
         match interf {
-            MyImplItem::Command(function @  Function{ fn_type: FunctionType::Command(_), .. }) => {
+            MyImplItem::Command(base_function ) => {
+                let function = base_function.borrow();
+                let function = function.deref();
+                match function.fn_type {
+                    FunctionType::Command(ref attrs) => {
                 let command_str = function.command_name();
                 let func_call = function.function_call_event()?;
                 commands.push(quote! {
@@ -62,19 +77,19 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
                 impl_items.push(quote! {
                     #function
                 });
-                // let decl = function.get_declarative();
-                // declaratives.push(quote! {
-                //     #decl
-                // });
+                        if let Some(grp) = &attrs.group {
+                            let group_found = match groups.find_group(&grp) {
+                                Some(group) => group,
+                                None => return Err(syn::Error::new_spanned(&grp, "Groupe introuvable."))
+                            };
+                            group_found.borrow_mut().add_function(Rc::clone(&base_function));
+                        }
             },
-            MyImplItem::Command(function @ Function{ fn_type: FunctionType::Event, .. }) => {
-                todo!()
+                    FunctionType::Event => todo!(),
+                    _ => impl_items.push(quote! { #function })
+                }
             },
-            MyImplItem::Command(function) => {
-                impl_items.push(quote!(#function));
-            },
-            MyImplItem::Other(item) => {
-                impl_items.push(quote!(#item));
+            other => impl_items.push(quote! { #other })
             }
         }
     log::log(&format_args!("{:#?}", groups));
