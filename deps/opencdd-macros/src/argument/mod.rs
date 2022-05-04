@@ -6,6 +6,7 @@ use syn::spanned::Spanned;
 use super::util::*;
 pub use reader::*;
 pub use attribute::*;
+use std::fmt;
 
 #[derive(Debug, Clone)]
 pub enum ArgumentType {
@@ -20,7 +21,7 @@ pub enum ArgumentType {
     },
     SelfArg,
 }
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Argument { 
     base: syn::FnArg,
     arg_type: ArgumentType,
@@ -188,5 +189,29 @@ impl ToTokens for Argument {
     fn to_tokens(&self, tokens: &mut pm2::TokenStream) {
         let base = &self.base;
         tokens.extend(quote! {#base});
+    }
+}
+impl fmt::Debug for Argument {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.arg_type {
+            ArgumentType::Parameter{ optional, attribute, call_variable, ..} => {
+                let mut f_struct = f.debug_struct("Argument");
+                if let Some(name) = &attribute.name {
+                    f_struct.field("name", name);
+                } else {
+                    f_struct.field("name", &call_variable.to_string());
+                }
+                    // .field("type", &self.)
+                f_struct.field("description", &attribute.description)
+                    .field("optional", optional)
+                    .finish()
+            },
+            ArgumentType::Internal{call_variable} => {
+                f.debug_tuple("InternalParameter")
+                    .field(&call_variable.to_string())
+                    .finish()
+            },
+            ArgumentType::SelfArg => f.debug_tuple("SelfParameter").finish(),
+        }
     }
 }

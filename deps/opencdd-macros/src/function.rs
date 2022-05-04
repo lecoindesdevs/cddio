@@ -1,3 +1,4 @@
+use std::fmt;
 use quote::{quote, ToTokens};
 use proc_macro2 as pm2;
 use syn::spanned::Spanned;
@@ -39,7 +40,7 @@ pub enum FunctionType {
     NoSpecial,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Function {
     pub impl_fn: syn::ImplItemMethod,
     pub fn_type: FunctionType,
@@ -135,5 +136,22 @@ impl ToTokens for Function {
         let inputs = &self.args;
         let attrs = &self.impl_fn.attrs;
         tokens.extend(quote! { #(#attrs)* #unsafety #constness #asyncness #abi fn #ident (#(#inputs), *) #output #body });
+    }
+}
+
+impl fmt::Debug for Function {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.fn_type {
+            FunctionType::Command(ref attr) => {
+                f.debug_struct("Command")
+                    .field("name", &attr.name)
+                    .field("description", &attr.description)
+                    .field("function_name", &self.function_name())
+                    .field("args", &self.args)
+                    .finish()
+            },
+            FunctionType::Event => f.debug_struct("Event").finish_non_exhaustive(),
+            FunctionType::NoSpecial => f.debug_struct("NoSpecial").finish(),
+        }
     }
 }
