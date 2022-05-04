@@ -1,6 +1,8 @@
 use std::{collections::HashMap, rc::Rc, cell::RefCell};
 use syn::spanned::Spanned;
-use super::function::Function;
+use super::function::RefFunction;
+use quote::{quote, ToTokens};
+use proc_macro2 as pm2;
 
 use crate::util::*;
 
@@ -33,7 +35,7 @@ impl GroupAttribute {
 }
 #[derive(Debug, Clone, Default)]
 pub struct Group {
-    attr: GroupAttribute,
+    attr: Option<GroupAttribute>,
     children: Vec<RefGroup>,
     functions: Vec<RefFunction>
 }
@@ -42,7 +44,7 @@ type RefGroup = Rc<RefCell<Group>>;
 impl Group {
     pub fn new_rc(attr: GroupAttribute) -> RefGroup {
         Rc::new(RefCell::new(Group {
-            attr,
+            attr: Some(attr),
             children: Vec::new(),
             functions: Vec::new()
         }))
@@ -54,14 +56,14 @@ impl Group {
 #[derive(Debug, Clone)]
 pub struct GroupManager {
     group_map: HashMap<String, RefGroup>,
-    root: RefGroup
+    root: Group
 }
 
 impl GroupManager {
     pub fn new() -> GroupManager {
         GroupManager {
             group_map: HashMap::new(),
-            root: Group::new_rc(GroupAttribute::default())
+            root: Group::default()
         }
     }
     pub fn from_iter<I: Iterator<Item=syn::Attribute>>(iter: I) -> syn::Result<GroupManager> {
@@ -84,13 +86,13 @@ impl GroupManager {
                     return Err(Error::new(attr_span, "parent group not found"));
                 }
             } else {
-                group_manager.root.borrow_mut().children.push(Rc::clone(&group));
+                group_manager.root.children.push(Rc::clone(&group));
             }
         }
         Ok(group_manager)
     }
-    pub fn root(&self) -> RefGroup {
-        self.root.clone()
+    pub fn root(&self) -> &Group {
+        &self.root
     }
     pub fn find_group(&self, name: &str) -> Option<RefGroup> {
         self.group_map.get(name).cloned()
