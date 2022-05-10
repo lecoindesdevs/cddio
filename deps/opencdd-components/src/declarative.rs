@@ -1,4 +1,11 @@
 use serenity::{model::{id::GuildId, interactions::application_command::ApplicationCommandOptionType}, builder::{CreateApplicationCommands, CreateApplicationCommandOption, CreateApplicationCommand}, client::Context};
+
+pub trait ComponentDeclarative {
+    fn declarative(&self) -> Option<&'static Node> {
+        None
+    }
+}
+
 pub struct Node {
     pub children: &'static [ChildNode],
     pub commands: &'static [Command]
@@ -96,6 +103,3 @@ impl From<&Argument> for CreateApplicationCommandOption {
     }
 }
 
-pub trait ComponentDeclarative {
-    fn declarative(&self) -> &'static Node;
-}

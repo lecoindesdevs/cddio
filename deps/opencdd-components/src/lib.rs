@@ -1,6 +1,7 @@
 pub mod declarative;
+pub mod event;
 pub use declarative::ComponentDeclarative;
-use serenity::{model::event::Event, client::Context};
-pub trait ComponentEvent {
-    fn event(&mut self, ctx: &Context, event: &Event);
-}
+pub use event::ComponentEvent;
+
+pub trait Component: ComponentDeclarative + ComponentEvent {}
+
