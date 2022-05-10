@@ -1,4 +1,6 @@
-use crate::{Components, event::ComponentEventDispatcher};
+use std::sync::Arc;
+use serenity::prelude::Mutex;
+use crate::{Components, event::ComponentEventDispatcher, Component};
 
 pub struct ComponentContainer(Components);
 
@@ -8,6 +10,9 @@ impl ComponentContainer {
     }
     pub fn get_event_dispatcher(&self) -> ComponentEventDispatcher {
         ComponentEventDispatcher::new(self.0.clone())
+    }
+    pub fn add_component<T: 'static + Component>(&mut self, comp: T) {
+        self.0.push (Arc::new(Mutex::new(comp)))
     }
 }
 impl AsRef<Components> for ComponentContainer {
