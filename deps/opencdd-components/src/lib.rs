@@ -16,6 +16,9 @@ impl ComponentContainer {
     pub fn new() -> ComponentContainer {
         ComponentContainer(Vec::new())
     }
+    pub fn get_event_dispatcher(&self) -> event::ComponentEventDispatcher {
+        event::ComponentEventDispatcher::new(self.0.clone())
+    }
 }
 impl AsRef<Components> for ComponentContainer {
     fn as_ref(&self) -> &Components {
