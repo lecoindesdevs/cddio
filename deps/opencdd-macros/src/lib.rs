@@ -119,16 +119,19 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
     let declaratives = groups.get_declarative();
     let impl_declaratives = quote!{
         impl opencdd_components::ComponentDeclarative for #struct_name {
-            fn declarative(&self) -> &'static opencdd_components::declarative::Node {
+            fn declarative(&self) -> Option<&'static opencdd_components::declarative::Node> {
                 const decl: opencdd_components::declarative::Node = #declaratives;
-                &decl
-            } 
+                Some(&decl)
+            }
         }
     };
     let result = quote! {
         #impl_event
-        #impl_functions
         #impl_declaratives
+
+        impl opencdd_components::Component for #struct_name {}
+        
+        #impl_functions
     };
     log::log(&format_args!("{0:=<30}\n{1: ^30}\n{0:=<30}\n{result:#}", "", "FINAL RESULT"));
     Ok(result.into())
