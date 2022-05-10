@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 serenity = { version = "0.10", features = ["unstable_discord_api"] }
+tokio = { version = "1.12", features = ["full"] }

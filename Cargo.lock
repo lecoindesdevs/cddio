@@ -675,6 +675,7 @@ name = "opencdd-components"
 version = "0.1.0"
 dependencies = [
  "serenity",
+ "tokio 1.12.0",
 ]
 
 [[package]]
