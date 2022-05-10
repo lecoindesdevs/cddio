@@ -6,12 +6,12 @@ pub trait ComponentEvent: Sync + Send  {
     fn event(&mut self, ctx: &Context, event: &Event);
 }
 
-struct ComponentEventDispatcher {
+pub struct ComponentEventDispatcher {
     components: Components
 }
 
 impl ComponentEventDispatcher {
-    fn new(components: Components) -> Self { 
+    pub(crate) fn new(components: Components) -> Self { 
         Self { components } 
     }
 }
