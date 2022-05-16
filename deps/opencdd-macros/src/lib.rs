@@ -85,7 +85,13 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
                             group_found.borrow_mut().add_function(Rc::clone(&base_function));
                         }
                     },
-                    FunctionType::Event => todo!(),
+                    FunctionType::Event(ref evt) => {
+                        let event_name = quote::format_ident!("{}", evt.name);
+                        let func_name = function.function_name();
+                        events.push(quote!{
+                            serenity::model::event::Event::#event_name(evt) => self.#func_name(ctx, evt)
+                        })
+                    },
                     _ => impl_items.push(quote! { #function })
                 }
             },

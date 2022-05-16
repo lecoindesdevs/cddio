@@ -35,13 +35,30 @@ impl CommandAttribute {
         Ok(result)
     }
 }
+#[derive(Debug, Clone)]
+pub struct EventAttribute {
+    pub name: String,
+}
+
+impl EventAttribute {
+    fn from_attr(attr: syn::Attribute) -> syn::Result<Self> {
+        use syn::*;
+        
+        let arg_span = attr.span();
+        let args = parse2::<ParenValue<Ident>>(attr.tokens)?;
+        Ok(EventAttribute{
+            name: args.value.to_string()
+        })
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum FunctionType {
     Command(CommandAttribute),
-    Event,
+    Event(EventAttribute),
     NoSpecial,
 }
+
 
 #[derive(Clone)]
 pub struct Function {
@@ -69,7 +86,7 @@ impl Function {
         let type_ = match (attr_cmd, attr_evt) {
             (Some(_), Some(_)) => return Err(syn::Error::new_spanned(&impl_fn, "Commande et événement ne peuvent pas être déclarés en même temps.")),
             (Some(attr), None) => FunctionType::Command(CommandAttribute::from_attr(attr)?),
-            (None, Some(_)) => FunctionType::Event,
+            (None, Some(attr)) => FunctionType::Event(EventAttribute::from_attr(attr)?),
             (None, None) => FunctionType::NoSpecial,
         };
         impl_fn.attrs = attrs;
@@ -167,7 +184,11 @@ impl fmt::Debug for Function {
                     .field("args", &self.args)
                     .finish()
             },
-            FunctionType::Event => f.debug_struct("Event").finish_non_exhaustive(),
+            FunctionType::Event(ref evt) => {
+                f.debug_struct("Event")
+                    .field("event", &evt.name)
+                    .finish()
+            },
             FunctionType::NoSpecial => f.debug_struct("NoSpecial").finish(),
         }
     }
