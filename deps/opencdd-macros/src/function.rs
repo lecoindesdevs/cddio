@@ -6,51 +6,12 @@ use quote::{quote, ToTokens};
 use proc_macro2 as pm2;
 use syn::spanned::Spanned;
 use super::util::*;
-use super::argument::{Argument, ArgumentType};
 
-#[derive(Debug, Clone, Default)]
-pub struct CommandAttribute {
-    pub name: Option<String>,
-    pub description: String,
-    pub group: Option<String>
-}
-impl CommandAttribute {
-    fn from_attr(attr: syn::Attribute) -> syn::Result<Self> {
-        use syn::*;
-        let mut result = CommandAttribute::default();
-        let arg_span = attr.span();
-        let args = parse2::<ParenValue<MacroArgs>>(attr.tokens)?;
-        for arg in args.value.args.into_iter() {
-            match (arg.name.to_string().as_str(), arg.value) {
-                ("name", Lit::Str(s)) => result.name = Some(s.value()),
-                ("description", Lit::Str(s)) => result.description = s.value(),
-                ("group", Lit::Str(s)) => result.group = Some(s.value()),
-                ("name"|"description"|"group", v) => return Err(syn::Error::new_spanned(v, "String literal attendu")),
-                _ => return Err(Error::new_spanned(arg.name, "Argument inconnu.")),
-            }
-        }
-        if result.description.is_empty() {
-            return Err(Error::new(arg_span, "missing description argument"));
-        }
-        Ok(result)
-    }
-}
-#[derive(Debug, Clone)]
-pub struct EventAttribute {
-    pub name: String,
+pub trait Function : ToTokens {
+    fn name(&self) -> pm2::TokenStream;
+    fn event_handle(&self) -> pm2::TokenStream;
 }
 
-impl EventAttribute {
-    fn from_attr(attr: syn::Attribute) -> syn::Result<Self> {
-        use syn::*;
-        
-        let arg_span = attr.span();
-        let args = parse2::<ParenValue<Ident>>(attr.tokens)?;
-        Ok(EventAttribute{
-            name: args.value.to_string()
-        })
-    }
-}
 
 #[derive(Debug, Clone)]
 pub enum FunctionType {

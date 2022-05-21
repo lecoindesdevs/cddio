@@ -3,7 +3,7 @@ mod attribute;
 use quote::{quote, ToTokens};
 use proc_macro2 as pm2;
 use syn::spanned::Spanned;
-use super::util::*;
+use crate::util::*;
 pub use reader::*;
 pub use attribute::*;
 use std::fmt;
