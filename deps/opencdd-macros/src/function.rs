@@ -1,156 +1,62 @@
 use std::cell::RefCell;
-use std::fmt;
 use std::rc::Rc;
 
 use quote::{quote, ToTokens};
 use proc_macro2 as pm2;
-use syn::spanned::Spanned;
 use super::util::*;
+use super::command::Command;
+use super::event::Event;
 
 pub trait Function : ToTokens {
     fn name(&self) -> pm2::TokenStream;
     fn event_handle(&self) -> pm2::TokenStream;
 }
 
+type RefFunction = Rc<RefCell<dyn Function>>;
 
-#[derive(Debug, Clone)]
-pub enum FunctionType {
-    Command(CommandAttribute),
-    Event(EventAttribute),
-    NoSpecial,
-}
+struct NoSpecial(syn::ImplItemMethod);
 
-
-#[derive(Clone)]
-pub struct Function {
-    pub impl_fn: syn::ImplItemMethod,
-    pub fn_type: FunctionType,
-    pub args: Vec<Argument>,
-}
-pub type RefFunction = Rc<RefCell<Function>>;
-
-impl Function {
-    pub fn new(mut impl_fn: syn::ImplItemMethod) -> syn::Result<Function> {
-        let attrs = impl_fn.attrs.clone();
-        let (attr_cmd, attrs): (_, Vec<_>) = attrs.find_and_pop(|attr| {
-            match attr.path.get_ident() {
-                Some(ident) => ident.to_string() == "command",
-                None => return false
-            }
-        });
-        let (attr_evt, attrs): (_, Vec<_>) = attrs.find_and_pop(|attr| {
-            match attr.path.get_ident() {
-                Some(ident) => ident.to_string() == "event",
-                None => return false
-            }
-        });
-        let type_ = match (attr_cmd, attr_evt) {
-            (Some(_), Some(_)) => return Err(syn::Error::new_spanned(&impl_fn, "Commande et événement ne peuvent pas être déclarés en même temps.")),
-            (Some(attr), None) => FunctionType::Command(CommandAttribute::from_attr(attr)?),
-            (None, Some(attr)) => FunctionType::Event(EventAttribute::from_attr(attr)?),
-            (None, None) => FunctionType::NoSpecial,
-        };
-        impl_fn.attrs = attrs;
-        let args = impl_fn.sig.inputs.iter().cloned().map(|arg| Argument::new(arg)).collect::<Result<Vec<_>, _>>()?;
-        Ok(Function { 
-            impl_fn, 
-            fn_type: type_,
-            args,
-        })
+impl Function for NoSpecial {
+    fn name(&self) -> pm2::TokenStream {
+        self.0.sig.ident.to_token_stream()
     }
-    pub fn new_rc(impl_fn: syn::ImplItemMethod) -> syn::Result<RefFunction> {
-        Ok(Rc::new(RefCell::new(Function::new(impl_fn)?)))
-    }
-    pub fn function_name(&self) -> &syn::Ident {
-        &self.impl_fn.sig.ident
-    }
-    pub fn command_name(&self) -> String {
-        match self.fn_type {
-            FunctionType::Command(ref attr) => attr.name.clone().unwrap_or_else(|| self.function_name().to_string()),
-            _ => self.function_name().to_string(),
-        }
-    }
-    pub fn function_call_event(&self) -> syn::Result<pm2::TokenStream> {
-        let name = &self.function_name();
-        let mut args_call = vec![];
-        let mut args_decode = vec![];
-        for arg in self.args.iter() {
-            match &arg.get_type() {
-                ArgumentType::Parameter{call_variable, reader, ..} => {
-                    args_decode.push(&reader.read_expr);
-                    args_call.push(call_variable);
-                },
-                ArgumentType::Internal { call_variable } => args_call.push(call_variable),
-                ArgumentType::SelfArg => continue,
-            }
-        }
-        Ok(quote! {
-            #(#args_decode)*
-            self.#name(#(#args_call),*)
-        })
-    }
-    /// Only command have declaratives
-    pub fn get_declarative(&self) -> Option<pm2::TokenStream> {
-        let cmd_attr = match self.fn_type {
-            FunctionType::Command(ref cmd_attr) => cmd_attr,
-            _ => return None,
-        };
-        let arguments = self.args.iter().filter_map(|v| v.get_declarative());
-        let name = match cmd_attr.name {
-            Some(ref name) => name.clone(),
-            None => self.function_name().to_string(),
-        }; 
-        let description = &cmd_attr.description;
-        Some(
-            quote! {
-                opencdd_components::declarative::Command {
-                    name: #name,
-                    description: #description,
-                    args: &[
-                        #(#arguments),*
-                    ],
-                }
-            }
-        )
+    fn event_handle(&self) -> pm2::TokenStream {
+        quote! {}
     }
 }
-
-impl ToTokens for Function {
+impl ToTokens for NoSpecial {
     fn to_tokens(&self, tokens: &mut pm2::TokenStream) {
-        let syn::Signature { 
-            abi,
-            unsafety,
-            constness,
-            asyncness,
-            ident,
-            // inputs,
-            output,
-            ..
-        } = &self.impl_fn.sig;
-        let body = &self.impl_fn.block;
-        let inputs = &self.args;
-        let attrs = &self.impl_fn.attrs;
-        tokens.extend(quote! { #(#attrs)* #unsafety #constness #asyncness #abi fn #ident (#(#inputs), *) #output #body });
+        self.0.to_tokens(tokens);
     }
 }
 
-impl fmt::Debug for Function {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.fn_type {
-            FunctionType::Command(ref attr) => {
-                f.debug_struct("Command")
-                    .field("name", &attr.name)
-                    .field("description", &attr.description)
-                    .field("function_name", &self.function_name())
-                    .field("args", &self.args)
-                    .finish()
-            },
-            FunctionType::Event(ref evt) => {
-                f.debug_struct("Event")
-                    .field("event", &evt.name)
-                    .finish()
-            },
-            FunctionType::NoSpecial => f.debug_struct("NoSpecial").finish(),
-        }
+fn make_function(mut impl_fn: syn::ImplItemMethod) -> syn::Result<RefFunction> {
+    
+    let attrs = impl_fn.attrs.clone();
+    const LIST_ATTR: [&str; 2] = ["command", "event"];
+    
+    if attrs.iter().filter(|a| LIST_ATTR.contains(&a.path.to_token_stream().to_string().as_str())).count() > 1 {
+        return Err(syn::Error::new_spanned(impl_fn.sig.ident, "Only one discord event type attribute is allowed"));
     }
+    let finder = |name: &str| {
+        |attr: &syn::Attribute| {
+            match attr.path.get_ident() {
+                Some(ident) => ident.to_string() == name,
+                None => return false
+            }
+        }
+    };
+    let (attr_cmd, attrs): (_, Vec<_>) = attrs.find_and_pop(finder("command"));
+    if let Some(attr_cmd) = attr_cmd {
+        impl_fn.attrs = attrs;
+        let cmd = Command::new(attr_cmd, impl_fn)?;
+        return Ok(Rc::new(RefCell::new(cmd)));
+    }
+    let (attr_evt, attrs): (_, Vec<_>) = attrs.find_and_pop(finder("event"));
+    if let Some(attr_evt) = attr_evt {
+        impl_fn.attrs = attrs;
+        let evt = Event::new(attr_evt, impl_fn)?;
+        return Ok(Rc::new(RefCell::new(evt)));
+    }
+    Ok(Rc::new(RefCell::new(NoSpecial(impl_fn))))
 }
