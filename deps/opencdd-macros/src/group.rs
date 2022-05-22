@@ -1,6 +1,6 @@
 use std::{collections::HashMap, rc::Rc, cell::RefCell};
 use syn::spanned::Spanned;
-use super::function::RefFunction;
+use super::function::{RefFunction, FunctionType};
 use quote::{quote, ToTokens};
 use proc_macro2 as pm2;
 
@@ -33,7 +33,7 @@ impl GroupAttribute {
         Ok(result)
     }
 }
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Group {
     attr: Option<GroupAttribute>,
     children: Vec<RefGroup>,
@@ -53,7 +53,12 @@ impl Group {
         self.functions.push(function);
     }
     pub fn get_declarative(&self) -> pm2::TokenStream {
-        let it_commands = self.functions.iter().map(|f| f.borrow().get_declarative());
+        let it_commands = self.functions.iter().map(|f| {
+            match *f.borrow() {
+                FunctionType::Command(c) => c.get_declarative(),
+                _ => unreachable!()
+            }
+        });
         let it_children = self.children.iter().map(|f| f.borrow().get_declarative());
         let node = quote! {
             opencdd_components::declarative::Node {
@@ -76,6 +81,15 @@ impl Group {
             node
         }
         
+    }
+}
+impl Default for Group {
+    fn default() -> Self {
+        Group {
+            attr: None,
+            children: Vec::new(),
+            functions: Vec::new()
+        }
     }
 }
 
