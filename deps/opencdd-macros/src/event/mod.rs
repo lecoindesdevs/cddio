@@ -1,4 +1,7 @@
-use crate::util::ParenValue;
+use quote::{quote, ToTokens};
+use syn::spanned::Spanned;
+
+use crate::{util::ParenValue, function::Function};
 use std::fmt;
 #[derive(Debug, Clone)]
 pub struct EventAttribute {
@@ -16,9 +19,36 @@ impl EventAttribute {
         })
     }
 }
-
+#[derive(Clone)]
 pub struct Event {
-    attr: EventAttribute
+    attr: EventAttribute,
+    impl_fn: syn::ImplItemMethod,
+}
+
+impl Event {
+    pub fn new(attr: syn::Attribute, impl_fn: syn::ImplItemMethod) -> syn::Result<Self> {
+        let attr = EventAttribute::from_attr(attr)?;
+        Ok(Event {
+            attr,
+            impl_fn,
+        })
+    }
+}
+impl Function for Event {
+    fn name(&self) -> proc_macro2::TokenStream {
+        let name = &self.impl_fn.sig.ident;
+        quote! { #name }
+    }
+
+    fn event_handle(&self) -> proc_macro2::TokenStream {
+        todo!()
+    }
+}
+
+impl ToTokens for Event {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        self.impl_fn.to_tokens(tokens);
+    }
 }
 
 impl fmt::Debug for Event {
