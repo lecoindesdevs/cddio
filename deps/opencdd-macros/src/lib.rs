@@ -10,7 +10,6 @@ use std::sync::Mutex;
 use quote::quote;
 use proc_macro::TokenStream;
 use function::{Function, RefFunction, FunctionType};
-use std::ops::Deref;
 use std::rc::Rc;
 
 lazy_static::lazy_static!(
@@ -23,14 +22,14 @@ pub fn commands(_attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 enum MyImplItem {
-    Command(RefFunction),
+    Function(RefFunction),
     Other(syn::ImplItem),
 }
 
 impl quote::ToTokens for MyImplItem {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         match self {
-            MyImplItem::Command(f) => f.as_ref().borrow().to_tokens(tokens),
+            MyImplItem::Function(f) => f.as_ref().borrow().to_tokens(tokens),
             MyImplItem::Other(i) => i.to_tokens(tokens),
         }
     }
@@ -53,8 +52,8 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
         .map(|item| -> syn::Result<_> {
             match item {
                 ImplItem::Method(v) => {
-                    let function = Function::new_rc(v)?;
-                    Ok(MyImplItem::Command(function))
+                    let function = FunctionType::new_rc(v)?;
+                    Ok(MyImplItem::Function(function))
                 },
                 item => Ok(MyImplItem::Other(item)),
             }
@@ -65,39 +64,41 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
 
     for interf in interfs {
         let interf = interf?;
-        match interf {
-            MyImplItem::Command(base_function ) => {
-                let function = base_function.borrow();
-                let function = function.deref();
-                match function.fn_type {
-                    FunctionType::Command(ref attrs) => {
-                        let command_str = function.command_name();
-                        let func_call = function.function_call_event()?;
-                        commands.push(quote! {
-                            #command_str => {#func_call}
-                        });
-                        impl_items.push(quote! {
-                            #function
-                        });
-                        if let Some(grp) = &attrs.group {
-                            let group_found = match groups.find_group(&grp) {
-                                Some(group) => group,
-                                None => return Err(syn::Error::new_spanned(&grp, "Groupe introuvable."))
-                            };
-                            group_found.borrow_mut().add_function(Rc::clone(&base_function));
-                        }
-                    },
-                    FunctionType::Event(ref evt) => {
-                        let event_name = quote::format_ident!("{}", evt.name);
-                        let func_name = function.function_name();
-                        events.push(quote!{
-                            serenity::model::event::Event::#event_name(evt) => self.#func_name(ctx, evt)
-                        })
-                    },
-                    _ => impl_items.push(quote! { #function })
+        let func_rc = match interf {
+            MyImplItem::Function(f) => f,
+            MyImplItem::Other(other) => {
+                impl_items.push(quote! { #other });
+                continue;
+            }
+        };
+        let func = func_rc.borrow();
+        match &*func {
+            FunctionType::Event(event) => {
+                events.push(event.event_handle());
+                impl_items.push(quote! {
+                    #event
+                });
+            },
+            FunctionType::Command(command) => {
+                let name = command.name().to_string();
+                let event = command.event_handle();
+                commands.push(quote! {
+                    #name => {#event}
+                });
+                impl_items.push(quote! {
+                    #command
+                });
+                if let Some(grp) = &command.attr.group {
+                    let group_found = match groups.find_group(&grp) {
+                        Some(group) => group,
+                        None => return Err(syn::Error::new_spanned(&grp, "Groupe introuvable."))
+                    };
+                    group_found.borrow_mut().add_function(Rc::clone(&func_rc));
                 }
             },
-            other => impl_items.push(quote! { #other })
+            FunctionType::NoSpecial(v) => {
+                impl_items.push(quote! { #v });
+            },
         }
     }
     let impl_event = quote! {
@@ -105,7 +106,7 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
             fn event(&mut self, ctx: &serenity::client::Context, event: &serenity::model::event::Event) {
                 match event {
                     serenity::model::event::Event::InteractionCreate(serenity::model::event::InteractionCreateEvent{interaction: serenity::model::interactions::Interaction::ApplicationCommand(orig_app_command), ..}) => {
-                        let app_command = super::utils::app_command::ApplicationCommandEmbed::new(orig_app_command);
+                        let app_command = opencdd_components::ApplicationCommandEmbed::new(orig_app_command);
                         let command_name = app_command.fullname();
                         match command_name.as_str() {
                             #(#commands), *

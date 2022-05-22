@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc, cell::RefCell};
 use syn::spanned::Spanned;
 use super::function::{RefFunction, FunctionType};
-use quote::{quote, ToTokens};
+use quote::quote;
 use proc_macro2 as pm2;
 
 use crate::util::*;
@@ -54,7 +54,8 @@ impl Group {
     }
     pub fn get_declarative(&self) -> pm2::TokenStream {
         let it_commands = self.functions.iter().map(|f| {
-            match *f.borrow() {
+            let f_borrow = f.borrow();
+            match &*f_borrow {
                 FunctionType::Command(c) => c.get_declarative(),
                 _ => unreachable!()
             }

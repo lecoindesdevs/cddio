@@ -13,7 +13,7 @@ pub trait Function : ToTokens + std::fmt::Debug {
 }
 
 #[derive(Debug, Clone)]
-struct NoSpecial(syn::ImplItemMethod);
+pub struct NoSpecial(syn::ImplItemMethod);
 
 impl Function for NoSpecial {
     fn name(&self) -> pm2::TokenStream {
@@ -65,33 +65,35 @@ impl ToTokens for FunctionType {
 impl FunctionType {
 
     pub fn new(mut impl_fn: syn::ImplItemMethod) -> syn::Result<Self> {
-        
         let attrs = impl_fn.attrs.clone();
         const LIST_ATTR: [&str; 2] = ["command", "event"];
         
         if attrs.iter().filter(|a| LIST_ATTR.contains(&a.path.to_token_stream().to_string().as_str())).count() > 1 {
             return Err(syn::Error::new_spanned(impl_fn.sig.ident, "Only one discord event type attribute is allowed"));
         }
-        let finder = |name: &str| {
-            |attr: &syn::Attribute| {
+        let finder = |name: &'static str| {
+            move |attr: &syn::Attribute| {
                 match attr.path.get_ident() {
                     Some(ident) => ident.to_string() == name,
                     None => return false
                 }
             }
         };
+        // Check if the function is a command
         let (attr_cmd, attrs): (_, Vec<_>) = attrs.find_and_pop(finder("command"));
         if let Some(attr_cmd) = attr_cmd {
             impl_fn.attrs = attrs;
             let cmd = Command::new(attr_cmd, impl_fn)?;
             return Ok(FunctionType::Command(cmd));
         }
+        // Check if the function is an event
         let (attr_evt, attrs): (_, Vec<_>) = attrs.find_and_pop(finder("event"));
         if let Some(attr_evt) = attr_evt {
             impl_fn.attrs = attrs;
             let evt = Event::new(attr_evt, impl_fn)?;
             return Ok(FunctionType::Event(evt));
         }
+        // Otherwise, it's a no special function
         Ok(FunctionType::NoSpecial(NoSpecial(impl_fn)))
     }
     pub fn new_rc(mut impl_fn: syn::ImplItemMethod) -> syn::Result<RefFunction> {
