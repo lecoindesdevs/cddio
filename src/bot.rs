@@ -1,8 +1,11 @@
 //! Core de l'application. 
 //! L'initialisation du bot et la gestion des composants se fait dans ce module.
+use std::sync::Arc;
+
 use futures_locks::RwLock;
-use serenity::{Client, client::bridge::gateway::GatewayIntents, model::id::{ApplicationId, UserId}};
-use crate::{component_system::{self as cmp, ComponentExt, manager::{Manager, ArcManager}}, config::Config};
+use serenity::{Client, model::id::{ApplicationId, UserId}, prelude::GatewayIntents, prelude::RawEventHandler};
+use crate::{component_system::{self as cmp, ComponentExt, manager::{Manager, ArcManager}, components::test_component2}, config::Config};
+use opencdd_components as new_cmp;
 
 type Result<T> = serenity::Result<T>;
 
@@ -18,7 +21,8 @@ pub struct Bot {
     client: Client,
     /// Handler des composants.
     /// Actuellement un vecteur mais prochainement un gestionnaire est prévu.
-    _components: ArcManager
+    _components: ArcManager,
+    _new_components: RwLock<Vec<Arc<dyn new_cmp::Component>>>
 }
 
 impl Bot {
@@ -31,31 +35,34 @@ impl Bot {
             .map(|id| UserId(id))
             .collect::<Vec<_>>();
         let app_id = ApplicationId(config.app_id);
-        {
-            use cmp::components::*;
-            let mut manager_instance = manager.write().await;
-            let moderation = Moderation::new(app_id).to_arc();
-            // AJOUTER LES COMPOSANTS ICI A LA SUITE
-            manager_instance
-                .add_component(Misc::new(app_id, config.permissions, manager.clone()).to_arc())
-                .add_component(Tickets::new().to_arc())
-                .add_component(Help::new(manager.clone()).to_arc())
-                .add_component(moderation.clone())
-                .add_component(Autobahn::new(moderation).to_arc())
-                .add_component(SlashCommands::new(manager.clone(), owners_id, app_id).to_arc());
-        };
+        // {
+        //     use cmp::components::*;
+        //     let mut manager_instance = manager.write().await;
+        //     let moderation = Moderation::new(app_id).to_arc();
+        //     // AJOUTER LES COMPOSANTS ICI A LA SUITE
+        //     manager_instance
+        //         .add_component(Misc::new(app_id, config.permissions, manager.clone()).to_arc())
+        //         .add_component(Tickets::new().to_arc())
+        //         .add_component(Help::new(manager.clone()).to_arc())
+        //         .add_component(moderation.clone())
+        //         .add_component(Autobahn::new(moderation).to_arc())
+        //         .add_component(SlashCommands::new(manager.clone(), owners_id, app_id).to_arc());
+        // };
+        let mut container = new_cmp::ComponentContainer::new();
+        container.add_component(test_component2::Test);
+        let new_components: RwLock<Vec<Arc<dyn new_cmp::Component>>> = RwLock::new(vec![
+            Arc::new(cmp::components::test_component2::Test)
+        ]);
         
-        let framework = cmp::Framework::new(config.prefix, manager.clone());
         let event_container = cmp::EventDispatcher::new(manager.clone());
-        let client = Client::builder(&config.token)
-            .framework(framework)
-            .intents(GatewayIntents::all())
-            .raw_event_handler(event_container)
+        let client = Client::builder(&config.token, GatewayIntents::non_privileged())
+            .raw_event_handler(container.get_event_dispatcher())
             .application_id(config.app_id)
             .await?;
         Ok(Bot{
             client,
-            _components: manager
+            _components: manager,
+            _new_components: new_components
         })
     }
     /// Lance le bot.
