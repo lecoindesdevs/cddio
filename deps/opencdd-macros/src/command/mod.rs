@@ -97,7 +97,7 @@ impl Function for Command {
         }
         quote! {
             #(#args_decode)*
-            self.#name(#(#args_call),*)
+            self.#name(#(#args_call),*).await;
         }
     }
 }

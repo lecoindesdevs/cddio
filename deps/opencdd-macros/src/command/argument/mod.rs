@@ -98,7 +98,7 @@ impl Argument {
                         Ok(Argument {
                             base: arg,
                             arg_type: ArgumentType::Internal{
-                                call_variable: quote!{&app_command},
+                                call_variable: quote!{app_command},
                             },
                         })
                     }

@@ -1,9 +1,10 @@
-use serenity::{model::event::Event, client::{Context, RawEventHandler}, async_trait};
-
+use serenity::{model::event::Event, client::Context, async_trait};
+pub use serenity::prelude::RawEventHandler;
 use crate::Components;
 
-pub trait ComponentEvent: Sync + Send  {
-    fn event(&mut self, ctx: &Context, event: &Event);
+#[async_trait]
+pub trait ComponentEvent: Sync + Send{
+    async fn event(&mut self, ctx: &Context, event: &Event);
 }
 
 pub struct ComponentEventDispatcher {
@@ -16,13 +17,11 @@ impl ComponentEventDispatcher {
     }
 }
 
-
-
 #[async_trait]
 impl RawEventHandler for ComponentEventDispatcher {
     async fn raw_event(&self, ctx: Context, ev: Event) {
         for comp in &self.components {
-            comp.lock().await.event(&ctx, &ev)
+            comp.lock().await.event(&ctx, &ev).await
         }
     }
 }

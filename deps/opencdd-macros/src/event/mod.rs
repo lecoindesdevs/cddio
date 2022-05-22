@@ -44,7 +44,7 @@ impl Function for Event {
         let event_name = quote::format_ident!("{}", self.attr.name);
         let func_name = self.name();
         
-        quote!{serenity::model::event::Event::#event_name(evt) => self.#func_name(ctx, evt),}
+        quote!{serenity::model::event::Event::#event_name(evt) => self.#func_name(ctx, evt).await}
     }
 }
 
