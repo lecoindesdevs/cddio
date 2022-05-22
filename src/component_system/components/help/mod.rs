@@ -19,10 +19,6 @@ impl cmp::Component for Help {
         "help"
     }
 
-    async fn command(&self, fw_config: &cmp::FrameworkConfig, ctx: &cmp::Context, msg: &cmp::Message) -> cmp::CommandMatch {
-        self.r_command(fw_config, ctx, msg).await
-    }
-
     async fn event(&self, ctx: &cmp::Context, event: &cmp::Event) -> Result<(), String> {
         self.r_event(ctx, event).await
     }
@@ -61,28 +57,6 @@ impl Help {
         Help { manager, node }
     }
     
-    /// Helper pour le language server.
-    /// rust-analyzer n'aime pas les fonctions async dans les traits
-    async fn r_command(&self, _: &cmp::FrameworkConfig, ctx: &cmp::Context, msg: &cmp::Message) -> cmp::CommandMatch {
-        let args = cmd::split_shell(&msg.content[1..]);
-        let matched = match utils::try_match(ctx, msg, &self.node, args).await {
-            Ok(v) => v,
-            Err(e) => return e
-        };
-        let command = match self.commands(matched.to_command()).await {
-            Ok(v) => v,
-            Err(None) => return cmp::CommandMatch::NotMatched,
-            Err(Some(e)) => return cmp::CommandMatch::Error(e)
-        };
-        
-        match msg.channel_id.send_message(ctx, |m| {
-            *m = command.into();
-            m
-        }).await {
-            Ok(_) => cmp::CommandMatch::Matched,
-            Err(e) => cmp::CommandMatch::Error(format!("Impossible d'envoyer le message d'aide: {}", e))
-        }
-    }
     async fn r_event(&self, ctx: &cmp::Context, event: &cmp::Event) -> Result<(), String> {
         match event {
             cmp::Event::InteractionCreate(InteractionCreateEvent{interaction: serenity::model::interactions::Interaction::ApplicationCommand(c), ..}) => self.on_applications_command(ctx, c).await,
@@ -98,7 +72,7 @@ impl Help {
         app_command.create_interaction_response(ctx, |resp|
             resp.interaction_response_data(|data| {
                 data.content(message);
-                data.embeds(embeds);
+                data.set_embeds(embeds);
                 if ephemeral {
                     data.flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL);
                 }

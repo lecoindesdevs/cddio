@@ -8,7 +8,7 @@ use std::sync::Arc;
 use serenity::async_trait;
 
 mod event;
-mod framework;
+// mod framework;
 mod data;
 mod slash;
 pub mod command_parser;
@@ -16,9 +16,10 @@ pub mod components;
 pub mod manager;
 
 pub use event::EventDispatcher;
-pub use framework::{Framework , FrameworkConfig};
-pub use framework::{Context, Message};
+// pub use framework::{Framework , FrameworkConfig};
+// pub use framework::{Context, Message};
 pub use serenity::model::event::Event;
+use serenity::client::Context;
 
 pub type ArcComponent = Arc<dyn Component>;
 
@@ -40,19 +41,6 @@ pub trait Component: Sync + Send
 {
     /// Nom du composant
     fn name(&self) -> &str;
-    /// Command handler du composant.
-    /// 
-    /// Cette fonction est appelée lorsque le bot reçoie une commande.
-    /// Elle doit retourner un [`CommandMatch`] qui définit si la commande a été traitée ou non.
-    /// 
-    /// Voir [`CommandMatch`], [`Context`] et [`Message`] pour plus d'informations.
-    /// 
-    /// [`Context`]: serenity::client::Context
-    /// [`Message`]: serenity::model::channel::Message
-    #[deprecated(note="Utilisez les events pour prendre en charge les slashs commandes")]
-    async fn command(&self, _: &FrameworkConfig, _: &Context, _: &Message) -> CommandMatch {
-        CommandMatch::NotMatched
-    }
     /// Event handler du composant.
     /// 
     /// Cette fonction est appelée lorsque le bot reçoit un évènement.

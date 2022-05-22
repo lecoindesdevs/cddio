@@ -5,6 +5,8 @@ use serenity::{async_trait, builder::CreateApplicationCommands, client::Context,
 use crate::component_system::{self as cmp, command_parser as cmd, components::utils::{app_command::{ApplicationCommandEmbed, get_argument}}, manager::{ArcManager}};
 use super::utils::message;
 use crate::component_system::slash;
+use opencdd_components::{self as new_cmp};
+use opencdd_macros::commands;
 
 
 /// Composant de gestion des commandes de l'application.
@@ -15,29 +17,18 @@ use crate::component_system::slash;
 /// génère les slashs commandes associés en se reposant sur notre API de *command parser* 
 /// pour les envoyer à Discord.
 pub struct SlashCommands {
-    manager: ArcManager,
+    container: new_cmp::ComponentContainer,
     owners: Vec<UserId>,
     group_match: cmd::Node,
     commands: RwLock<Vec<(GuildId, Vec<ApplicationCommand>)>>,
     app_id: ApplicationId,
 }
-#[async_trait]
-impl cmp::Component for SlashCommands {
-    fn name(&self) -> &'static str {
-        "slash"
-    }
 
-    async fn command(&self, _: &cmp::FrameworkConfig, _: &cmp::Context, _: &cmp::Message) -> cmp::CommandMatch {
-        cmp::CommandMatch::NotMatched
-    }
-
-    async fn event(&self, ctx: &cmp::Context, evt: &cmp::Event) -> Result<(), String> {
-        self.r_event(ctx, evt).await
-    }
-    fn node(&self) -> Option<&cmd::Node> {
-        Some(&self.group_match)
-    }
+#[commands]
+impl SlashCommands {
+    
 }
+
 
 /// Helper pour la lecture des différents arguments d'une commande du group `slash`.
 /// 

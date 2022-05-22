@@ -11,7 +11,7 @@ use serenity::model::event::InteractionCreateEvent;
 use serenity::model::id::ApplicationId;
 use serenity::model::interactions::application_command::ApplicationCommandInteraction;
 use serenity::model::{Permissions, event::{Event, ReadyEvent}};
-use super::super::{CommandMatch, Component, FrameworkConfig};
+use super::super::{CommandMatch, Component};
 use super::utils::app_command::ApplicationCommandEmbed;
 use super::utils::message;
 use crate::component_system::command_parser as cmd;
@@ -36,34 +36,6 @@ struct DataTest{
 impl Component for Misc {
     fn name(&self) -> &'static str {
         "misc"
-    }
-    async fn command(&self, _: &FrameworkConfig, ctx: &Context, msg: &Message) -> CommandMatch {
-        let args = cmd::split_shell(&msg.content[1..]);
-        let matched = match utils::try_match(ctx, msg, &self.node, args).await {
-            Ok(v) => v,
-            Err(e) => return e
-        };
-        match matched.get_command() {
-            "ping" => {
-                match utils::has_permission(ctx, msg, matched.permission).await {
-                    Ok(true) => Self::send_message(ctx, msg, "Pong!").await,
-                    Ok(false) => {
-                        match utils::send::no_perm(ctx, msg.channel_id).await {
-                            Ok(_) => CommandMatch::Matched,
-                            Err(e) => return CommandMatch::Error(e.to_string())
-                        }
-                    },
-                    Err(e) => e
-                }
-            },
-            "data" => {
-                let mut data = utils::Data::new("misc", DataTest{ don1: "yes".to_string(), don2: 32 });
-                let mut guard = data.write();
-                guard.don1 = "no".to_string();
-                CommandMatch::Matched
-            }
-            _ => CommandMatch::NotMatched
-        }
     }
 
     async fn event(&self, ctx: &Context, evt: &Event) -> Result<(), String> {

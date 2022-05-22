@@ -16,7 +16,7 @@ use serenity::model::channel::{Message, ReactionType, GuildChannel};
 use serenity::model::event::Event;
 
 use crate::component_system::components::utils::commands::ToCommand;
-use crate::component_system::{self as cmp, FrameworkConfig, command_parser as cmd};
+use crate::component_system::{self as cmp, command_parser as cmd};
 use super::utils;
 use super::utils::message;
 use super::utils::Data;
@@ -96,9 +96,6 @@ struct CategoryTicket {
 impl crate::component_system::Component for Tickets {
     fn name(&self) -> &str {
         "tickets"
-    }
-    async fn command(&self, fw_config: &FrameworkConfig, ctx: &Context, msg: &Message) -> cmp::CommandMatch {
-        self.r_command(fw_config, ctx, msg).await
     }
     async fn event(&self, ctx: &Context, evt: &Event) -> Result<(), String> {
         self.r_event(ctx, evt).await
@@ -183,32 +180,6 @@ impl Tickets {
             archives_folder: utils::DATA_DIR.join("archives"),
         }
     }
-    /// Execute les commandes du composant __non slash__
-    async fn r_command(&self, _: &FrameworkConfig, _ctx: &Context, _msg: &Message) -> cmp::CommandMatch {
-        // let args = cmd::split_shell(&msg.content[1..]);
-        
-        // let matched = match utils::try_match(ctx, msg, &self.node, args).await {
-        //     Ok(v) => v,
-        //     Err(e) => return e
-        // };
-        // println!("matched: {:?}", matched);
-        // let guild_id = match msg.guild_id {
-        //     Some(id) => id,
-        //     None => return cmp::CommandMatch::Error("Cette commande n'est pas disponible en message privé.".to_string())
-        // };
-        // let command = matched.to_command();
-        // println!("{:?}", command);
-        // let c_msg = match self.commands(ctx, guild_id, command).await {
-        //     Ok(v) => v,
-        //     Err(Some(e)) => return cmp::CommandMatch::Error(e),
-        //     Err(None) => return cmp::CommandMatch::NotMatched,
-        // };
-        // match utils::send::custom(ctx, msg.channel_id, c_msg).await {
-        //     Ok(_) => cmp::CommandMatch::Matched,
-        //     Err(e) => cmp::CommandMatch::Error(format!("Erreur lors de l'envoi du message de réponse: {}", e.to_string()))
-        // }
-        cmp::CommandMatch::NotMatched
-    }
     /// Dispatch un enevement reçu par le bot
     async fn r_event(&self, ctx: &Context, evt: &Event) -> Result<(), String> {
         use serenity::model::event::Event::*;
@@ -225,9 +196,9 @@ impl Tickets {
     /// Dispatch une intération reçue par le bot
     async fn on_interaction(&self, ctx: &Context, interaction: &Interaction) -> Result<(), String> {
         match interaction {
-            Interaction::Ping(_) => Ok(()),
             Interaction::ApplicationCommand(v) => self.on_app_command(ctx, v).await,
             Interaction::MessageComponent(v) => self.on_msg_component(ctx, v).await,
+            _ => Ok(())
         }
     }
     async fn commands(&self, ctx: &Context, guild_id: GuildId, command: commands::Command, app_cmd: &utils::app_command::ApplicationCommandEmbed<'_>) -> Result<Option<message::Message>, Option<String>> {
@@ -391,18 +362,18 @@ impl Tickets {
             // Personne ne peut voir le channel...
             PermissionOverwrite {
                 allow: Default::default(),
-                deny: Permissions::READ_MESSAGES,
+                deny: Permissions::VIEW_CHANNEL,
                 kind: PermissionOverwriteType::Role(everyone),
             },
             // ...excepté les modérateurs et au dessus...
             PermissionOverwrite {
-                allow: Permissions::READ_MESSAGES,
+                allow: Permissions::VIEW_CHANNEL,
                 deny: Default::default(),
                 kind: PermissionOverwriteType::Role(modo),
             },
             // ...et le creéateur du ticket
             PermissionOverwrite {
-                allow: Permissions::READ_MESSAGES,
+                allow: Permissions::VIEW_CHANNEL,
                 deny: Default::default(),
                 kind: PermissionOverwriteType::Member(member.user.id),
             }];
@@ -499,7 +470,7 @@ impl Tickets {
                         };
                         let content = v.content.as_str();
                         let author = format!("{}#{:04}", v.author.name, v.author.discriminator);
-                        let date = v.timestamp.to_rfc3339();
+                        let date = v.timestamp;
                         if users.get(&author).is_none() {
                             users.insert(author.clone(), UserData{
                                 id: v.author.id.0,
@@ -725,7 +696,7 @@ impl Tickets {
             _ => ()
         }
         match channel.create_permission(ctx, &PermissionOverwrite {
-            allow: Permissions::READ_MESSAGES,
+            allow: Permissions::VIEW_CHANNEL,
             deny: Default::default(),
             kind: PermissionOverwriteType::Member(user),
         }).await {

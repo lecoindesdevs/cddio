@@ -48,7 +48,7 @@ impl From<Message> for CreateMessage<'static> {
         res
     }
 }
-impl From<Message> for CreateInteractionResponse {
+impl From<Message> for CreateInteractionResponse<'_> {
     fn from(message: Message) -> Self {
         use serenity::model::interactions::{InteractionResponseType, InteractionApplicationCommandCallbackDataFlags};
         let mut response = CreateInteractionResponse::default();
@@ -57,7 +57,7 @@ impl From<Message> for CreateInteractionResponse {
                 data.flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL);
             }
             data.content(message.message);
-            data.embeds(message.embeds.into_iter());
+            data.set_embeds(message.embeds.into_iter());
             data
         });
         response.kind(InteractionResponseType::ChannelMessageWithSource);

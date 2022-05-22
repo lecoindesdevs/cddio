@@ -1,10 +1,11 @@
 use opencdd_macros::*;
+use serenity::model::event::{MessageCreateEvent, ReadyEvent};
 use serenity::{client::Context};
 use serenity::model::id::RoleId;
 
-use super::utils::app_command::ApplicationCommandEmbed;
+use opencdd_components::ApplicationCommandEmbed;
 
-struct Test;
+pub struct Test;
 
 #[commands]
 #[group(name="tickets", description="Gestion des tickets")]
@@ -12,24 +13,28 @@ struct Test;
 #[group(parent="ticket", name="member", description="Gestion des membres dans un ticket")]
 impl Test {
     #[command(group="tickets", name="create", description="Créer un ticket")]
-    fn tickets_create(&self, 
+    async fn tickets_create(&self, 
         ctx: &Context, 
-        appcmd: &ApplicationCommandEmbed, 
+        appcmd: ApplicationCommandEmbed<'_>, 
         #[argument(description="...")]
         categorie: RoleId, 
         #[argument(name="who", description="...")]
         pour_qui: serenity::model::user::User
     ) {} 
     #[command(group="member", name="add", description="Ajouter un membre au ticket")]
-    fn ticket_member_add(&self, 
+    async fn ticket_member_add(&self, 
         ctx: &Context, 
-        appcmd: &ApplicationCommandEmbed, 
+        appcmd: ApplicationCommandEmbed<'_>, 
         #[argument(description="Qui ajouter au ticket")]
         ajouter_qui: Option<serenity::model::user::User>
     ) {}
     
-    // #[event(MessageCreate)]
-    // fn test2(&self) {
-    //     println!("test2");
-    // }
+    #[event(MessageCreate)]
+    async fn test2(&self, ctx: &Context, msg: &MessageCreateEvent) {
+        println!("test2");
+    }
+    #[event(Ready)]
+    async fn on_ready(&self, ctx: &Context, ready: &ReadyEvent) {
+        println!("test démarrage");
+    }
 }

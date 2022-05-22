@@ -105,10 +105,6 @@ impl cmp::Component for Moderation {
         "mod"
     }
 
-    async fn command(&self, _: &cmp::FrameworkConfig, _: &cmp::Context, _: &cmp::Message) -> cmp::CommandMatch {
-        cmp::CommandMatch::NotMatched
-    }
-
     async fn event(&self, ctx: &cmp::Context, evt: &cmp::Event) -> Result<(), String> {
         self.r_event(ctx, evt).await
     }
@@ -200,7 +196,7 @@ impl Moderation {
             let data = data.read();
             
             let guild_id = ready.guilds.iter()
-                .map(|g| g.id())
+                .map(|g| g.id)
                 .next()
                 .ok_or_else(|| "No guild found".to_string())?;
             (data.mod_until.clone(), data.muted_role, guild_id)
@@ -269,11 +265,11 @@ impl Moderation {
             Some(5)
         ).await.map_err(|e| format!("Impossible d'obtenir les logs d'audit: {}", e.to_string()))?;
         let found = audit_logs.entries.into_iter()
-            .find(|(_, entry)| entry.target_id.unwrap_or_default() == target_user.id.0);
+            .find(|entry| entry.target_id.unwrap_or_default() == target_user.id.0);
         if found.is_none() {
             return Ok(());
         }
-        let entry = found.map(|(_, v)| v).unwrap();
+        let entry = found.unwrap();
         let username = entry.user_id
             .to_user(ctx).await
             .and_then(|u| Ok(format_username(&u)))
@@ -406,7 +402,7 @@ impl Moderation {
                 let userroles = params.guild_id
                     .member(ctx, user).await
                     .or_else (|e| Err(format!("Impossible de récupérer un membre du serveur: {}", e)))?
-                    .roles(ctx).await;
+                    .roles(ctx);
                 let top_role = match userroles {
                     Some(roles) if roles.is_empty() => break 'check,
                     Some(roles) => roles[0].id,
@@ -433,7 +429,7 @@ impl Moderation {
                 params.type_mod.into(), 
                 when.as_ref().map(|v| v.as_str()), 
                 params.reason.as_ref().map(|v| v.as_str()), 
-                params.guild_id.as_ref().name(ctx).await.unwrap().as_str()
+                params.guild_id.as_ref().name(ctx).unwrap().as_str()
             ).await{
                 Err(e) => println!("[WARN] Impossible d'avertir le membre: {}", e),
                 _ => ()
@@ -564,7 +560,7 @@ impl Moderation {
         let params = ModerateParameters {
             guild_id,
             user_id: user,
-            user_by: ctx.cache.current_user().await.id,
+            user_by: ctx.cache.current_user().id,
             type_mod: TypeModeration::Mute,
             reason,
             duration: time.map(|time| (time.num_seconds() as u64)),
@@ -580,7 +576,7 @@ impl Moderation {
         let params = ModerateParameters {
             guild_id,
             user_id: user,
-            user_by: ctx.cache.current_user().await.id,
+            user_by: ctx.cache.current_user().id,
             type_mod: TypeModeration::Ban,
             reason,
             duration: time.map(|time| (time.num_seconds() as u64)),
@@ -596,7 +592,7 @@ impl Moderation {
         let params = ModerateParameters {
             guild_id,
             user_id: user,
-            user_by: ctx.cache.current_user().await.id,
+            user_by: ctx.cache.current_user().id,
             type_mod: TypeModeration::Kick,
             reason,
             duration: None,
