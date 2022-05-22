@@ -1,9 +1,10 @@
 mod argument;
 use crate::util::{ParenValue, MacroArgs};
 use proc_macro2 as pm2;
+use syn::spanned::Spanned;
 use std::fmt;
 use quote::{ToTokens, quote};
-use self::argument::ArgumentType;
+use self::argument::{ArgumentType, Argument};
 
 use super::Function;
 
@@ -36,10 +37,42 @@ impl CommandAttribute {
     }
 }
 
+#[derive(Clone)]
 pub struct Command {
     pub attr: CommandAttribute,
     pub impl_fn: syn::ImplItemMethod,
     pub args: Vec<argument::Argument>,
+}
+
+impl Command {
+    pub fn new(attr: syn::Attribute, impl_fn: syn::ImplItemMethod) -> syn::Result<Self> {
+        let attr = CommandAttribute::from_attr(attr)?;
+        let args = impl_fn.sig.inputs.iter().cloned().map(|arg| Argument::new(arg)).collect::<Result<Vec<_>, _>>()?;
+        Ok(Command {
+            attr,
+            impl_fn,
+            args,
+        })
+    }
+    pub fn get_declarative(&self) -> Option<pm2::TokenStream> {
+        let arguments = self.args.iter().filter_map(|v| v.get_declarative());
+        let name = match self.attr.name {
+            Some(ref name) => name.clone(),
+            None => self.name().to_string(),
+        }; 
+        let description = &self.attr.description;
+        Some(
+            quote! {
+                opencdd_components::declarative::Command {
+                    name: #name,
+                    description: #description,
+                    args: &[
+                        #(#arguments),*
+                    ],
+                }
+            }
+        )
+    }
 }
 
 impl Function for Command {
@@ -93,7 +126,7 @@ impl fmt::Debug for Command {
         f.debug_struct("Command")
             .field("name", &self.attr.name)
             .field("description", &self.attr.description)
-            .field("function_name", &self.function_name())
+            .field("function_name", &self.name())
             .field("args", &self.args)
             .finish()
     }
