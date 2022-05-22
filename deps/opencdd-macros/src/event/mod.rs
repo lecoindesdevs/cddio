@@ -41,7 +41,10 @@ impl Function for Event {
     }
 
     fn event_handle(&self) -> proc_macro2::TokenStream {
-        todo!()
+        let event_name = quote::format_ident!("{}", self.attr.name);
+        let func_name = self.name();
+        
+        quote!{serenity::model::event::Event::#event_name(evt) => self.#func_name(ctx, evt),}
     }
 }
 
@@ -54,7 +57,7 @@ impl ToTokens for Event {
 impl fmt::Debug for Event {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Event")
-                    .field("event", &self.attr.name)
-                    .finish()
+            .field("event", &self.attr.name)
+            .finish()
     }
 }
