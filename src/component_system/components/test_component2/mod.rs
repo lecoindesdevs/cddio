@@ -20,14 +20,20 @@ impl Test {
         categorie: RoleId, 
         #[argument(name="who", description="...")]
         pour_qui: serenity::model::user::User
-    ) {} 
+    ) {
+        println!("tickets_create");
+        println!("{:?}", categorie);
+        println!("{:?}", pour_qui);
+    } 
     #[command(group="member", name="add", description="Ajouter un membre au ticket")]
     async fn ticket_member_add(&self, 
         ctx: &Context, 
         appcmd: ApplicationCommandEmbed<'_>, 
         #[argument(description="Qui ajouter au ticket")]
         ajouter_qui: Option<serenity::model::user::User>
-    ) {}
+    ) {
+        println!("ticket_member_add {:?}", ajouter_qui);
+    }
     
     #[event(MessageCreate)]
     async fn test2(&self, ctx: &Context, msg: &MessageCreateEvent) {
