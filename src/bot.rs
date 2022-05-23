@@ -50,9 +50,11 @@ impl Bot {
         // };
         let mut container = new_cmp::ComponentContainer::new();
         container.add_component(test_component2::Test);
-        let new_components: RwLock<Vec<Arc<dyn new_cmp::Component>>> = RwLock::new(vec![
-            Arc::new(cmp::components::test_component2::Test)
-        ]);
+        container.add_component(cmp::components::SlashCommand::new(container.clone(), owners_id));
+        // let new_components: RwLock<Vec<Arc<dyn new_cmp::Component>>> = RwLock::new(vec![
+        //     Arc::new(cmp::components::test_component2::Test),
+        //     Arc::new(cmp::components::SlashCommand::new(container.clone(), owners_id)),
+        // ]);
         
         let event_container = cmp::EventDispatcher::new(manager.clone());
         let client = Client::builder(&config.token, GatewayIntents::non_privileged())
@@ -62,7 +64,7 @@ impl Bot {
         Ok(Bot{
             client,
             _components: manager,
-            _new_components: new_components
+            _new_components: RwLock::new(vec![])
         })
     }
     /// Lance le bot.
