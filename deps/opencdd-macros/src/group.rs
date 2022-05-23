@@ -37,20 +37,29 @@ impl GroupAttribute {
 pub struct Group {
     attr: Option<GroupAttribute>,
     children: Vec<RefGroup>,
-    functions: Vec<RefFunction>
+    functions: Vec<RefFunction>,
+    parent: Option<RefGroup>
 }
 type RefGroup = Rc<RefCell<Group>>;
 
 impl Group {
-    pub fn new_rc(attr: GroupAttribute) -> RefGroup {
+    pub fn new_rc(attr: GroupAttribute, parent: Option<RefGroup>) -> RefGroup {
         Rc::new(RefCell::new(Group {
             attr: Some(attr),
             children: Vec::new(),
-            functions: Vec::new()
+            functions: Vec::new(),
+            parent
         }))
     }
     pub fn add_function(&mut self, function: RefFunction) {
         self.functions.push(function);
+    }
+    pub fn get_fullname(&self) -> String {
+        let mut result = self.attr.as_ref().unwrap().name.clone();
+        if let Some(parent) = self.parent.as_ref() {
+            result = format!("{}.{}", parent.borrow().get_fullname(), result);
+        }
+        result
     }
     pub fn get_declarative(&self) -> pm2::TokenStream {
         let it_commands = self.functions.iter().map(|f| {
@@ -81,7 +90,6 @@ impl Group {
         } else {
             node
         }
-        
     }
 }
 impl Default for Group {
@@ -89,7 +97,8 @@ impl Default for Group {
         Group {
             attr: None,
             children: Vec::new(),
-            functions: Vec::new()
+            functions: Vec::new(),
+            parent: None
         }
     }
 }
@@ -117,7 +126,11 @@ impl GroupManager {
             if group_manager.group_map.contains_key(&group_attr.name) {
                 return Err(Error::new(attr_span, "group name already used"));
             }
-            let group = Group::new_rc(group_attr.clone());
+            let parent = match &group_attr.parent {
+                Some(parent) => Some(group_manager.group_map.get(parent).cloned().ok_or_else(|| Error::new(attr_span, "parent group not found"))?),
+                None => None
+            };
+            let group = Group::new_rc(group_attr.clone(), parent);
             group_manager.group_map.insert(group_attr.name, Rc::clone(&group));
             let parent = group_attr.parent;
             if let Some(parent) = &parent {

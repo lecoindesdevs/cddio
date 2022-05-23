@@ -80,21 +80,25 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
                 });
             },
             FunctionType::Command(command) => {
-                let name = command.name().to_string();
+                
                 let event = command.event_handle();
-                commands.push(quote! {
-                    #name => {#event}
-                });
+                let name = command.attr.name.clone().or_else(|| Some(command.name().to_string())).unwrap();
                 impl_items.push(quote! {
                     #command
                 });
-                if let Some(grp) = &command.attr.group {
+                let name = if let Some(grp) = &command.attr.group {
                     let group_found = match groups.find_group(&grp) {
                         Some(group) => group,
                         None => return Err(syn::Error::new_spanned(&grp, "Groupe introuvable."))
                     };
                     group_found.borrow_mut().add_function(Rc::clone(&func_rc));
-                }
+                    format!("{}.{}",group_found.borrow().get_fullname(), name)
+                } else {
+                    name
+                };
+                commands.push(quote! {
+                    #name => {#event}
+                });
             },
             FunctionType::NoSpecial(v) => {
                 impl_items.push(quote! { #v });

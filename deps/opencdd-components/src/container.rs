@@ -2,6 +2,7 @@ use std::sync::Arc;
 use serenity::prelude::Mutex;
 use crate::{Components, event::ComponentEventDispatcher, Component};
 
+#[derive(Clone)]
 pub struct ComponentContainer(Components);
 
 impl ComponentContainer {

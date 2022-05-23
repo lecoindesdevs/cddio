@@ -164,8 +164,10 @@ impl Argument {
             ArgumentType::Parameter{attribute, optional, reader, ..} => (attribute, optional, &reader.option_type),
             _ => return None
         };
-        let name = match &self.base {
-            syn::FnArg::Typed(syn::PatType{ref pat, ref ty, ..}) => {
+        let name = attr.name.clone();
+        let name = match (name, &self.base) {
+            (Some(name), _) => name,
+            (None, syn::FnArg::Typed(syn::PatType{ref pat, ..})) => {
                 let name = match &pat.as_ref() {
                     syn::Pat::Ident(syn::PatIdent{ref ident, ..}) => ident.to_string(),
                     _ => return None
