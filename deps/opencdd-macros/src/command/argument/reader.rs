@@ -98,11 +98,11 @@ impl Reader {
                 Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
                     resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::User(s, _)),
                     ..
-                }) => {Mentionable::User(s.id)},
+                }) => {Some(opencdd_components::embed::Mentionable::User(s.id))},
                 Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
                     resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::Role(s)),
                     ..
-                }) => {Mentionable::Role(s.id)},
+                }) => {Some(opencdd_components::embed::Mentionable::Role(s.id))},
                 _ => None
             }
         }

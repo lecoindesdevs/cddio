@@ -1,6 +1,8 @@
+use std::sync::Arc;
+
 use serenity::{model::{id::GuildId, interactions::application_command::ApplicationCommandOptionType}, builder::{CreateApplicationCommands, CreateApplicationCommandOption, CreateApplicationCommand}, client::Context};
 
-pub trait ComponentDeclarative {
+pub trait ComponentDeclarative{
     fn declarative(&self) -> Option<&'static Node> {
         None
     }

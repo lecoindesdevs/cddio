@@ -1,9 +1,10 @@
 use std::sync::Arc;
-use serenity::prelude::Mutex;
+use futures_locks::RwLock;
 use crate::{Components, event::ComponentEventDispatcher, Component};
 
 #[derive(Clone)]
 pub struct ComponentContainer(Components);
+pub type RefContainer = RwLock<ComponentContainer>;
 
 impl ComponentContainer {
     pub fn new() -> ComponentContainer {
@@ -13,7 +14,7 @@ impl ComponentContainer {
         ComponentEventDispatcher::new(self.0.clone())
     }
     pub fn add_component<T: 'static + Component>(&mut self, comp: T) {
-        self.0.push (Arc::new(Mutex::new(comp)))
+        self.0.push (Arc::new(comp))
     }
 }
 impl AsRef<Components> for ComponentContainer {

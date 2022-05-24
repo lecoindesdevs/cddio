@@ -108,7 +108,7 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
     let impl_event = quote! {
         #[serenity::async_trait]
         impl opencdd_components::ComponentEvent for #struct_name {
-            async fn event(&mut self, ctx: &serenity::client::Context, event: &serenity::model::event::Event) {
+            async fn event(&self, ctx: &serenity::client::Context, event: &serenity::model::event::Event) {
                 match event {
                     serenity::model::event::Event::InteractionCreate(serenity::model::event::InteractionCreateEvent{interaction: serenity::model::interactions::Interaction::ApplicationCommand(orig_app_command), ..}) => {
                         let app_command = opencdd_components::ApplicationCommandEmbed::new(orig_app_command);

@@ -1,4 +1,4 @@
-use serenity::model::{id::GuildId, interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandOptionType, ApplicationCommandInteractionData}};
+use serenity::model::{id::{GuildId, UserId, RoleId}, interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandOptionType, ApplicationCommandInteractionData}};
 
 enum CommandType<'b> {
     Command(&'b ApplicationCommandInteractionData),
@@ -143,3 +143,9 @@ macro_rules! get_argument {
 }
 #[allow(unused_imports)]
 pub(crate) use {get_argument_result, get_optional_argument_result, get_argument};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mentionable {
+    User(UserId),
+    Role(RoleId),
+}

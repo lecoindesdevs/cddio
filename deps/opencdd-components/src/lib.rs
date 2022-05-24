@@ -11,5 +11,4 @@ pub use embed::ApplicationCommandEmbed;
 use serenity::prelude::Mutex;
 
 pub trait Component: ComponentDeclarative + ComponentEvent {}
-
-pub type Components = Vec<Arc<Mutex<dyn Component>>>;
+pub type Components = Vec<Arc<dyn Component>>;

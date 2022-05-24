@@ -48,9 +48,12 @@ impl Bot {
         //         .add_component(Autobahn::new(moderation).to_arc())
         //         .add_component(SlashCommands::new(manager.clone(), owners_id, app_id).to_arc());
         // };
-        let mut container = new_cmp::ComponentContainer::new();
-        container.add_component(test_component2::Test);
-        container.add_component(cmp::components::SlashCommand::new(container.clone(), owners_id));
+        let ref_container = RwLock::new(new_cmp::ComponentContainer::new());
+        {
+            let mut container = ref_container.write().await;
+            container.add_component(test_component2::Test);
+            container.add_component(cmp::components::SlashCommand::new(ref_container.clone(), owners_id));
+        }
         // let new_components: RwLock<Vec<Arc<dyn new_cmp::Component>>> = RwLock::new(vec![
         //     Arc::new(cmp::components::test_component2::Test),
         //     Arc::new(cmp::components::SlashCommand::new(container.clone(), owners_id)),
@@ -58,7 +61,7 @@ impl Bot {
         
         let event_container = cmp::EventDispatcher::new(manager.clone());
         let client = Client::builder(&config.token, GatewayIntents::non_privileged())
-            .raw_event_handler(container.get_event_dispatcher())
+            .raw_event_handler(ref_container.read().await.get_event_dispatcher())
             .application_id(config.app_id)
             .await?;
         Ok(Bot{

@@ -4,7 +4,7 @@ use crate::Components;
 
 #[async_trait]
 pub trait ComponentEvent: Sync + Send{
-    async fn event(&mut self, ctx: &Context, event: &Event);
+    async fn event(&self, ctx: &Context, event: &Event);
 }
 
 pub struct ComponentEventDispatcher {
@@ -21,7 +21,7 @@ impl ComponentEventDispatcher {
 impl RawEventHandler for ComponentEventDispatcher {
     async fn raw_event(&self, ctx: Context, ev: Event) {
         for comp in &self.components {
-            comp.lock().await.event(&ctx, &ev).await
+            comp.event(&ctx, &ev).await
         }
     }
 }

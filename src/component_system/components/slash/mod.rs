@@ -1,3 +1,4 @@
+use cmp2::ApplicationCommandEmbed;
 use cmp2::declarative::Node;
 use opencdd_macros::commands;
 use opencdd_components as cmp2;
@@ -6,12 +7,12 @@ use serenity::prelude::*;
 use serenity::model::id::UserId;
 
 pub struct SlashCommand {
-    container: cmp2::ComponentContainer,
+    container: cmp2::container::RefContainer,
     owners: Vec<UserId>
 }
 
 impl SlashCommand {
-    pub fn new(container: cmp2::ComponentContainer, owners: Vec<UserId>) -> SlashCommand {
+    pub fn new(container: cmp2::container::RefContainer, owners: Vec<UserId>) -> SlashCommand {
         SlashCommand {
             container,
             owners
@@ -20,13 +21,14 @@ impl SlashCommand {
 }
 
 #[commands]
+#[group(name="slash", description="Gestion des commandes slash")]
+#[group(name="permissions", description="Gérer les permissions des commandes", parent="slash")]
 impl SlashCommand {
     #[event(Ready)]
     async fn on_ready(&self, ctx: &Context, ready: &ReadyEvent) {
-        let container = self.container.as_ref();
+        let container = self.container.read().await;
         let mut list_declarative = Vec::<&'static Node>::new();
-        for cont_rc in container.iter() {
-            let cont = cont_rc.lock().await;
+        for cont in container.as_ref() {
             if let Some(node) = cont.declarative() {
                 list_declarative.push(node);
             }
@@ -44,5 +46,19 @@ impl SlashCommand {
                 }
             }
         }
+    }
+    #[command(name="set", description="Autoriser ou interdire une commande à un membre ou un rôle", group="permissions")]
+    async fn permissions_set(
+        &self,
+        ctx: &Context, 
+        appcmd: ApplicationCommandEmbed<'_>, 
+        #[argument(description="Le membre ou le rôle")]
+        qui: cmp2::embed::Mentionable,
+        #[argument(description="La commande")]
+        commande: String,
+        #[argument(description="Autoriser ou interdire")]
+        autoriser: String
+    ) {
+        
     }
 }
