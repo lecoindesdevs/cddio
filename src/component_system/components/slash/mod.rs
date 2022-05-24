@@ -61,4 +61,35 @@ impl SlashCommand {
     ) {
         
     }
+    #[command(name="reset", description="Retire toutes les permissions d'une commande", group="permissions")]
+    async fn permissions_reset(
+        &self,
+        ctx: &Context, 
+        appcmd: ApplicationCommandEmbed<'_>, 
+        #[argument(description="La commande")]
+        commande: String
+    ){
+
+    }
+    #[command(name="remove", description="Efface la permission d'un membre ou d'un rôle à une commande", group="permissions")]
+    async fn permissions_remove(
+        &self,
+        ctx: &Context, 
+        appcmd: ApplicationCommandEmbed<'_>,
+        #[argument(description="Le membre ou le rôle")]
+        qui: cmp2::embed::Mentionable,
+        #[argument(description="La commande")]
+        commande: String
+    ){
+
+    }
+    #[command(name="list", description="Liste les permissions des commandes sur le serveur", group="permissions")]
+    async fn permissions_list(
+        &self,
+        ctx: &Context, 
+        appcmd: ApplicationCommandEmbed<'_>
+    ){
+
+    }
+
 }
