@@ -3,17 +3,21 @@ use cmp2::declarative::Node;
 use opencdd_macros::commands;
 use opencdd_components as cmp2;
 use serenity::model::event::ReadyEvent;
+use serenity::model::interactions::application_command::ApplicationCommandPermissionType;
 use serenity::prelude::*;
-use serenity::model::id::UserId;
+use serenity::model::id::{UserId, ApplicationId};
+use opencdd_components::message;
 
 pub struct SlashCommand {
+    app_id: ApplicationId,
     container: cmp2::container::RefContainer,
     owners: Vec<UserId>
 }
 
 impl SlashCommand {
-    pub fn new(container: cmp2::container::RefContainer, owners: Vec<UserId>) -> SlashCommand {
+    pub fn new(app_id: ApplicationId, container: cmp2::container::RefContainer, owners: Vec<UserId>) -> SlashCommand {
         SlashCommand {
+            app_id,
             container,
             owners
         }
@@ -89,7 +93,59 @@ impl SlashCommand {
         ctx: &Context, 
         appcmd: ApplicationCommandEmbed<'_>
     ){
+        let mut delayed = match appcmd.delayed_response(ctx).await {
+            Ok(delayed) => delayed,
+            Err(why) => {
+                println!("Error while sending the message: {:?}", why);
+                return;
+            }
+        };
+        let guild_id = match appcmd.get_guild_id() {
+            Some(guild_id) => guild_id,
+            None => {
+                println!("Slash permission commands can only be used in a guild");
+                delayed.message = Some(message::error("Slash permission commands can only be used in a guild"));
+                delayed.send(ctx, &appcmd.0).await;
+                return;
+            }
+        };
+        let mut commands = match guild_id.get_application_commands(ctx).await {
+            Ok(v) => v,
+            Err(_) => Vec::new()
+        }.into_iter().filter(|c| c.application_id == self.app_id);
+        let perms = match guild_id.get_application_commands_permissions(ctx).await {
+            Ok(v) => v,
+            Err(_) => Vec::new()
+        }.into_iter().filter(|c| c.application_id == self.app_id);
+        let perms = perms.filter_map(|v| commands.find(|c| c.id == v.id).map(|command| (command.name, v.permissions)));
 
+        delayed.message = {
+            let mut msg = message::success("");
+
+            if let Some(embed) = msg.last_embed_mut() {
+                embed.title("Permission des commandes");
+                embed.fields(perms.map(|v| {
+                    let list_perm = v.1
+                        .into_iter()
+                        .map(|perm| {
+                            let user = match perm.kind {
+                                ApplicationCommandPermissionType::User => format!("<@{}>", perm.id),
+                                ApplicationCommandPermissionType::Role => format!("<@&{}>", perm.id),
+                                _ => "*unknown*".to_string(),
+                            };
+                            let permission = match perm.permission {
+                                true => '✅',
+                                false => '❌',
+                            };
+                            format!("{} {}\n", permission, user)
+                        })
+                        .collect::<String>();
+                    (v.0.to_string(), list_perm, true)
+                }));
+            }
+            Some(msg)
+        };
+        delayed.send(ctx, &appcmd.0).await;
     }
 
 }

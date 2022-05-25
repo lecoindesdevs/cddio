@@ -37,7 +37,7 @@ impl Test {
     
     #[event(MessageCreate)]
     async fn test2(&self, ctx: &Context, msg: &MessageCreateEvent) {
-        println!("test2");
+        // println!("test2");
     }
     #[event(Ready)]
     async fn on_ready(&self, ctx: &Context, ready: &ReadyEvent) {

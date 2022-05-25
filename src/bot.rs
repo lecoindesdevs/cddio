@@ -52,7 +52,7 @@ impl Bot {
         {
             let mut container = ref_container.write().await;
             container.add_component(test_component2::Test);
-            container.add_component(cmp::components::SlashCommand::new(ref_container.clone(), owners_id));
+            container.add_component(cmp::components::SlashCommand::new(app_id, ref_container.clone(), owners_id));
         }
         // let new_components: RwLock<Vec<Arc<dyn new_cmp::Component>>> = RwLock::new(vec![
         //     Arc::new(cmp::components::test_component2::Test),
