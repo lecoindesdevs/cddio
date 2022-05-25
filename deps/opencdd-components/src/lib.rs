@@ -2,6 +2,7 @@ pub mod declarative;
 pub mod event;
 pub mod container;
 pub mod embed;
+pub mod message;
 use std::sync::Arc;
 
 pub use declarative::ComponentDeclarative;
