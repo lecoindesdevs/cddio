@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use cmp2::ApplicationCommandEmbed;
 use cmp2::declarative::Node;
 use opencdd_macros::commands;
@@ -5,13 +7,14 @@ use opencdd_components as cmp2;
 use serenity::model::event::ReadyEvent;
 use serenity::model::interactions::application_command::ApplicationCommandPermissionType;
 use serenity::prelude::*;
-use serenity::model::id::{UserId, ApplicationId};
+use serenity::model::id::{UserId, ApplicationId, CommandId, GuildId};
 use opencdd_components::message;
 
 pub struct SlashCommand {
     app_id: ApplicationId,
     container: cmp2::container::RefContainer,
-    owners: Vec<UserId>
+    owners: Vec<UserId>,
+    application_commands: RwLock<HashMap<GuildId,HashMap<String, CommandId>>>
 }
 
 impl SlashCommand {
@@ -19,7 +22,8 @@ impl SlashCommand {
         SlashCommand {
             app_id,
             container,
-            owners
+            owners,
+            application_commands: RwLock::new(HashMap::new())
         }
     }
 }
@@ -32,6 +36,7 @@ impl SlashCommand {
     async fn on_ready(&self, ctx: &Context, ready: &ReadyEvent) {
         let container = self.container.read().await;
         let mut list_declarative = Vec::<&'static Node>::new();
+        let mut app_cmds = HashMap::new();
         for cont in container.as_ref() {
             if let Some(node) = cont.declarative() {
                 list_declarative.push(node);
@@ -44,48 +49,19 @@ impl SlashCommand {
             }).await;
             let guild_name= guild.id.name(ctx).or_else(|| Some(guild.id.0.to_string())).unwrap();
             match status {
-                Ok(_) => println!("Application commands added to {}", guild_name),
+                Ok(guild_app_cmds) => {
+                    let guild_app_cmds = guild_app_cmds.into_iter().map(|app_cmd| {
+                        (app_cmd.name.to_string(), app_cmd.id)
+                    }).collect();
+                    app_cmds.insert(guild.id, guild_app_cmds);
+                    println!("Application commands added to {}", guild_name)
+                },
                 Err(why) => {
                     println!("Error while setting application commands to \"{}\": {:?}", guild_name, why);
                 }
             }
         }
-    }
-    #[command(name="set", description="Autoriser ou interdire une commande à un membre ou un rôle", group="permissions")]
-    async fn permissions_set(
-        &self,
-        ctx: &Context, 
-        appcmd: ApplicationCommandEmbed<'_>, 
-        #[argument(description="Le membre ou le rôle")]
-        qui: cmp2::embed::Mentionable,
-        #[argument(description="La commande")]
-        commande: String,
-        #[argument(description="Autoriser ou interdire")]
-        autoriser: String
-    ) {
-        
-    }
-    #[command(name="reset", description="Retire toutes les permissions d'une commande", group="permissions")]
-    async fn permissions_reset(
-        &self,
-        ctx: &Context, 
-        appcmd: ApplicationCommandEmbed<'_>, 
-        #[argument(description="La commande")]
-        commande: String
-    ){
-
-    }
-    #[command(name="remove", description="Efface la permission d'un membre ou d'un rôle à une commande", group="permissions")]
-    async fn permissions_remove(
-        &self,
-        ctx: &Context, 
-        appcmd: ApplicationCommandEmbed<'_>,
-        #[argument(description="Le membre ou le rôle")]
-        qui: cmp2::embed::Mentionable,
-        #[argument(description="La commande")]
-        commande: String
-    ){
-
+        *self.application_commands.write().await = app_cmds;
     }
     #[command(name="list", description="Liste les permissions des commandes sur le serveur", group="permissions")]
     async fn permissions_list(
@@ -105,7 +81,7 @@ impl SlashCommand {
             None => {
                 println!("Slash permission commands can only be used in a guild");
                 delayed.message = Some(message::error("Slash permission commands can only be used in a guild"));
-                delayed.send(ctx, &appcmd.0).await;
+                delayed.send(ctx, &appcmd.0).await.unwrap();
                 return;
             }
         };
@@ -145,7 +121,7 @@ impl SlashCommand {
             }
             Some(msg)
         };
-        delayed.send(ctx, &appcmd.0).await;
+        delayed.send(ctx, &appcmd.0).await.unwrap();
     }
 
 }
