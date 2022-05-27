@@ -148,6 +148,9 @@ impl GroupManager {
     pub fn root(&self) -> &Group {
         &self.root
     }
+    pub fn root_mut(&mut self) -> &mut Group {
+        &mut self.root
+    }
     pub fn find_group(&self, name: &str) -> Option<RefGroup> {
         self.group_map.get(name).cloned()
     }
