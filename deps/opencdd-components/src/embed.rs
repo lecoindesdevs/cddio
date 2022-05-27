@@ -25,8 +25,8 @@ pub struct DelayedResponse {
 }
 
 impl DelayedResponse {
-    pub async fn new(ctx: &Context, app_cmd: &ApplicationCommandInteraction) -> serenity::Result<Self> {
-        Self::send_new_response(ctx, app_cmd).await.or_else(|e| {
+    pub async fn new(ctx: &Context, app_cmd: &ApplicationCommandInteraction, ephemeral: bool) -> serenity::Result<Self> {
+        Self::send_new_response(ctx, app_cmd, ephemeral).await.or_else(|e| {
             eprintln!("Cannot create response: {}", e);
             Err(e)
         })?;
@@ -52,10 +52,14 @@ impl DelayedResponse {
         self.message = None;
         result
     }
-    async fn send_new_response(ctx: &Context, app_cmd: &ApplicationCommandInteraction) -> serenity::Result<()> {
+    async fn send_new_response(ctx: &Context, app_cmd: &ApplicationCommandInteraction, ephemeral: bool) -> serenity::Result<()> {
         use serenity::model::interactions::InteractionResponseType;
         app_cmd.create_interaction_response(ctx, |resp|{
-            resp.kind(InteractionResponseType::DeferredChannelMessageWithSource)
+            resp
+                .kind(InteractionResponseType::DeferredChannelMessageWithSource)
+                .interaction_response_data(|data| {
+                    data.ephemeral(ephemeral)
+                })
         }).await
     }
     async fn edit_response(ctx: &Context, app_cmd: &ApplicationCommandInteraction, msg: &Option<Message>) -> serenity::Result<()> {
@@ -134,8 +138,8 @@ impl<'a> ApplicationCommandEmbed<'a> {
         self.1.get_argument(name)
     }
 
-    pub async fn delayed_response<'b>(&'b self, ctx: &'b Context) -> serenity::Result<DelayedResponse> {
-        DelayedResponse::new(ctx, self.0).await
+    pub async fn delayed_response<'b>(&'b self, ctx: &'b Context, ephemeral: bool) -> serenity::Result<DelayedResponse> {
+        DelayedResponse::new(ctx, self.0, ephemeral).await
     }
 
     pub async fn direct_response(&self, ctx: &Context, msg: Message) -> serenity::Result<()> {
