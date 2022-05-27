@@ -60,6 +60,12 @@ impl From<&ChildNode> for CreateApplicationCommand {
         app_cmd
     }
 }
+impl Display for ChildNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} (noeud) : {}", self.name, self.description)
+    }
+}
+
 pub struct Command {
     pub name: &'static str,
     pub description: &'static str,
@@ -90,6 +96,12 @@ impl From<&Command> for CreateApplicationCommand {
         app_cmd
     }
 } 
+
+impl Display for Command {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} (commande) : {}", self.name, self.description)
+    }
+}
 pub struct Argument {
     pub name: &'static str,
     pub type_: serenity :: model :: interactions :: application_command :: ApplicationCommandOptionType,
@@ -108,6 +120,11 @@ impl From<&Argument> for CreateApplicationCommandOption {
     }
 }
 
+impl Display for Argument {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({}) : {}", self.name, self.type_ as u8, self.description)
+    }
+}
 
 pub struct IterFlatNode
 {
