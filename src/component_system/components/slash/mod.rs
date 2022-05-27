@@ -40,6 +40,8 @@ impl SlashCommand {
         for cont in container.as_ref() {
             if let Some(node) = cont.declarative() {
                 list_declarative.push(node);
+                #[cfg(debug_assertions)]
+                node.iter_flat().for_each(|(fullname, item)| println!("|{}| {}", fullname, item));
             }
         }
         for guild in &ready.ready.guilds {
@@ -69,7 +71,7 @@ impl SlashCommand {
         ctx: &Context, 
         appcmd: ApplicationCommandEmbed<'_>
     ){
-        let mut delayed = match appcmd.delayed_response(ctx).await {
+        let mut delayed = match appcmd.delayed_response(ctx, false).await {
             Ok(delayed) => delayed,
             Err(why) => {
                 println!("Error while sending the message: {:?}", why);
