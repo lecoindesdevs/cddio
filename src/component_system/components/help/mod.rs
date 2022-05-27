@@ -1,32 +1,19 @@
 //! Le composant help permet d'afficher une aide en fonction de la commande.
 //! Il se repose sur le groupe de commande retournée par la fonction [`Component::group_parser`].
 
+use cmp2::declarative::IterType;
+use opencdd_components::{self as cmp2, ApplicationCommandEmbed, message};
+use opencdd_macros::commands;
 use serenity::{async_trait, utils::Colour, client::Context, model::{interactions::{application_command::ApplicationCommandInteraction, InteractionApplicationCommandCallbackDataFlags}, event::InteractionCreateEvent}, builder::CreateEmbed};
 
 use crate::component_system::{self as cmp, command_parser::{self as cmd, Named}, manager::{ArcManager}};
 
-use super::utils::{self, message, commands};
-
 use super::utils::commands::*;
 
 pub struct Help {
-    manager: ArcManager,
-    node: cmd::Node,
+    container: cmp2::container::RefContainer,
 }
-#[async_trait]
-impl cmp::Component for Help {
-    fn name(&self) -> &'static str {
-        "help"
-    }
 
-    async fn event(&self, ctx: &cmp::Context, event: &cmp::Event) -> Result<(), String> {
-        self.r_event(ctx, event).await
-    }
-    fn node(&self) -> Option<&cmd::Node> {
-        Some(&self.node)
-    }
-
-}
 #[derive(Debug, Default)]
 struct HelpInfo {
     /// Nom du groupe ou de la commande
@@ -46,180 +33,46 @@ struct HelpInfo {
 }
 
 impl Help {
-    pub fn new(manager: ArcManager) -> Help {
-        let node = cmd::Node::new()
-            .add_command(cmd::Command::new("help")
-                .set_help("Affiche l'aide d'une commanded ou du bot.")
-                .add_param(cmd::Argument::new("commande")
-                    .set_help("Nom de la commande ou du groupe")
-                )
-            );
-        Help { manager, node }
-    }
-    
-    async fn r_event(&self, ctx: &cmp::Context, event: &cmp::Event) -> Result<(), String> {
-        match event {
-            cmp::Event::InteractionCreate(InteractionCreateEvent{interaction: serenity::model::interactions::Interaction::ApplicationCommand(c), ..}) => self.on_applications_command(ctx, c).await,
-            _ => Ok(())
+    pub fn new(container: cmp2::container::RefContainer) -> Self {
+        Self {
+            container
         }
     }
-    async fn on_applications_command(&self, ctx: &Context, app_command: &ApplicationCommandInteraction) -> Result<(), String> {
-        let message::Message{message, embeds, ephemeral } = match self.commands(app_command.to_command()).await {
-            Ok(v) => v,
-            Err(Some(e)) => return Err(e),
-            Err(None) => return Ok(()),
-        };
-        app_command.create_interaction_response(ctx, |resp|
-            resp.interaction_response_data(|data| {
-                data.content(message);
-                data.set_embeds(embeds);
-                if ephemeral {
-                    data.flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL);
+}
+
+#[commands]
+impl Help {
+    #[command(description="Affiche l'aide d'une commanded ou du bot")]
+    async fn help(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>, 
+        #[argument(description="Nom de la commande ou du groupe")]
+        commande: String
+    ) {
+        let command_info = self.get_command_info(&commande).await;
+        app_cmd.direct_response(ctx, message::error("En cours d'implémentation...")).await;
+    }
+    #[command(description="Affiche la liste des commandes du bot")]
+    async fn liste_commandes(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>) {
+        let container = self.container.read().await;
+        let msg = container.as_ref().iter()
+            .filter_map(|comp| comp.declarative())
+            .flat_map(|node| node.iter_flat())
+            .filter_map(|(fullname, iter_type)| {
+                match iter_type {
+                    IterType::Command(cmd) => Some((fullname, cmd)),
+                    _ => None
                 }
-                data
             })
-        ).await
-        .or_else(|e| {
-            eprintln!("Cannot create response: {}", e);
-            Err(e.to_string())
-        })?;
-        Ok(())
+            .map(|(fullname, iter_type)| format!("**{}**: {}", fullname, iter_type.description))
+            .collect::<Vec<_>>()
+            .join("\n");
+        app_cmd.direct_response(ctx, message::success(msg)).await;
     }
-    fn make_help_embed(info: HelpInfo) -> CreateEmbed {
-        let mut embed = CreateEmbed::default();
-        embed.color(Colour::from_rgb(0, 204, 0));
-        embed.title(info.name);
-        if let Some(desc) = &info.desc {
-            embed.description(desc);
-        }
-        if let Some(permission) = &info.permission {
-            embed.field("Permission", permission, true);
-        }
-        if let Some(groups) = &info.groups {
-            let mut groups_str = String::new();
-            for (name, desc) in groups {
-                groups_str.push_str(&format!("**{}**", name));
-                if let Some(desc) = desc {
-                    groups_str.push_str(&format!(" - {}", desc));
-                }
-                groups_str.push_str("\n");
-            }
-            embed.field("Groupes", groups_str, true);
-        }
-        if let Some(commands) = &info.commands {
-            let mut commands_str = String::new();
-            for (name, desc) in commands {
-                commands_str.push_str(&format!("**{}**", name));
-                if let Some(desc) = desc {
-                    commands_str.push_str(&format!(" - {}", desc));
-                }
-                commands_str.push_str("\n");
-            }
-            embed.field("Commandes", commands_str, true);
-        }
-        if let Some(params) = &info.params {
-            let mut params_str = String::new();
-            for (name, desc) in params {
-                params_str.push_str(&format!("**{}**", name));
-                if let Some(desc) = desc {
-                    params_str.push_str(&format!(" - {}", desc));
-                }
-                params_str.push_str("\n");
-            }
-            embed.field("Paramètres", params_str, true);
-        }
-        if let Some(components) = &info.components {
-            let mut components_str = String::new();
-            for name in components {
-                components_str.push_str(&format!("**{}**\n", name));
-            }
-            embed.field("Composants", components_str, true);
-        }
-        embed
+
+    async fn get_command_info(&self, command: &str) -> Option<(String, IterType)> {
+        let container = self.container.read().await;
+        container.as_ref().iter()
+            .filter_map(|comp| comp.declarative())
+            .flat_map(|node| node.iter_flat())
+            .find(|(fullname, _)| fullname == command)
     }
-    async fn commands(&self, command: commands::Command) -> Result<message::Message, Option<String>> {
-        match command.fullname().as_str() {
-            "help" => {
-                let words = match command.get_argument("commande") {
-                    Some(Argument{value: Value::String(v), ..}) => Some(v),
-                    Some(_) => return Err(Some("Argument `commande` invalide".to_string())),
-                    None => None
-                };
-                let help_info = match words {
-                    Some(words) => self.help_components(words).await.or_else(|_| Err("Aucune aide trouvé.".to_string())),
-                    None => self.list_commands().await
-                };
-                
-                let (msg_to_send, ephemeral) = match help_info {
-                    Ok(v) => {
-                        (Self::make_help_embed(v), false)
-                    },
-                    Err(e) => {
-                        let mut embed = CreateEmbed::default();
-                        embed.color(Colour::from_rgb(204, 0, 0));
-                        embed.title("Erreur");
-                        embed.description(e);
-                        (embed, true)
-                    }
-                };
-                Ok(message::Message {
-                    message: String::new(),
-                    embeds: vec![msg_to_send],
-                    ephemeral,
-                    ..Default::default()
-                })
-            }
-            _ => Err(None)
-        }
-    }
-    async fn help_components<'a, 'b>(&'a self, command_name: &'b str) -> Result<HelpInfo, ()> {
-        let comps = self.manager.read().await;
-        let comps = comps.get_components();
-        
-        for cmp in comps {
-            let node = match cmp.node() {
-                Some(v) => v,
-                None => continue
-            };
-            let (_, cmd) = match node.list_commands().into_iter().find(|(cmd_name, _)| cmd_name == command_name) {
-                Some(v) => v,
-                None => continue
-            };
-            return Self::help_command(cmd, command_name);
-        }
-        Err(())
-    }
-    fn help_command<'a, 'b>(command: &'a cmd::Command, command_name: &'b str) -> Result<HelpInfo, ()> {
-        let params = command.params.iter()
-            .map(|param| (format!("{} <{}>", param.name(), param.value_type_str()), param.help.clone()))
-            .collect::<Vec<(String, Option<String>)>>();
-        Ok(HelpInfo{
-            name: format!("{} (Commande)", command_name),
-            permission: None,
-            desc: command.help().and_then(|v| Some(v.to_string())),
-            params: if params.is_empty() {None} else {Some(params)},
-            .. Default::default()
-        })
-    }
-    
-    async fn list_commands(&self) -> Result<HelpInfo, String> {
-        let comps = self.manager.read().await;
-        let comps = comps.get_components();
-        let mut commands = Vec::new();
-        for comp in comps {
-            if let Some(node) = comp.node() {
-                commands.extend(
-                    node.list_commands()
-                        .into_iter()
-                        .map(|(name, cmd)| (name, cmd.help().and_then(|help| Some(help.to_string()))))
-                );
-            }
-        }
-        Ok(HelpInfo{
-            name: "Liste des commandes".to_string(),
-            commands: Some(commands),
-            .. Default::default()
-        })
-    }
-   
 }
