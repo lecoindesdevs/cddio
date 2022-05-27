@@ -161,6 +161,29 @@ pub enum IterType {
     Command(&'static Command)
 }
 
+impl Display for IterType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IterType::Node(node) => write!(f, "{}", node),
+            IterType::Command(command) => write!(f, "{}", command),
+        }
+    }
+}
+impl IterType {
+    pub fn name(&self) -> &'static str {
+        match self {
+            IterType::Node(node) => node.name,
+            IterType::Command(command) => command.name,
+        }
+    }
+    pub fn description(&self) -> &'static str {
+        match self {
+            IterType::Node(node) => node.description,
+            IterType::Command(command) => command.description,
+        }
+    }
+}
+
 impl Iterator for IterFlatNode
 {
     type Item = (String, IterType);
