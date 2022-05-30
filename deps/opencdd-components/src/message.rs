@@ -6,6 +6,9 @@ pub trait ToMessage {
     fn to_message(&self) -> Message;
 }
 
+pub const COLOR_ERROR: Colour = Colour(0xFF0000);
+pub const COLOR_SUCCESS: Colour = Colour(0x1ed760);
+
 /// Interface de création de message
 /// 
 /// Utile pour passer les mêmes informations de d'envoi d'un message 
@@ -88,11 +91,11 @@ impl From<Message> for EditInteractionResponse {
 }
 /// Génère un message d'erreur
 pub fn error<S: ToString>(error_message: S) -> Message {
-    custom_embed("Attention", error_message, 0xFF0000)
+    custom_embed("Attention", error_message, COLOR_ERROR)
 }
 /// Génère un message de succès
 pub fn success<S: ToString>(success_message: S) -> Message {
-    custom_embed("Effectué", success_message, 0x1ed760)
+    custom_embed("Effectué", success_message, COLOR_SUCCESS)
 }
 /// Génère un message personnalisé
 pub fn custom_embed<S1, S2, C>(title:S1, message: S2, color: C) -> Message
