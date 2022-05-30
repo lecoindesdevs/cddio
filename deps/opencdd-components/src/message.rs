@@ -1,5 +1,10 @@
 use serenity::builder::{CreateEmbed, CreateInteractionResponse, EditInteractionResponse, CreateMessage};
 use serenity::utils::Colour;
+pub use serenity::builder::CreateEmbed as Embed;
+
+pub trait ToMessage {
+    fn to_message(&self) -> Message;
+}
 
 /// Interface de création de message
 /// 
