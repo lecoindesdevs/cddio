@@ -1,6 +1,7 @@
 use std::{slice::Iter, fmt::Display};
 
 use serenity::{model::{interactions::application_command::ApplicationCommandOptionType}, builder::{CreateApplicationCommands, CreateApplicationCommandOption, CreateApplicationCommand}};
+use crate::message::{self, ToMessage};
 
 pub trait ComponentDeclarative{
     fn declarative(&self) -> Option<&'static Node> {
@@ -71,6 +72,29 @@ impl Display for ChildNode {
     }
 }
 
+impl ToMessage for &'static ChildNode {
+    fn to_message(&self) -> message::Message {
+        
+        let cmds = self.iter_flat()
+            .filter_map(|(fullname, iter_type)| {
+                match iter_type {
+                    IterType::Command(cmd) => Some(format!("**{}**: {}", fullname, cmd.description)),
+                    _ => None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut embed = message::Embed::default();
+        embed
+            .title(format!("Groupe {}", self.name))
+            .description(self.description)
+            .color(message::COLOR_SUCCESS)
+            .field("Commandes", cmds, false);
+        
+        message::Message { message: String::new(), embeds: vec![embed], ephemeral: false }
+    }
+}
+
 pub struct Command {
     pub name: &'static str,
     pub description: &'static str,
@@ -107,6 +131,27 @@ impl Display for Command {
         write!(f, "{} (commande) : {}", self.name, self.description)
     }
 }
+impl message::ToMessage for Command {
+    fn to_message(&self) -> message::Message {
+        let mut embed = message::Embed::default();
+        embed
+            .title(format!("Commande {}", self.name))
+            .description(self.description)
+            .color(message::COLOR_SUCCESS);
+        if !self.args.is_empty() {
+            let title = if self.args.len() == 1 {"Argument"} else {"Arguments"};
+            let args_str = self.args.iter()
+                .map(|arg| {
+                    let opt_str = if arg.optional { " (optionnel)" } else { "" };
+                    format!("**{}**{}: {}", arg.name, opt_str, arg.description)
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            embed.field(title, args_str, false);
+        }
+        message::Message { message: String::new(), embeds: vec![embed], ephemeral: false }
+    }
+}
 pub struct Argument {
     pub name: &'static str,
     pub type_: serenity :: model :: interactions :: application_command :: ApplicationCommandOptionType,
@@ -127,7 +172,7 @@ impl From<&Argument> for CreateApplicationCommandOption {
 
 impl Display for Argument {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} ({}) : {}", self.name, self.type_ as u8, self.description)
+        write!(f, "{}: {}", self.name, self.description)
     }
 }
 
