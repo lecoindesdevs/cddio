@@ -30,6 +30,11 @@ pub struct ChildNode {
     pub description: &'static str,
     pub node: Node,
 }
+impl ChildNode {
+    pub fn iter_flat(&'static self) -> IterFlatNode {
+        IterFlatNode::new(&self.node)
+    }
+}
 impl From<&ChildNode> for CreateApplicationCommandOption {
     fn from(group: &ChildNode) -> Self {
         let mut app_cmd = CreateApplicationCommandOption::default();
