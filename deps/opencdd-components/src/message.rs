@@ -23,7 +23,14 @@ pub struct Message{
 }
 
 impl Message {
-    pub fn new(message: String) -> Self {
+    pub fn new() -> Self {
+        Self {
+            message: String::new(),
+            embeds: Vec::new(),
+            ephemeral: false,
+        }
+    }
+    pub fn with_text(message: String) -> Self {
         Message {
             message,
             ..Default::default()

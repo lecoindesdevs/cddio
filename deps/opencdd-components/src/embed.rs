@@ -37,7 +37,7 @@ impl DelayedResponse {
     }
     pub fn message(&mut self) -> &mut Message {
         if let None = self.message {
-            self.message = Some(Message::new(String::new()));
+            self.message = Some(Message::with_text(String::new()));
         }
         match self.message {
             Some(ref mut message) => message,
