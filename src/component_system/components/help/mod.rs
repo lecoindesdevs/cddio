@@ -1,8 +1,8 @@
 //! Le composant help permet d'afficher une aide en fonction de la commande.
 //! Il se repose sur le groupe de commande retournée par la fonction [`Component::group_parser`].
 
-use cmp2::declarative::IterType;
-use opencdd_components::{self as cmp2, ApplicationCommandEmbed, message};
+use cmp2::declarative::{IterType, Node};
+use opencdd_components::{self as cmp2, ApplicationCommandEmbed, message, message::ToMessage};
 use opencdd_macros::commands;
 use serenity::{async_trait, utils::Colour, client::Context, model::{interactions::{application_command::ApplicationCommandInteraction, InteractionApplicationCommandCallbackDataFlags}, event::InteractionCreateEvent}, builder::CreateEmbed};
 
@@ -47,8 +47,13 @@ impl Help {
         #[argument(description="Nom de la commande ou du groupe")]
         commande: String
     ) {
-        let command_info = self.get_command_info(&commande).await;
-        app_cmd.direct_response(ctx, message::error("En cours d'implémentation...")).await;
+        let info = self.get_command_info(commande.as_str()).await;
+        let msg = match info {
+            Some((_, IterType::Command(comm))) => comm.to_message(),
+            Some((_, IterType::Node(node))) => node.to_message(),
+            None => message::error("Commande inconnue"),
+        };
+        app_cmd.direct_response(ctx, msg).await;
     }
     #[command(description="Affiche la liste des commandes du bot")]
     async fn liste_commandes(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>) {
