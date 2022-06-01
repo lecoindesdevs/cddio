@@ -10,7 +10,9 @@ licence-file = "LICENSE"
 
 [dependencies]
 tokio = { version = "1.12", features = ["full"] }
-serde = "1.0"
+serde = { version = "1.0", features = ["rc"] }
+async-std = { version = "1.11", features = ["tokio1"] }
+log = "0.4.17"
 futures = "0.3"
 futures-locks = "0.6"
 chrono = "0.4"
