@@ -114,10 +114,15 @@ impl ToTokens for Command {
             output,
             ..
         } = &self.impl_fn.sig;
-        let body = &self.impl_fn.block;
+        let syn::ImplItemMethod {
+            attrs,
+            vis,
+            defaultness,
+            block,
+            ..
+        } = &self.impl_fn;
         let inputs = &self.args;
-        let attrs = &self.impl_fn.attrs;
-        tokens.extend(quote! { #(#attrs)* #unsafety #constness #asyncness #abi fn #ident (#(#inputs), *) #output #body });
+        tokens.extend(quote! { #(#attrs)* #vis #defaultness #unsafety #constness #asyncness #abi fn #ident (#(#inputs), *) #output #block });
     }
 }
 
