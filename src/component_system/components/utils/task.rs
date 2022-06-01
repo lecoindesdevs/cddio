@@ -1,103 +1,122 @@
-use std::io::Write;
+use std::{sync::Arc, fmt::Display, str::FromStr, collections::HashMap};
+use async_std::io::WriteExt;
 use chrono::{Utc, DateTime};
+use futures_locks::RwLock;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serenity::async_trait;
 use tokio::sync::watch;
 
-// trait Callable<'a>: FnOnce() + Serialize + Deserialize<'a> {}
+#[async_trait]
+pub trait Callable: Send + Sync + Clone + 'static {
+    type Data: Send+Sync;
+    async fn call(&self, data: Arc<Self::Data>);
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-struct Task<F> where 
-    F: FnOnce()// + Send + Clone + 'static
+pub struct Task<F> where 
+    F: Callable
 {
     until: i64,
     callable: F
 }
 
-impl<F> Task<F> where
-    F: FnOnce() + Send + Clone + 'static
+pub type TaskID = u64;
+pub trait Registry<F> 
+where
+    F: Callable
 {
-    pub fn new(until: DateTime<Utc>, callable: F) -> Self {
-        Self {
-            until: until.timestamp(),
-            callable
-        }
-    }
-    pub fn run(&self, waker: watch::Receiver<()>) {
-        use tokio::time::*;
-        let duration = Duration::from_secs((self.until - Utc::now().timestamp()) as _);
-        if duration < Duration::from_secs(0) {
-            (self.callable)();
-            return;
-        }
-        let callable = F::clone(&self.callable);
-        
-        tokio::spawn(Self::wait(duration, waker, callable));
-    }
-    async fn wait(duration: tokio::time::Duration, mut waker: watch::Receiver<()>, callable: F) {
-        match tokio::time::timeout(duration, waker.changed()).await {
-            Err(_) => callable(),
-            Ok(_) => ()
-        };
-    }
-}
-#[derive(Debug)]
-struct Tasks<F> where 
-    F: FnOnce() + Send + Clone + Serialize + DeserializeOwned + 'static
-{
-    tasks: Vec<Task<F>>,
-    path_file: std::path::PathBuf,
-    waker: (watch::Sender<()>, watch::Receiver<()>)
+    fn register(&self, callable: Task<F>) -> Result<TaskID, String>;
+    fn unregister(&self, id: TaskID) -> Result<(), String>;
 }
 
-impl<F> Tasks<F> where
-    F: FnOnce() + Send + Clone + Serialize + DeserializeOwned + 'static
+
+
+#[derive(Debug)]
+pub struct Tasks<F, Data> where 
+    F: Callable<Data=Data> + Serialize + DeserializeOwned,
+    Data: Send + Sync + Clone + 'static
 {
-    pub fn new(path_file: std::path::PathBuf) -> Self {
-        let res = Self {
-            tasks: Vec::new(),
+    tasks: RwLock<HashMap<u32, Task<F>>>,
+    task_counter: u32,
+    path_file: std::path::PathBuf,
+    waker: (watch::Sender<()>, watch::Receiver<()>),
+    data: Arc<Data>
+}
+
+impl<F, Data> Tasks<F, Data> where
+    F: Callable<Data=Data> + Serialize + DeserializeOwned,
+    Data: Send + Sync + Clone + 'static
+{
+    pub async fn from_file(path_file: std::path::PathBuf, data: Data) -> Result<Self, String> {
+        let mut res = Self {
+            tasks: RwLock::new(HashMap::new()),
             path_file,
-            waker: watch::channel(())
+            waker: watch::channel(()),
+            data: Arc::new(data),
+            task_counter: 1
         };
-        res.load();
-        res
+        res.load().await?;
+        Ok(res)
     }
-    pub fn add(&mut self, callable: F, until: DateTime<Utc>) {
-        let task = Task::new(until, callable);
-        task.run(self.waker.1.clone());
-        self.tasks.push(task);
-        self.save();
+    pub async fn add(&mut self, callable: F, until: DateTime<Utc>) {
+        let task = Task{
+            until: until.timestamp(), 
+            callable: Arc::new(callable)
+        };
+        {
+            let mut tasks = self.tasks.write().await;
+            tasks.insert(self.task_counter, task.clone());
+        }
+        self.run((self.task_counter, task));
+        self.task_counter += 1;
+        self.save().await
+            .or_else::<(), _>(|e| {
+                println!("{}", e);
+                Ok(())
+            })
+            .unwrap();
     }
-    pub fn stop(&mut self) {
+    fn stop(&mut self) {
         self.waker.0.send(()).unwrap();
     }
-    pub fn save(&self) -> Result<(), String> {
-        let data = match ron::to_string(&self.tasks) {
-            Ok(data) => data,
-            Err(e) => return Err(format!("Impossible de serialiser les taches: {}", e.to_string())),
-        };
-        let mut file = match std::fs::File::create(&self.path_file) {
-            Ok(file) => file,
-            Err(e) => return Err(format!("Impossible d'ouvrir le fichier {}: {}", self.path_file.display(), e.to_string())),
-        };
-        match file.write(data.as_bytes()) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(format!("Impossible d'écrire dans le fichier {}: {}", self.path_file.display(), e.to_string())),
-        }
+    fn run(&self, task: (u32, Task<F>)) {
+        use tokio::time::*;
+        let tasks = RwLock::clone(&self.tasks);
+        let mut waker = self.waker.1.clone();
+        let data = Arc::clone(&self.data);
+        tokio::spawn(async move {
+            let duration = Duration::from_secs(i64::max(task.1.until - Utc::now().timestamp(), 0)  as _);
+            match tokio::time::timeout(duration, waker.changed()).await {
+                Err(_) => {
+                    task.1.callable.call(data).await;
+                    tasks.write().await.remove(&task.0);
+                },
+                Ok(_) => ()
+            };
+        });
+        
     }
-    pub fn load(&mut self) -> Result<(), String> {
-        let content = match std::fs::read_to_string(&self.path_file) {
-            Ok(file) => file,
-            Err(e) => return Err(format!("Impossible de lire le fichier {}: {}", self.path_file.display(), e.to_string()))
-        };
-        self.tasks = match ron::from_str(&content) {
-            Ok(tasks) => tasks,
-            Err(e) => return Err(format!("Impossible de lire le fichier: {}", e.to_string()))
-        };
+    async fn save(&self) -> Result<(), String> {
+        use async_std::{fs::File};
+        let data = ron::to_string(&*self.tasks.read().await)
+            .map_err(|e| format!("Impossible de serialiser les taches: {}", e.to_string()))?;            
+        let mut file = File::open(&self.path_file).await 
+            .map_err(|e| format!("Impossible d'ouvrir le fichier {}: {}", self.path_file.display(), e.to_string()))?;
+        file.write_all(data.as_bytes()).await
+            .map_err(|e| format!("Impossible d'écrire dans le fichier {}: {}", self.path_file.display(), e.to_string()))
+    }
+    async fn load(&mut self) -> Result<(), String> {
+        use async_std::fs;
+        let content = fs::read_to_string(&self.path_file).await
+            .map_err(|e| format!("Impossible de lire le fichier {}: {}", self.path_file.display(), e.to_string()))?;
+        self.tasks = RwLock::new(ron::from_str(&content)
+            .map_err(|e| format!("Impossible de lire le fichier: {}", e.to_string()))?);
         Ok(())
     }
 }
-impl<F> Drop for Tasks<F> where
-    F: FnOnce() + Send + Clone + Serialize + DeserializeOwned + 'static
+impl<F, Data> Drop for Tasks<F, Data> where 
+    F: Callable<Data=Data> + Serialize + DeserializeOwned,
+    Data: Send + Sync + Clone + 'static
 {
     fn drop(&mut self) {
         self.stop();
