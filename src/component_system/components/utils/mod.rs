@@ -2,17 +2,21 @@
 //! 
 //! Contient notamment des fonctions utiles.
 
+pub mod task2;
+pub mod send;
+pub mod message;
+#[macro_use]
+pub mod app_command;
+pub mod commands;
+
+pub use task2 as task;
+
 use crate::component_system::{self as cmp, CommandMatch};
 use serenity::http::CacheHttp;
 pub use crate::component_system::data::*;
 use crate::component_system::command_parser as cmd;
 pub use serenity::model::channel::Message;
 
-pub mod send;
-pub mod message;
-#[macro_use]
-pub mod app_command;
-pub mod commands;
 /// Retourne vrai s'il sagit d'un message privé au bot
 pub fn is_dm(_ctx: &cmp::Context, msg: &Message) -> bool {
     msg.guild_id.is_none()
@@ -35,18 +39,4 @@ pub async fn has_permission(ctx: &cmp::Context, msg: &Message, role: Option<&str
         None => return Ok(false),
     };
     Ok(roles.iter().any(|r| r.name == role))
-}
-
-pub async fn try_match<'a>(ctx: &cmp::Context, msg: &'a Message, node: &'a cmd::Node, args: Vec<&'a str>) -> Result<cmd::matching::Command<'a>, cmp::CommandMatch> {
-    match node.try_match(None, &args) {
-        Ok(v) => Ok(v),
-        Err(cmd::ParseError::NotMatched) => Err(CommandMatch::NotMatched),
-        Err(e_parse) => {
-            let msg_parse = e_parse.to_string();
-            match send::error(ctx, msg.channel_id, &msg_parse).await {
-                Ok(_) => Err(CommandMatch::Error(msg_parse)),
-                Err(e_send) => Err(CommandMatch::Error(format!("- {}\n- {}", msg_parse, e_send.to_string())))
-            }
-        }
-    }
 }
