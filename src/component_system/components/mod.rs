@@ -1,8 +1,8 @@
 //! Module comportant les composants
 
 
-mod misc;
-pub use misc::*;
+// mod misc;
+// pub use misc::*;
 mod help;
 pub use help::*;
 mod tickets;
@@ -11,8 +11,8 @@ mod slash;
 pub use slash::*;
 mod modo;
 pub use modo::*;
-mod autobahn;
-pub use autobahn::*;
+// mod autobahn;
+// pub use autobahn::*;
 pub mod test_component2;
 // pub use test_component2::*;
 
