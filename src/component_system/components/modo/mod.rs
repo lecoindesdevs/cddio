@@ -1,6 +1,9 @@
+#![allow(lint)]
 use std::{sync::Arc, cell::RefCell};
+use log::*;
 
 use async_std::io::WriteExt;
+use futures::TryFutureExt;
 use futures_locks::RwLock;
 use opencdd_components::{self as cmp2, ApplicationCommandEmbed, message, message::ToMessage};
 use opencdd_macros::commands;
@@ -235,7 +238,18 @@ impl Moderation {
         #[argument(description="Durée du ban")]
         duration: Option<String>
     ) {
-        unimplemented!()
+        let guild_id = match app_cmd.get_guild_id() {
+            Some(v) => v,
+            None => {
+                app_cmd
+                    .direct_response(ctx, message::error("Cette fonction n'est disponible que pour un serveur.")).await
+                    .map_err(|e| {error!("Impossible de renvoyer la reponse d'une commande: {}", e.to_string()); Ok(())});
+                return;
+                //println!("Cette fonction n'est disponible que pour un serveur.")
+            }
+        };
+        // guild_id.ban(ctx, member, dmd)
+
     }
     #[command(description="Expulse un membre du serveur")]
     pub async fn kick(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
