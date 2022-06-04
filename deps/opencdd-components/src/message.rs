@@ -6,8 +6,10 @@ pub trait ToMessage {
     fn to_message(&self) -> Message;
 }
 
-pub const COLOR_ERROR: Colour = Colour(0xFF0000);
+pub const COLOR_INFO: Colour = Colour(0x00C9FF);
 pub const COLOR_SUCCESS: Colour = Colour(0x1ed760);
+pub const COLOR_ERROR: Colour = Colour(0xFF0000);
+pub const COLOR_WARN: Colour = Colour(0xFFB800);
 
 /// Interface de création de message
 /// 
@@ -24,11 +26,7 @@ pub struct Message{
 
 impl Message {
     pub fn new() -> Self {
-        Self {
-            message: String::new(),
-            embeds: Vec::new(),
-            ephemeral: false,
-        }
+        Default::default()
     }
     pub fn with_text(message: String) -> Self {
         Message {
@@ -49,7 +47,7 @@ impl Message {
 }
 impl Default for Message {
     fn default() -> Self {
-        Message {
+        Self {
             message: String::new(),
             embeds: Vec::new(),
             ephemeral: false,
@@ -98,11 +96,19 @@ impl From<Message> for EditInteractionResponse {
 }
 /// Génère un message d'erreur
 pub fn error<S: ToString>(error_message: S) -> Message {
-    custom_embed("Attention", error_message, COLOR_ERROR)
+    custom_embed("Erreur", error_message, COLOR_ERROR)
+}
+/// Génère un message d'avertissement
+pub fn warn<S: ToString>(warn_message: S) -> Message {
+    custom_embed("Attention", warn_message, COLOR_WARN)
 }
 /// Génère un message de succès
 pub fn success<S: ToString>(success_message: S) -> Message {
     custom_embed("Effectué", success_message, COLOR_SUCCESS)
+}
+/// Génère un message d'information
+pub fn info<S: ToString>(info_message: S) -> Message {
+    custom_embed("Information", info_message, COLOR_INFO)
 }
 /// Génère un message personnalisé
 pub fn custom_embed<S1, S2, C>(title:S1, message: S2, color: C) -> Message
