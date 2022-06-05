@@ -83,7 +83,7 @@ impl SlashCommand {
             None => {
                 println!("Slash permission commands can only be used in a guild");
                 delayed.message = Some(message::error("Slash permission commands can only be used in a guild"));
-                delayed.send(ctx, &appcmd.0).await.unwrap();
+                delayed.send().await.unwrap();
                 return;
             }
         };
@@ -123,7 +123,7 @@ impl SlashCommand {
             }
             Some(msg)
         };
-        delayed.send(ctx, &appcmd.0).await.unwrap();
+        delayed.send().await.unwrap();
     }
 
 }

@@ -1,7 +1,7 @@
 use serenity::{model::{id::{GuildId, UserId, RoleId}, interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandOptionType, ApplicationCommandInteractionData}}, client::Context};
 
 use crate::message::Message;
-
+#[derive(Clone)]
 enum CommandType<'b> {
     Command(&'b ApplicationCommandInteractionData),
     Option(&'b ApplicationCommandInteractionDataOption)
@@ -20,19 +20,23 @@ impl<'a> CommandType<'a> {
     }
 }
 
-pub struct DelayedResponse {
-    pub message: Option<Message>
+pub struct DelayedResponse<'a> {
+    pub message: Option<Message>,
+    ctx: &'a Context,
+    app_cmd: ApplicationCommandEmbed<'a>
 }
 
-impl DelayedResponse {
-    pub async fn new(ctx: &Context, app_cmd: &ApplicationCommandInteraction, ephemeral: bool) -> serenity::Result<Self> {
-        Self::send_new_response(ctx, app_cmd, ephemeral).await.or_else(|e| {
+impl<'a> DelayedResponse<'a> {
+    pub async fn new(ctx: &'a Context, app_cmd: ApplicationCommandEmbed<'a>, ephemeral: bool) -> serenity::Result<DelayedResponse<'a>> {
+        Self::send_new_response(ctx, app_cmd.0, ephemeral).await.or_else(|e| {
             eprintln!("Cannot create response: {}", e);
             Err(e)
         })?;
         
         Ok(DelayedResponse {
-            message: None
+            message: None,
+            ctx,
+            app_cmd
         })
     }
     pub fn message(&mut self) -> &mut Message {
@@ -44,13 +48,17 @@ impl DelayedResponse {
             None => unreachable!("Message already created")
         }
     }
-    pub async fn send(mut self, ctx: &Context, app_cmd: &ApplicationCommandInteraction) -> serenity::Result<()> {
-        let result = Self::edit_response(ctx, app_cmd, &self.message).await.or_else(|e| {
+    pub async fn send(mut self) -> serenity::Result<()> {
+        let result = Self::edit_response(self.ctx, self.app_cmd.0, &self.message).await.or_else(|e| {
             eprintln!("Cannot create response: {}", e);
             Err(e)
         });
         self.message = None;
         result
+    }
+    pub async fn send_message(mut self, msg: Message) -> serenity::Result<()> {
+        self.message = Some(msg);
+        self.send().await
     }
     async fn send_new_response(ctx: &Context, app_cmd: &ApplicationCommandInteraction, ephemeral: bool) -> serenity::Result<()> {
         use serenity::model::interactions::InteractionResponseType;
@@ -73,7 +81,7 @@ impl DelayedResponse {
     }
 }
 
-impl<'a> Drop for DelayedResponse {
+impl<'a> Drop for DelayedResponse<'a> {
     fn drop(&mut self) {
         if let Some(msg) = &self.message {
             println!("Delayed message not sent: {:?}", msg);
@@ -89,6 +97,7 @@ impl<'a> Drop for DelayedResponse {
 /// permet d'obtenir directement les arguments.
 /// 
 /// [`get_argument`]: `Self::get_argument`
+#[derive(Clone)]
 pub struct ApplicationCommandEmbed<'a>(pub &'a ApplicationCommandInteraction, CommandType<'a>);
 
 impl<'a> ApplicationCommandEmbed<'a> {
@@ -138,8 +147,8 @@ impl<'a> ApplicationCommandEmbed<'a> {
         self.1.get_argument(name)
     }
 
-    pub async fn delayed_response<'b>(&'b self, ctx: &'b Context, ephemeral: bool) -> serenity::Result<DelayedResponse> {
-        DelayedResponse::new(ctx, self.0, ephemeral).await
+    pub async fn delayed_response<'b>(&'b self, ctx: &'b Context, ephemeral: bool) -> serenity::Result<DelayedResponse<'b>> {
+        DelayedResponse::new(ctx, (*self).clone(), ephemeral).await
     }
 
     pub async fn direct_response(&self, ctx: &Context, msg: Message) -> serenity::Result<()> {
