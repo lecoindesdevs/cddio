@@ -84,7 +84,7 @@ impl Argument {
                                 reader: {
                                     let expr = value_decoded.read_expr;
                                     Reader{
-                                        read_expr: quote! { let #call_variable =  #expr.cloned(); },
+                                        read_expr: quote! { let #call_variable =  #expr.map(|v| v.clone()); },
                                         .. value_decoded
                                     }
                                 },
@@ -127,7 +127,7 @@ impl Argument {
                                 reader: {
                                     let expr = value_decoded.read_expr;
                                     Reader{
-                                        read_expr: quote! { let #var_name =  #expr.ok_or_else(|| #error_msg).unwrap().to_owned(); },
+                                        read_expr: quote! { let #var_name =  #expr.ok_or(#error_msg).unwrap().to_owned(); },
                                         .. value_decoded
                                     }
                                 },

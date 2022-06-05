@@ -19,8 +19,8 @@ impl Reader {
     pub fn argument_decode(name: &str, ty: &syn::Path) -> syn::Result<Reader> {
         use syn::*;
         
-        let ty_name = match ty.segments.last() {
-            Some(segment) => segment.ident.to_string(),
+        let (ident, ty_name) = match ty.segments.last() {
+            Some(segment) => (&segment.ident, segment.ident.to_string()),
             None => return Err(Error::new_spanned(ty, "Type incomplet."))
         };
         Ok(match ty_name.as_str() {
@@ -31,7 +31,7 @@ impl Reader {
             "str" => return Err(syn::Error::new_spanned(ty, "Utilisez String à la place.")),
             "u64" | "u32" | "u16" | "u8" 
             | "i64" | "i32" | "i16" | "i8" => Reader {
-                read_expr: Self::custom_reader(name, quote! {Integer},quote! { Some(s as #ty) } ),
+                read_expr: Self::custom_reader(name, quote! {Integer(ref s)},quote! { Some(*s as #ident) } ),
                 option_type: to_decl! {Integer},
             },
             "bool" => Reader {
@@ -67,7 +67,7 @@ impl Reader {
                 option_type: to_decl! {Channel},
             },
             "f64" | "f32" => Reader {
-                read_expr: Self::custom_reader(name, quote! {Float(s)}, quote! { Some(s as #ty) } ),
+                read_expr: Self::custom_reader(name, quote! {Number(s)}, quote! { Some(*s as #ty) } ),
                 option_type: to_decl! {Number},
             } ,
             _ => return Err(Error::new_spanned(ty, "Type d'argument incompatible.")),
