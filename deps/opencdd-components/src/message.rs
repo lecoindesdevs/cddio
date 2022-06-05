@@ -38,6 +38,11 @@ impl Message {
         self.ephemeral = ephemeral;
         self
     }
+    pub fn add_embed(&mut self, callback: impl FnOnce(&mut Embed) -> &mut Embed) {
+        let mut embed = Embed::default();
+        callback(&mut embed);
+        self.embeds.push(embed);
+    }
     pub fn last_embed(&self) -> Option<&CreateEmbed> {
         self.embeds.last()
     }
