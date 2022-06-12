@@ -16,6 +16,7 @@ use serenity::{
     }, async_trait
 };
 use serde::{Deserialize, Serialize};
+use super::utils;
 
 use crate::component_system::components::utils::task;
 
@@ -235,7 +236,6 @@ impl Sanction {
         }
     }
     pub async fn apply(&self, ctx: &Context) -> serenity::Result<()> {
-        
         match self {
             Sanction::Ban{user_id, guild_id, historique, reason, ..} => {
                 guild_id.ban_with_reason(ctx, user_id, *historique, reason).await
@@ -349,6 +349,55 @@ impl Sanction {
         });
         m
     }
+    async fn username(ctx: &Context, user_id: UserId) -> String {
+        user_id.to_user(ctx).await.map(|user| utils::user_fullname(&user)).unwrap_or_else(|_| user_id.to_string())
+    }
+    pub async fn to_log(&self, ctx: &Context, user_by: UserId) -> Result<String, std::fmt::Error> {
+        use std::fmt::Write;
+        let mut log = String::new();
+        let now = chrono::Local::now();
+        let user_by = Self::username(ctx, user_by).await;
+        write!(log, "{:=<10}\n", "")?;
+        write!(log, "When: {}\n", now.format("%d/%m/%Y %H:%M:%S"))?;
+        write!(log, "By: {}\n", user_by)?;
+        match self {
+            Sanction::Ban{user_id, duration, reason, ..} => {
+                let user = Self::username(ctx, *user_id).await;
+                write!(log, "What: {}\n", "Ban")?;
+                write!(log, "Who: {}\n", user)?;
+                write!(log, "Why: {}\n", reason)?;
+                if let Some(duration) = duration {
+                    write!(log, "For: {}\n", duration.to_string())?;
+                }
+            },
+            Sanction::Mute{user_id, duration, reason, ..} => {
+                let user = Self::username(ctx, *user_id).await;
+                write!(log, "What: {}\n", "Mute")?;
+                write!(log, "Who: {}\n", user)?;
+                write!(log, "Why: {}\n", reason)?;
+                if let Some(duration) = duration {
+                    write!(log, "For: {}\n", duration.to_string())?;
+                }
+            },
+            Sanction::Kick{user_id, reason, ..} => {
+                let user = Self::username(ctx, *user_id).await;
+                write!(log, "What: {}\n", "Kick")?;
+                write!(log, "Who: {}\n", user)?;
+                write!(log, "Why: {}\n", reason)?;
+            },
+            Sanction::Unban{user_id, ..} => {
+                let user = Self::username(ctx, *user_id).await;
+                write!(log, "What: {}\n", "Unban")?;
+                write!(log, "Who: {}\n", user)?;
+            },
+            Sanction::Unmute{user_id, ..} => {
+                let user = Self::username(ctx, *user_id).await;
+                write!(log, "What: {}\n", "Unmute")?;
+                write!(log, "Who: {}\n", user)?;
+            }
+        }
+        Ok(log)
+    }
 }
 
 #[commands]
@@ -371,6 +420,12 @@ impl Moderation {
                 *tasks = Some(new_tasks);
             }
         }
+    }
+    #[event(GuildBanAdd)]
+    async fn on_ban_add(&self, ctx: &Context, event: &GuildBanAddEvent) {
+        // let guild_id = event.guild_id;
+        // let user_by = event.user;
+
     }
     #[command(description="Banni un membre du serveur")]
     pub async fn ban(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,

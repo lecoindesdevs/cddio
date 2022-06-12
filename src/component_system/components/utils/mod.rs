@@ -40,3 +40,7 @@ pub async fn has_permission(ctx: &cmp::Context, msg: &Message, role: Option<&str
     };
     Ok(roles.iter().any(|r| r.name == role))
 }
+#[inline]
+pub fn user_fullname(user: &serenity::model::user::User) -> String {
+    format!("{}#{:0>4}", user.name, user.discriminator)
+}
