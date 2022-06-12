@@ -91,10 +91,10 @@ impl<'a> Drop for DelayedResponse<'a> {
 
 /// # Conteneur d'application command
 /// 
-/// Lorsque le bot recoie une commande via un evenement d'interaction, cette structure est un utilitaire
-/// pour accéder aux données d'une struct ApplicationCommandInteraction plus facilement. La commande et 
-/// ses arguments pouvant se situer à différent niveau en fonction des sous groupes, [`get_argument`] 
-/// permet d'obtenir directement les arguments.
+/// Lorsque le bot reçoit une commande via un événement de type interaction, cette structure facilite
+/// l'accès aux données d'une struct ApplicationCommandInteraction. La commande et ses arguments
+/// pouvant se situer à différent niveau en fonction des sous groupes, [`get_argument`] permet
+/// d'obtenir directement les arguments.
 /// 
 /// [`get_argument`]: `Self::get_argument`
 #[derive(Clone)]
