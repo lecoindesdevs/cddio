@@ -392,6 +392,22 @@ impl Moderation {
     }
     // endregion
     // region: actions
+    async fn user_top_role_position(ctx: &Context, guild: GuildId, user_id: UserId) -> Result<Option<i64>, String> {
+        Ok(Some(match guild
+            .member(ctx, user_id).await
+            .or_else (|e| Err(format!("Impossible de récupérer un membre du serveur: {}", e)))?
+            .roles(ctx).await {
+                None => return Ok(None),
+                Some(roles) if roles.is_empty() => return Ok(None),
+                Some(roles) => roles,
+            }.into_iter()
+            .fold(0, |acc: i64 , role: Role| -> i64 {
+                match role.name.as_str() {
+                    "muted" => acc,
+                    _ => acc.max(role.position)
+                }
+            })))
+    }
     async fn moderate(&self, ctx: &Context, params: ModerateParameters) -> Result<message::Message, String>
     {
         let time = match &params.duration {
@@ -413,30 +429,15 @@ impl Moderation {
             None
         };
         'check: loop {
-        let mut roles: [usize;2] = [0, 0];
-        let mut riter = roles.iter_mut();
-            let guild_roles = match params.guild_id.roles(&ctx).await {
-                Ok(v) => v,
-                Err(e) => return Err(format!("Impossible d'avoir les rôles du serveur {}: {}", params.guild_id.0, e))
+            let pos_user_ban = match Self::user_top_role_position(ctx, params.guild_id, params.user_id).await? {
+                Some(v) => v,
+                None => break 'check
             };
-        for user in [params.user_id, params.user_by] {
-                let userroles = params.guild_id
-                    .member(ctx, user).await
-                    .or_else (|e| Err(format!("Impossible de récupérer un membre du serveur: {}", e)))?
-                    .roles(ctx).await;
-                let top_role = match userroles {
-                    Some(roles) if roles.is_empty() => break 'check,
-                    Some(roles) => roles[0].id,
-                    None => break 'check,
-                };
-                let pos_role_user = guild_roles.iter()
-                    .position(|r| *r.0 == top_role)
-                    .unwrap_or(0);
-            if let Some(r) = riter.next() {
-                *r = pos_role_user;
-            }
-        }
-            if roles[0] <= roles[1] {
+            let pos_user_by = match Self::user_top_role_position(ctx, params.guild_id, params.user_by).await? {
+                Some(v) => v,
+                None => break 'check
+            };
+            if pos_user_by <= pos_user_ban {
                 return Err("Le membre à modérer a un rôle plus élevé ou égal au rôle du modérateur.".into());
             }
             break;
