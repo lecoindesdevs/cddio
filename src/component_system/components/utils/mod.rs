@@ -8,6 +8,7 @@ pub mod message;
 #[macro_use]
 pub mod app_command;
 pub mod commands;
+pub mod time_parser;
 
 pub use task2 as task;
 

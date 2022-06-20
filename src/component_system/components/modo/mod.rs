@@ -1,6 +1,6 @@
 
 
-mod time_parser;
+use super::utils::time_parser;
 use chrono::Duration;
 use log::*;
 
