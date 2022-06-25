@@ -429,6 +429,9 @@ impl Moderation {
             None
         };
         'check: loop {
+            if params.type_mod == TypeModeration::Unban {
+                break 'check;
+            }
             let pos_user_ban = match Self::user_top_role_position(ctx, params.guild_id, params.user_id).await? {
                 Some(v) => v,
                 None => break 'check
