@@ -433,10 +433,12 @@ impl Moderation {
                 Some(v) => v,
                 None => break 'check
             };
+            println!("pos_user_ban: {}", pos_user_ban);
             let pos_user_by = match Self::user_top_role_position(ctx, params.guild_id, params.user_by).await? {
                 Some(v) => v,
                 None => break 'check
             };
+            println!("pos_user_by: {}", pos_user_by);
             if pos_user_by <= pos_user_ban {
                 return Err("Le membre à modérer a un rôle plus élevé ou égal au rôle du modérateur.".into());
             }
@@ -465,13 +467,17 @@ impl Moderation {
             .map_err(|e| format!("Impossible de {} le membre: {}", params.type_mod.as_str(), e))?;
         
         
+        let username = format!("{} (<@{}>)", format_username(&user), params.user_id);
+        let who_did = format_username(&params.user_by.to_user(&ctx).await.unwrap());
+
+        println!("{} a {} {}.", who_did, params.type_mod.as_str(), username);
+
         tokio::join!(
             self.remove_task(params.user_id, params.type_mod),
             self.remove_until(params.user_id.0, params.type_mod)
         );
         
-        let username = format!("{} (<@{}>)", format_username(&user), params.user_id);
-        let who_did = format_username(&params.user_by.to_user(&ctx).await.unwrap());
+        
         
         Self::write_log(
             &username, 
