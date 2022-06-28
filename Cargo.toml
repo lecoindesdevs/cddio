@@ -9,7 +9,7 @@ licence-file = "LICENSE"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1.12", features = ["full"] }
+tokio = { version = "1.19", features = ["full"] }
 serde = { version = "1.0", features = ["rc"] }
 async-std = { version = "1.11", features = ["tokio1"] }
 log = "0.4.17"
@@ -20,6 +20,7 @@ ron = "0.7"
 lazy_static = "1.4"
 regex = "1.5"
 hashers = "1.0"
+# sea-orm = "0.8.0"
 opencdd-macros = { path = "deps/opencdd-macros" }
 opencdd-components = { path = "deps/opencdd-components" }
 

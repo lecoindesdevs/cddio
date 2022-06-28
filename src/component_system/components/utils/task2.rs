@@ -19,14 +19,6 @@ pub struct Task<D: DataFunc + Clone>
 
 pub type TaskID = u64;
 
-#[derive(Clone)]
-struct RegistryTask<D> where
-    D: DataFunc + Clone
-{
-    id: TaskID,
-    task: Task<D>
-}
-
 #[async_trait]
 pub trait Registry
 {
@@ -34,7 +26,7 @@ pub trait Registry
     async fn register(&mut self, task: Task<Self::Data>) -> Result<TaskID, String>;
     async fn unregister(&mut self, id: TaskID) -> Result<(), String>;
     async fn get(&self, id: TaskID) -> Option<Task<Self::Data>>;
-    async fn get_all(&self) -> Vec<RegistryTask<Self::Data>>;
+    async fn get_all(&self) -> Vec<Task<Self::Data>>;
 }
 
 type Tasks<R: Registry> = Arc<Mutex<R>>;
