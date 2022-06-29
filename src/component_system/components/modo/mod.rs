@@ -332,45 +332,13 @@ impl Sanction {
         Ok(log)
     }
     async fn undo(&self, ctx: &Context) {
-        match self.data {
-            SanctionType::Ban{..} => {
-                let username = self.user_id.to_user(&ctx).await
-                    .and_then(|v| Ok(v.name))
-                    .or_else::<(), _>(|_| Ok(self.user_id.to_string()))
-                    .unwrap();
-                match self.guild_id.unban(&ctx, self.user_id).await {
-                    Ok(_) => println!("Membre \"{}\" débanni", username),
-                    Err(e) => println!("Erreur lors du déban de {} : {}", username, e)
-                }
-            },
-            SanctionType::Mute{..} => {
-                let mut member = match self.guild_id.member(&ctx, self.user_id).await{
-                    Ok(m) => m,
-                    Err(e) => {
-                        println!("Impossible de trouver le membre {} dans le serveur {}: {}", self.user_id, self.guild_id, e.to_string());
-                        return
-                    }
-                };
-                let roles = match self.guild_id.roles(ctx).await{
-                    Ok(r) => r,
-                    Err(e) => {
-                        println!("Impossible de trouver les rôles du serveur {}: {}", self.guild_id, e.to_string());
-                        return
-                    }
-                };
-                let role_muted = match roles.into_iter().find(|(_, r)| r.name.as_str() == ROLE_MUTED) {
-                    Some(r) => r,
-                    None => {
-                        println!("Impossible de trouver le rôle '{}' dans le serveur {}", ROLE_MUTED, self.guild_id);
-                        return
-                    }
-                };
-                match member.remove_role(&ctx, role_muted.0).await {
-                    Ok(_) => println!("Membre {} débanni", member.display_name()),
-                    Err(e) => println!("Impossible de retirer le rôle {} (id: {}) du membre \"{}\" dans le serveur {}: {}", role_muted.1.name, role_muted.0, member.display_name(), self.guild_id, e.to_string())
-                };
-            },
-            _ => ()
+        let result = match self.data {
+            SanctionType::Ban{..} => Sanction{data: SanctionType::Unban, ..*self}.apply(ctx).await,
+            SanctionType::Mute{..} => Sanction{data: SanctionType::Unmute, ..*self}.apply(ctx).await,
+            _ => Err(serenity::Error::Other("Sanction impossible à annuler."))
+        };
+        if let Err(e) = result {
+            error!("Impossible de rétablir la sanction {}: {}", self.user_id(), e);
         }
     }
 }
