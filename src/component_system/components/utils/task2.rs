@@ -7,7 +7,8 @@ use serenity::async_trait;
 
 #[async_trait]
 pub trait DataFunc: Send + Sync + 'static {
-    async fn run(&self) -> Result<(), String>;
+    type Persistent: Send + Sync + 'static;
+    async fn run(&self, persistent: &Self::Persistent) -> Result<(), String>;
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -31,22 +32,26 @@ pub trait Registry
 
 type Tasks<R: Registry> = Arc<Mutex<R>>;
 
-pub struct TaskManager<D, R> where
-    D: DataFunc + Clone,
-    R: Registry<Data = D> + Send + 'static
+pub struct TaskManager<D, R, P> where
+    D: DataFunc<Persistent = P> + Clone,
+    R: Registry<Data = D> + Send + 'static,
+    P: Send + Sync + 'static
 {
     tasks: Tasks<R>,
-    task_handles: HashMap<TaskID, tokio::task::JoinHandle<()>>
+    task_handles: HashMap<TaskID, tokio::task::JoinHandle<()>>,
+    persistent: Arc<P>
 }
 
-impl<D, R> TaskManager<D, R> where
-    D: DataFunc + Clone,
-    R: Registry<Data = D> + Send + 'static
+impl<D, R, P> TaskManager<D, R, P> where
+D: DataFunc<Persistent = P> + Clone,
+    R: Registry<Data = D> + Send + 'static,
+    P: Send + Sync + 'static
 {
-    pub fn new(registry: R) -> Self {
+    pub fn new(registry: R, persistent_data: P) -> Self {
         Self {
             tasks: Arc::new(Mutex::new(registry)),
-            task_handles: HashMap::new()
+            task_handles: HashMap::new(),
+            persistent: Arc::new(persistent_data)
         }
     }
     pub async fn add(&mut self, data: D, until: DateTime<Utc>) -> Result<TaskID, String> {
@@ -56,9 +61,10 @@ impl<D, R> TaskManager<D, R> where
             data: data.clone()
         }).await?;
         let tasks = Arc::clone(&self.tasks);
+        let persistent = Arc::clone(&self.persistent);
         let handle = tokio::spawn(async move {
             tokio::time::sleep(Duration::from_secs((until.timestamp() - Utc::now().timestamp()) as _ )).await;
-            data.run().await;
+            data.run(&*persistent).await;
             Self::remove_from_registry(&tasks, id).await;
         });
         self.task_handles.insert(id, handle);
@@ -84,11 +90,15 @@ impl<D, R> TaskManager<D, R> where
         let tasks = self.tasks.lock().await;
         tasks.get(id).await
     }
+    pub fn reset_persistent(&mut self, data: P) {
+        self.persistent = Arc::new(data);
+    }
 }
 
-impl<D, R> Drop for TaskManager<D, R> where
-    D: DataFunc + Clone,
-    R: Registry<Data = D> + Send + 'static
+impl<D, R, P> Drop for TaskManager<D, R, P> where
+    D: DataFunc<Persistent = P> + Clone,
+    R: Registry<Data = D> + Send + 'static, 
+    P: Send + Sync + 'static
 {
     fn drop(&mut self) {
         for (_, task) in self.task_handles.iter() {
