@@ -360,7 +360,8 @@ impl Moderation {
             Some(tasks) => tasks.reset_persistent(ctx.clone()),
             None => {
                 let registry = RegistryFile::from_file("./data/moderation2.ron").await.unwrap();
-                let new_tasks = task::TaskManager::new(registry, ctx.clone());
+                let mut new_tasks = task::TaskManager::new(registry, ctx.clone());
+                new_tasks.init().await;
                 *tasks = Some(new_tasks);
             }
         }
