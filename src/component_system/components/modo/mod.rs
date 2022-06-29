@@ -94,8 +94,8 @@ impl task::Registry for RegistryFile {
         self.tasks.read().await.iter().find(|(vid, _)| vid == &&id).map(|(_, task)| task.clone())
     }
 
-    async fn get_all(&self) -> Vec<task::Task<Self::Data>> {
-        self.tasks.read().await.iter().map(|(_, v)| v.clone()).collect()
+    async fn get_all(&self) -> Vec<(task::TaskID, task::Task<Self::Data>)> {
+        self.tasks.read().await.iter().map(|v| (*v.0, v.1.clone())).collect()
     }
 }
 
