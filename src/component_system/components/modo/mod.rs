@@ -113,14 +113,14 @@ impl Moderation {
         }
     }
 }
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 struct Sanction {
     user_id: UserId,
     guild_id: GuildId,
     data: SanctionType,
 }
 #[serde_with::serde_as]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 enum SanctionType {
     Ban{
         #[serde_as(as = "Option<serde_with::TimestampSeconds>")]
@@ -234,6 +234,25 @@ impl Sanction {
         let user = self.user_id().to_user(ctx).await.unwrap();
         self.to_message(message::COLOR_SUCCESS, format!("{} a été {}", user.name, self.preterite()))
     }
+    fn estimation_time(date: &DateTime<Utc>) -> String {
+        let now = Utc::now();
+        let diff = date.signed_duration_since(now);
+        if (diff.num_days()+15)/30 > 0 {
+            format!("{} mois", (diff.num_days()+15)/30)
+        } else if diff.num_days() > 0 {
+            format!("{} jours", diff.num_days())
+        } else if diff.num_hours() > 0 {
+            format!("{} heures", diff.num_hours())
+        } else if diff.num_minutes() > 0 {
+            format!("{} minutes", diff.num_minutes())
+        } else {
+            format!("{} secondes", diff.num_seconds())
+        }
+    }
+    fn format_date(date: &DateTime<Utc>) -> String {
+        format!("{} (durée: {})", date.format("%d %B %Y à %H:%M:%S"), Sanction::estimation_time(date))
+    }
+    
     fn to_message<S: ToString>(&self, color: serenity::utils::Colour, description: S) -> message::Message {
         let mut m = message::Message::new();
         m.add_embed(|e| {
@@ -243,13 +262,13 @@ impl Sanction {
             match &self.data {
                 SanctionType::Ban{until, reason, ..} => {
                     if let Some(until) = until {
-                        e.field("Durée", format!("{}", until.to_string()), true);
+                        e.field("Temps", Self::format_date(&until), true);
                     }
                     e.field("Raison", reason, true);
                 },
                 SanctionType::Mute{until, reason, ..} => {
                     if let Some(until) = until {
-                        e.field("Durée", format!("{}", until.to_string()), true);
+                        e.field("Temps", Self::format_date(&until), true);
                     }
                     e.field("Raison", reason, true);
                 },
