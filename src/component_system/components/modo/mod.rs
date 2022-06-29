@@ -1,7 +1,7 @@
 
 
-use super::utils::time_parser;
-use chrono::Duration;
+use std::collections::HashMap;
+use chrono::{Duration, DateTime, Utc};
 use log::*;
 
 use async_std::io::WriteExt;
@@ -16,73 +16,17 @@ use serenity::{
     }, async_trait
 };
 use serde::{Deserialize, Serialize};
+
 use super::utils;
+use super::utils::time_parser as time;
 
 use crate::component_system::components::utils::task;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-enum TypeModeration {
-    Ban,
-    Mute,
-    Unban,
-    UnMute,
-    Kick
-}
-
-impl std::fmt::Display for TypeModeration {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-impl TypeModeration {
-    fn as_str(&self) -> &'static str {
-        match self {
-            TypeModeration::Ban => "ban",
-            TypeModeration::Mute => "mute",
-            TypeModeration::Unban => "unban",
-            TypeModeration::UnMute => "unmute",
-            TypeModeration::Kick => "kick"
-        }
-    }
-    fn is_sanction(&self) -> bool {
-        match self {
-            TypeModeration::Ban | TypeModeration::Mute | TypeModeration::Kick => true,
-            _ => false
-        }
-    }
-    fn is_a_command(cmd: &str) -> bool {
-        match cmd {
-            "ban" | "mute" | "unban" | "unmute" | "kick" => true,
-            _ => false
-        }
-    }
-}
-impl<T: AsRef<str>> From<T> for TypeModeration {
-    fn from(s: T) -> Self {
-        match s.as_ref() {
-            "ban" => TypeModeration::Ban,
-            "mute" => TypeModeration::Mute,
-            "unban" => TypeModeration::Unban,
-            "unmute" => TypeModeration::UnMute,
-            "kick" => TypeModeration::Kick,
-            _ => panic!("Unknown type of moderation")
-        }
-    }
-}
-
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct Action {
-    type_mod: TypeModeration,
-    guild_id: u64,
-    user_id: u64,
-    role_id: u64,
-}
+const ROLE_MUTED: &str = "muted";
 
 struct RegistryFile {
     path_file: std::path::PathBuf,
-    tasks: RwLock<Vec<task::RegistryTask<Action>>>,
+    tasks: RwLock<HashMap<task::TaskID, task::Task<Sanction>>>,
     task_counter: RwLock<task::TaskID>
 }
 
@@ -90,7 +34,7 @@ impl RegistryFile {
     async fn from_file(path_file: impl AsRef<std::path::Path>) -> Result<Self, String> {
         let res = Self {
             path_file: path_file.as_ref().to_path_buf(),
-            tasks: RwLock::new(Vec::new()),
+            tasks: RwLock::new(HashMap::new()),
             task_counter: RwLock::new(1)
         };
         res.load().await?;
@@ -113,71 +57,32 @@ impl RegistryFile {
     }
 }
 #[async_trait]
-impl task::Registry<Action> for RegistryFile {
-    async fn register(&self, task: task::Task<Action>) -> Result<task::TaskID, String> {
+impl task::Registry for RegistryFile {
+    type Data = Sanction;
+    async fn register(&mut self, task: task::Task<Self::Data>) -> Result<task::TaskID, String> {
         let mut tasks = self.tasks.write().await;
         let id = self.task_counter.read().await.clone();
-        tasks.push(task::RegistryTask{
-            id,
-            task
-        });
+        tasks.insert(id, task);
         *self.task_counter.write().await += 1;
         Ok(id)
     }
-    async fn unregister(&self, id: task::TaskID) -> Result<(), String> {
+    async fn unregister(&mut self, id: task::TaskID) -> Result<(), String> {
         let mut tasks = self.tasks.write().await;
-        tasks.remove(id as _);
+        tasks.remove(&id);
         Ok(())
     }
 
-    async fn get(&self, id: task::TaskID) -> Option<task::Task<Action>> {
-        self.tasks.read().await.iter().find(|v| v.id == id).map(|t| t.task.clone())
+    async fn get(&self, id: task::TaskID) -> Option<task::Task<Self::Data>> {
+        self.tasks.read().await.iter().find(|(vid, _)| vid == &&id).map(|(_, task)| task.clone())
     }
 
-    async fn get_all(&self) -> Vec<task::RegistryTask<Action>> {
-        self.tasks.read().await.clone()
+    async fn get_all(&self) -> Vec<task::Task<Self::Data>> {
+        self.tasks.read().await.iter().map(|(_, v)| v.clone()).collect()
     }
-}
-
-impl Action {
-    async fn undo(ctx: Context, action: Action) {
-        match action.type_mod {
-            TypeModeration::Ban => {
-                let username = UserId(action.user_id).to_user(&ctx).await
-                    .and_then(|v| Ok(v.name))
-                    .or_else::<(), _>(|_| Ok(action.user_id.to_string()))
-                    .unwrap();
-                match GuildId(action.guild_id).unban(&ctx, action.user_id).await {
-                    Ok(_) => println!("Membre \"{}\" débanni", username),
-                    Err(e) => println!("Erreur lors du déban de {} : {}", username, e)
-                }
-            },
-            TypeModeration::Mute => {
-                let mut member = match GuildId(action.guild_id).member(&ctx, action.user_id).await{
-                    Ok(m) => m,
-                    Err(e) => {
-                        println!("Impossible de trouver le membre {} dans le serveur {}: {}", action.user_id, action.guild_id, e.to_string());
-                        return
-                    }
-                };
-                match member.remove_role(&ctx, action.role_id).await {
-                    Ok(_) => println!("Membre {} débanni", member.display_name()),
-                    Err(e) => println!("Impossible de retirer le rôle {} du membre \"{}\" dans le serveur {}: {}", action.role_id, member.display_name(), action.guild_id, e.to_string())
-                };
-            },
-            _ => ()
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Default, Debug)]
-struct ModerationData {
-    mod_until: Vec<Action>,
-    muted_role: u64,
 }
 
 pub struct Moderation {
-    tasks: RwLock<Option<task::TaskManager<Action, RegistryFile>>>,
+    tasks: RwLock<Option<task::TaskManager<Sanction, RegistryFile, Context>>>,
 }
 impl Moderation {
     pub fn new() -> Self {
@@ -186,66 +91,64 @@ impl Moderation {
         }
     }
 }
-
-enum Sanction {
+#[derive(Clone, Serialize, Deserialize)]
+struct Sanction {
+    user_id: UserId,
+    guild_id: GuildId,
+    data: SanctionType,
+}
+#[serde_with::serde_as]
+#[derive(Clone, Serialize, Deserialize)]
+enum SanctionType {
     Ban{
-        user_id: UserId,
-        guild_id: GuildId,
-        duration: Option<Duration>,
+        #[serde_as(as = "Option<serde_with::TimestampSeconds>")]
+        until: Option<DateTime<Utc>>,
         historique: u8,
         reason: String,
     },
     Mute {
-        user_id: UserId,
-        guild_id: GuildId,
-        duration: Option<Duration>,
+        #[serde_as(as = "Option<serde_with::TimestampSeconds>")]
+        until: Option<DateTime<Utc>>,
         reason: String,
     },
     Kick {
-        user_id: UserId,
-        guild_id: GuildId,
         reason: String,
     },
-    Unban {
-        user_id: UserId,
-        guild_id: GuildId,
-    },
-    Unmute {
-        user_id: UserId,
-        guild_id: GuildId,
-    },
+    Unban,
+    Unmute,
 }
 
 impl Sanction {
     pub const fn name(&self) -> &'static str {
-        match &self {
-            Sanction::Ban{..} => "Ban",
-            Sanction::Mute{..} => "Mute",
-            Sanction::Kick{..} => "Kick",
-            Sanction::Unban{..} => "Unban",
-            Sanction::Unmute{..} => "Unmute",
+        match &self.data {
+            SanctionType::Ban{..} => "Ban",
+            SanctionType::Mute{..} => "Mute",
+            SanctionType::Kick{..} => "Kick",
+            SanctionType::Unban{..} => "Unban",
+            SanctionType::Unmute{..} => "Unmute",
         }
     }
     pub const fn preterite(&self) -> &'static str {
-        match &self {
-            Sanction::Ban{..} => "banni",
-            Sanction::Mute{..} => "mute",
-            Sanction::Kick{..} => "kick",
-            Sanction::Unban{..} => "débanni",
-            Sanction::Unmute{..} => "démute",
+        match &self.data {
+            SanctionType::Ban{..} => "banni",
+            SanctionType::Mute{..} => "mute",
+            SanctionType::Kick{..} => "kick",
+            SanctionType::Unban{..} => "débanni",
+            SanctionType::Unmute{..} => "démute",
         }
     }
     pub async fn apply(&self, ctx: &Context) -> serenity::Result<()> {
-        match self {
-            Sanction::Ban{user_id, guild_id, historique, reason, ..} => {
+        let (guild_id, user_id) = (self.guild_id, self.user_id);
+        match &self.data {
+            SanctionType::Ban{historique, reason, ..} => {
                 guild_id.ban_with_reason(ctx, user_id, *historique, reason).await
             },
-            Sanction::Mute{user_id, guild_id, ..} => {
+            SanctionType::Mute{..} => {
                 let role = guild_id
                     .roles(ctx).await?
-                    .iter()
-                    .find(|(_, r)| r.name == "muted")
-                    .map(|(id, _)| *id);
+                    .into_iter()
+                    .find(|(_, r)| r.name == ROLE_MUTED)
+                    .map(|(id, _)| id);
                 match role {
                     Some(role) => {
                         let mut member = guild_id.member(ctx, user_id).await?;
@@ -253,23 +156,23 @@ impl Sanction {
                         Ok(())
                     },
                     None => {
-                        warn!("Impossible de trouver le rôle \"muted\" dans le serveur {}", guild_id);
+                        warn!("Impossible de trouver le rôle \"{}\" dans le serveur {}", ROLE_MUTED, guild_id);
                         Err(serenity::Error::Other("Impossible de trouver le rôle \"muted\" dans le serveur"))
                     }
                 } 
             },
-            Sanction::Kick{user_id, guild_id, reason} => {
+            SanctionType::Kick{reason} => {
                 guild_id.kick_with_reason(ctx, user_id, reason).await
             },
-            Sanction::Unban{user_id, guild_id} => {
+            SanctionType::Unban => {
                 guild_id.unban(ctx, user_id).await
             },
-            Sanction::Unmute{user_id, guild_id} => {
+            SanctionType::Unmute => {
                 let role = guild_id
                     .roles(ctx).await?
-                    .iter()
-                    .find(|(_, r)| r.name == "muted")
-                    .map(|(id, _)| *id);
+                    .into_iter()
+                    .find(|(_, r)| r.name == ROLE_MUTED)
+                    .map(|(id, _)| id);
                 match role {
                     Some(role) => {
                         let mut member = guild_id.member(ctx, user_id).await?;
@@ -285,22 +188,10 @@ impl Sanction {
         }
     }
     pub fn user_id(&self) -> UserId {
-        match self {
-            Sanction::Ban{user_id, ..} => *user_id,
-            Sanction::Mute{user_id, ..} => *user_id,
-            Sanction::Kick{user_id, ..} => *user_id,
-            Sanction::Unban{user_id, ..} => *user_id,
-            Sanction::Unmute{user_id, ..} => *user_id,
-        }
+        self.user_id
     }
     pub fn guild_id(&self) -> GuildId {
-        match self {
-            Sanction::Ban{guild_id, ..} => *guild_id,
-            Sanction::Mute{guild_id, ..} => *guild_id,
-            Sanction::Kick{guild_id, ..} => *guild_id,
-            Sanction::Unban{guild_id, ..} => *guild_id,
-            Sanction::Unmute{guild_id, ..} => *guild_id,
-        }
+        self.guild_id
     }
     #[inline]
     pub async fn to_user_message(&self, ctx: &Context) -> message::Message {
@@ -327,20 +218,20 @@ impl Sanction {
             e.title(self.name());
             e.description(description);
             e.color(color);
-            match self {
-                Sanction::Ban{duration, reason, ..} => {
-                    if let Some(duration) = duration {
-                        e.field("Durée", format!("{}", duration.to_string()), true);
+            match &self.data {
+                SanctionType::Ban{until, reason, ..} => {
+                    if let Some(until) = until {
+                        e.field("Durée", format!("{}", until.to_string()), true);
                     }
                     e.field("Raison", reason, true);
                 },
-                Sanction::Mute{duration, reason, ..} => {
-                    if let Some(duration) = duration {
-                        e.field("Durée", format!("{}", duration.to_string()), true);
+                SanctionType::Mute{until, reason, ..} => {
+                    if let Some(until) = until {
+                        e.field("Durée", format!("{}", until.to_string()), true);
                     }
                     e.field("Raison", reason, true);
                 },
-                Sanction::Kick{reason, ..} => {
+                SanctionType::Kick{reason, ..} => {
                     e.field("Raison", reason, true);
                 },
                 _ => ()
@@ -360,43 +251,93 @@ impl Sanction {
         write!(log, "{:=<10}\n", "")?;
         write!(log, "When: {}\n", now.format("%d/%m/%Y %H:%M:%S"))?;
         write!(log, "By: {}\n", user_by)?;
-        match self {
-            Sanction::Ban{user_id, duration, reason, ..} => {
-                let user = Self::username(ctx, *user_id).await;
+        let user_id = self.user_id();
+        match &self.data {
+            SanctionType::Ban{ until, reason, ..} => {
+                let user = Self::username(ctx, user_id).await;
                 write!(log, "What: {}\n", "Ban")?;
                 write!(log, "Who: {}\n", user)?;
                 write!(log, "Why: {}\n", reason)?;
-                if let Some(duration) = duration {
-                    write!(log, "For: {}\n", duration.to_string())?;
+                if let Some(until) = until {
+                    write!(log, "Until: {}\n", until)?;
                 }
             },
-            Sanction::Mute{user_id, duration, reason, ..} => {
-                let user = Self::username(ctx, *user_id).await;
+            SanctionType::Mute{ until, reason, ..} => {
+                let user = Self::username(ctx, user_id).await;
                 write!(log, "What: {}\n", "Mute")?;
                 write!(log, "Who: {}\n", user)?;
                 write!(log, "Why: {}\n", reason)?;
-                if let Some(duration) = duration {
-                    write!(log, "For: {}\n", duration.to_string())?;
+                if let Some(until) = until {
+                    write!(log, "Until: {}\n", until)?;
                 }
             },
-            Sanction::Kick{user_id, reason, ..} => {
-                let user = Self::username(ctx, *user_id).await;
+            SanctionType::Kick{ reason, ..} => {
+                let user = Self::username(ctx, user_id).await;
                 write!(log, "What: {}\n", "Kick")?;
                 write!(log, "Who: {}\n", user)?;
                 write!(log, "Why: {}\n", reason)?;
             },
-            Sanction::Unban{user_id, ..} => {
-                let user = Self::username(ctx, *user_id).await;
+            SanctionType::Unban => {
+                let user = Self::username(ctx, user_id).await;
                 write!(log, "What: {}\n", "Unban")?;
                 write!(log, "Who: {}\n", user)?;
             },
-            Sanction::Unmute{user_id, ..} => {
-                let user = Self::username(ctx, *user_id).await;
+            SanctionType::Unmute => {
+                let user = Self::username(ctx, user_id).await;
                 write!(log, "What: {}\n", "Unmute")?;
                 write!(log, "Who: {}\n", user)?;
             }
         }
         Ok(log)
+    }
+    async fn undo(&self, ctx: &Context) {
+        match self.data {
+            SanctionType::Ban{..} => {
+                let username = self.user_id.to_user(&ctx).await
+                    .and_then(|v| Ok(v.name))
+                    .or_else::<(), _>(|_| Ok(self.user_id.to_string()))
+                    .unwrap();
+                match self.guild_id.unban(&ctx, self.user_id).await {
+                    Ok(_) => println!("Membre \"{}\" débanni", username),
+                    Err(e) => println!("Erreur lors du déban de {} : {}", username, e)
+                }
+            },
+            SanctionType::Mute{..} => {
+                let mut member = match self.guild_id.member(&ctx, self.user_id).await{
+                    Ok(m) => m,
+                    Err(e) => {
+                        println!("Impossible de trouver le membre {} dans le serveur {}: {}", self.user_id, self.guild_id, e.to_string());
+                        return
+                    }
+                };
+                let roles = match self.guild_id.roles(ctx).await{
+                    Ok(r) => r,
+                    Err(e) => {
+                        println!("Impossible de trouver les rôles du serveur {}: {}", self.guild_id, e.to_string());
+                        return
+                    }
+                };
+                let role_muted = match roles.into_iter().find(|(_, r)| r.name.as_str() == ROLE_MUTED) {
+                    Some(r) => r,
+                    None => {
+                        println!("Impossible de trouver le rôle '{}' dans le serveur {}", ROLE_MUTED, self.guild_id);
+                        return
+                    }
+                };
+                match member.remove_role(&ctx, role_muted.0).await {
+                    Ok(_) => println!("Membre {} débanni", member.display_name()),
+                    Err(e) => println!("Impossible de retirer le rôle {} (id: {}) du membre \"{}\" dans le serveur {}: {}", role_muted.1.name, role_muted.0, member.display_name(), self.guild_id, e.to_string())
+                };
+            },
+            _ => ()
+        }
+    }
+}
+#[async_trait]
+impl task::DataFunc for Sanction {
+    type Persistent = Context;
+    async fn run(&self, ctx: &Context) -> Result<(), String> {
+        Ok(self.undo(ctx).await)
     }
 }
 
@@ -406,17 +347,11 @@ impl Moderation {
     async fn on_ready(&self, ctx: &Context, _: &ReadyEvent) {
         let mut tasks = self.tasks.write().await;
         let ctx = ctx.clone();
-        let task_func = move |d| {
-            let ctx = ctx.clone();
-            tokio::spawn(async move {
-                Action::undo(ctx, d).await
-            });
-        };
         match &mut *tasks {
-            Some(tasks) => tasks.reset_func(task_func),
+            Some(tasks) => tasks.reset_persistent(ctx.clone()),
             None => {
                 let registry = RegistryFile::from_file("./data/moderation2.ron").await.unwrap();
-                let new_tasks = task::TaskManager::new(task_func, registry);
+                let new_tasks = task::TaskManager::new(registry, ctx.clone());
                 *tasks = Some(new_tasks);
             }
         }
@@ -450,15 +385,18 @@ impl Moderation {
         //     }
         //     None => None
         // };
-        let duration = None;
+        let until = None;
         
-        self.do_sanction(ctx, app_cmd, Sanction::Ban{
+        self.do_sanction(ctx, app_cmd, Sanction {
             user_id: member,
             guild_id,
-            reason: raison,
-            duration,
-            historique: del_msg.map(|v| v.clamp(0, 7)).unwrap_or(0)
+            data : SanctionType::Ban{
+                reason: raison,
+                until,
+                historique: del_msg.map(|v| v.clamp(0, 7)).unwrap_or(0)
+            }
         }).await;
+        
     }
     #[command(description="Expulse un membre du serveur")]
     pub async fn kick(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
@@ -468,10 +406,12 @@ impl Moderation {
         reason: String
     ) {
         let guild_id = app_cmd.get_guild_id().unwrap_or(GuildId(0));
-        self.do_sanction(ctx, app_cmd, Sanction::Kick{
+        self.do_sanction(ctx, app_cmd, Sanction {
             user_id: member,
             guild_id,
-            reason
+                data: SanctionType::Kick{
+                reason
+            }
         }).await;
     }
     #[command(description="Mute un membre du serveur")]
@@ -480,28 +420,32 @@ impl Moderation {
         member: UserId,
         #[argument(description="Raison du ban")]
         raison: String,
-        // #[argument(description="Durée du mute")]
-        // duration: Option<String>
+        #[argument(description="Durée du mute")]
+        duration: Option<String>
     ) {
         let guild_id = app_cmd.get_guild_id().unwrap_or(GuildId(0));
-        // let duration = match duration.map(|v| time::parse(v)) {
-        //     Some(Ok(v)) => Some(Duration::seconds(v as _)),
-        //     Some(Err(e)) => {
-        //         match app_cmd.direct_response(ctx, message::error(format!("Impossible de parser la durée: {}", e))).await {
-        //             Ok(_) => (),
-        //             Err(e) => error!("Impossible de renvoyer une réponse directe: {}", e)
-        //         }
-        //         return;
-        //     }
-        //     None => None
-        // };
-        let duration = None;
+        let until = match duration.map(|v| time::parse(v)) {
+            Some(Ok(v)) => {
+                Some(Utc::now() + Duration::seconds(v as _))
+            },
+            Some(Err(e)) => {
+                match app_cmd.direct_response(ctx, message::error(format!("Impossible de parser la durée: {}", e))).await {
+                    Ok(_) => (),
+                    Err(e) => error!("Impossible de renvoyer une réponse directe: {}", e)
+                }
+                return;
+            }
+            None => None
+        };
+        // let duration = None;
         
-        self.do_sanction(ctx, app_cmd, Sanction::Mute{
+        self.do_sanction(ctx, app_cmd, Sanction {
             user_id: member,
             guild_id,
-            reason: raison,
-            duration,
+            data: SanctionType::Mute{
+                reason: raison,
+                until,
+            }
         }).await;
     }
     #[command(description="Débanni un membre du serveur")]
@@ -510,9 +454,10 @@ impl Moderation {
         member: UserId
     ) {
         let guild_id = app_cmd.get_guild_id().unwrap_or(GuildId(0));
-        self.do_sanction(ctx, app_cmd, Sanction::Unban{
+        self.do_sanction(ctx, app_cmd, Sanction {
             user_id: member,
-            guild_id
+            guild_id,
+            data: SanctionType::Unban
         }).await;
     }
     #[command(description="Démute un membre du serveur")]
@@ -521,9 +466,10 @@ impl Moderation {
         member: UserId
     ) {
         let guild_id = app_cmd.get_guild_id().unwrap_or(GuildId(0));
-        self.do_sanction(ctx, app_cmd, Sanction::Unmute{
+        self.do_sanction(ctx, app_cmd, Sanction{
             user_id: member,
-            guild_id
+            guild_id, 
+            data: SanctionType::Unmute
         }).await;
     }
 
@@ -549,8 +495,8 @@ impl Moderation {
             }
         };
         let user_id = sanction.user_id();
-        match &sanction {
-            Sanction::Ban { .. } | Sanction::Mute { .. } | Sanction::Kick { .. } => {
+        match &sanction.data {
+            SanctionType::Ban { .. } | SanctionType::Mute { .. } | SanctionType::Kick { .. } => {
                 let user = match user_id.to_user(&ctx).await {
                     Ok(v) => Some(v),
                     Err(_) => None
@@ -580,8 +526,27 @@ impl Moderation {
                 return;
             }
         };
+        let msg = sanction.to_server_message(ctx).await;
+        match sanction {
+            Sanction { data: SanctionType::Ban { until: Some(until), .. } | SanctionType::Mute { until: Some(until), .. }, .. } => {
+                let mut tasks = self.tasks.write().await;
+                let tasks = tasks.as_mut().unwrap();
+                match tasks.add(sanction, until).await {
+                    Ok(_) => (),
+                    Err(e) => {
+                        let msg = message::error(format!("Impossible d'ajouter la sanction à la liste: {}", e.to_string()));
+                        match resp.send_message(msg).await {
+                            Ok(_) => (),
+                            Err(e) => warn!("Impossible de renvoyer la réponse d'une commande: {}", e.to_string())
+                        }
+                        return;
+                    }
+                }
+            },
+            _ => ()
+        }
         
-        match resp.send_message(sanction.to_server_message(ctx).await).await{
+        match resp.send_message(msg).await{
             Ok(_) => (),
             Err(e) => warn!("Impossible de renvoyer la réponse d'une commande: {}", e.to_string())
         }
