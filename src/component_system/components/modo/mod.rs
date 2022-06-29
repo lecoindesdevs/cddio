@@ -41,17 +41,35 @@ impl RegistryFile {
         Ok(res)
     }
     async fn save(&self) -> Result<(), String> {
-        let mut file = async_std::fs::File::create(&self.path_file).await.map_err(|e| e.to_string())?;
+        let log_error = |msg, e| {
+            let e = format!("modo::RegistryFile::save: {}: {}", msg, e);
+            error!("{}", e);
+            e
+        };
+        let mut file = async_std::fs::File::create(&self.path_file).await
+            .map_err(|e| log_error(format!("Unable to open/create file at '{}'", self.path_file.to_string_lossy()), e.to_string()))?;
+
         let tasks = self.tasks.read().await;
-        let data = ron::to_string(&*tasks).map_err(|e| e.to_string())?;
-        file.write_all(data.as_bytes()).await.map_err(|e| e.to_string())?;
+        let data = ron::to_string(&*tasks)
+            .map_err(|e| log_error(format!("Unable to serialize tasks"), e.to_string()))?;
+        file.write_all(data.as_bytes()).await
+            .map_err(|e| log_error(format!("Unable to open/create file at '{}'", self.path_file.to_string_lossy()), e.to_string()))?;
         Ok(())
     }
     async fn load(&self) -> Result<(), String> {
+        let log_error = |msg, e| {
+            let e = format!("modo::RegistryFile::load: {}: {}", msg, e);
+            error!("{}", e);
+            e
+        };
         if self.path_file.exists() {
-            let data = std::fs::read_to_string(&self.path_file).map_err(|e| format!("modo RegistryFile: can't open file: {}", e.to_string()))?;
-            let tasks = ron::from_str(&data).map_err(|e| format!("modo RegistryFile: can't open file: {}", e.to_string()))?;
+            let data = std::fs::read_to_string(&self.path_file)
+                .map_err(|e| log_error(format!("Unable to read file at '{}'", self.path_file.to_string_lossy()), e.to_string()))?;
+            let tasks: HashMap<_,_> = ron::from_str(&data)
+                .map_err(|e| log_error(format!("Unable to parse tasks"), e.to_string()))?;
+            let highest_id = tasks.iter().map(|(id, _)| *id).max().unwrap_or(0);
             *self.tasks.write().await = tasks;
+            *self.task_counter.write().await = highest_id + 1;
         }
         Ok(())
     }
