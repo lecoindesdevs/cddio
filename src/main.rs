@@ -26,6 +26,7 @@
 mod bot;
 mod component_system;
 mod config;
+mod log;
 #[macro_use]
 mod util;
 
@@ -49,6 +50,9 @@ impl<T, S: AsRef<str>> ResultLog for Result<T, S> {
 
 #[tokio::main]
 async fn main() {
+    if let Err(e) =  log::init() {
+        panic!("Unable to set logger: {}", e);
+    }
     let config = config::Config::load("./config.ron").expect_log("Could not load the configuration file");
     let mut bot = bot::Bot::new(&config).await
         .or_else(|e|Err(e.to_string()))
