@@ -78,16 +78,20 @@ impl RegistryFile {
 impl task::Registry for RegistryFile {
     type Data = Sanction;
     async fn register(&mut self, task: task::Task<Self::Data>) -> Result<task::TaskID, String> {
-        let mut tasks = self.tasks.write().await;
         let id = self.task_counter.read().await.clone();
-        tasks.insert(id, task);
+        self.tasks.write().await.insert(id, task);
         *self.task_counter.write().await += 1;
-        Ok(id)
+        match self.save().await {
+            Ok(_) => Ok(id),
+            Err(e) => Err(e)
+        }
     }
     async fn unregister(&mut self, id: task::TaskID) -> Result<(), String> {
-        let mut tasks = self.tasks.write().await;
-        tasks.remove(&id);
-        Ok(())
+        self.tasks.write().await.remove(&id);
+        match self.save().await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e)
+        }
     }
 
     async fn get(&self, id: task::TaskID) -> Option<task::Task<Self::Data>> {
