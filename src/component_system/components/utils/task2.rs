@@ -1,7 +1,8 @@
 use std::{time::Duration, collections::HashMap, sync::Arc};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, TimeZone};
 use futures_locks::Mutex;
+use log::{error, warn, info};
 use serde::{Deserialize, Serialize};
 use serenity::async_trait;
 
@@ -11,7 +12,7 @@ pub trait DataFunc: Send + Sync + 'static {
     async fn run(&self, persistent: &Self::Persistent) -> Result<(), String>;
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Task<D: DataFunc + Clone> 
 {
     until: i64,
@@ -43,7 +44,7 @@ pub struct TaskManager<D, R, P> where
 }
 
 impl<D, R, P> TaskManager<D, R, P> where
-D: DataFunc<Persistent = P> + Clone,
+    D: DataFunc<Persistent = P> + Clone + std::fmt::Debug,
     R: Registry<Data = D> + Send + 'static,
     P: Send + Sync + 'static
 {
@@ -60,15 +61,32 @@ D: DataFunc<Persistent = P> + Clone,
             until: until.timestamp(),
             data: data.clone()
         }).await?;
-        let tasks = Arc::clone(&self.tasks);
-        let persistent = Arc::clone(&self.persistent);
-        let handle = tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs((until.timestamp() - Utc::now().timestamp()) as _ )).await;
-            data.run(&*persistent).await;
-            Self::remove_from_registry(&tasks, id).await;
-        });
+        let handle = self.spawn_task(id, data, until);
         self.task_handles.insert(id, handle);
         Ok(id)
+    }
+    fn spawn_task(&self, id: TaskID, data: D, until: DateTime<Utc>) -> tokio::task::JoinHandle<()> {
+        let tasks = Arc::clone(&self.tasks);
+        let persistent = Arc::clone(&self.persistent);
+        tokio::spawn(async move {
+            info!("Task {}: Spawning", id);
+            let seconds = until.timestamp() - Utc::now().timestamp();
+            if seconds > 0 {
+                let duration = Duration::from_secs(seconds as _ );
+                info!("Task {}: Sleeping for {} seconds", id, seconds);
+                tokio::time::sleep(duration).await;
+            }
+            info!("Task {}: Running", id);
+            if let Err(e) = data.run(&*persistent).await {
+                error!("Task {} failed: {}", id, e);
+                return;
+            }
+            if let Err(e) = Self::remove_from_registry(&tasks, id).await {
+                error!("Task {} failed to remove from registry: {}", id, e);
+                return;
+            }
+            info!("Task {}: Finished", id);
+        })
     }
     pub async fn remove(&mut self, id: TaskID) -> Result<(), String> {
         match self.task_handles.get(&id){
