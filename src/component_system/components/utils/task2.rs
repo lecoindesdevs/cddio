@@ -31,7 +31,7 @@ pub trait Registry
     async fn get_all(&self) -> Vec<Task<Self::Data>>;
 }
 
-type Tasks<R: Registry> = Arc<Mutex<R>>;
+type Tasks<R> = Arc<Mutex<R>>;
 
 pub struct TaskManager<D, R, P> where
     D: DataFunc<Persistent = P> + Clone,
@@ -53,6 +53,16 @@ impl<D, R, P> TaskManager<D, R, P> where
             tasks: Arc::new(Mutex::new(registry)),
             task_handles: HashMap::new(),
             persistent: Arc::new(persistent_data)
+        }
+    }
+    pub async fn init(&mut self) {
+        let tasks = self.tasks.lock().await.get_all().await;
+        info!("Initializing {} tasks", tasks.len());
+        for (task_id, task) in tasks {
+            info!("Initializing task {}. Data: {:?}", task_id, task);
+            let handle = self.spawn_task(task_id, task.data, Utc.timestamp(task.until, 0));
+            info!("Task {} initialized", task_id);
+            self.task_handles.insert(task_id, handle);
         }
     }
     pub async fn add(&mut self, data: D, until: DateTime<Utc>) -> Result<TaskID, String> {
