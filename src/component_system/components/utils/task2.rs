@@ -123,6 +123,9 @@ impl<D, R, P> TaskManager<D, R, P> where
         let tasks = self.tasks.lock().await;
         tasks.get(id).await
     }
+    pub fn registry(&self) -> Arc<Mutex<R>> {
+        Arc::clone(&self.tasks)
+    }
     pub fn reset_persistent(&mut self, data: P) {
         self.persistent = Arc::new(data);
     }
