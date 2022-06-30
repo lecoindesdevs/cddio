@@ -107,16 +107,17 @@ impl<D, R, P> TaskManager<D, R, P> where
             Some(handle) => {
                 handle.abort();
                 self.task_handles.remove(&id);
-                Self::remove_from_registry(&self.tasks, id).await;
+                if let Err(e) = Self::remove_from_registry(&self.tasks, id).await {
+                    error!("Task {} failed to remove from registry: {}", id, e);
+                }
                 Ok(())
             },
             None => Err("Task not found".to_string())
         }
     }
     async fn remove_from_registry(tasks: &Tasks<R>, id: TaskID) -> Result<(), String> {
-        let mut tasks = tasks.lock().await;
-        tasks.unregister(id).await;
-        Ok(())
+        let mut registry = tasks.lock().await;
+        registry.unregister(id).await
     }
     pub async fn get(&self, id: TaskID) -> Option<Task<D>> {
         let tasks = self.tasks.lock().await;
