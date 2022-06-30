@@ -101,6 +101,25 @@ impl task::Registry for RegistryFile {
     async fn get_all(&self) -> Vec<(task::TaskID, task::Task<Self::Data>)> {
         self.tasks.read().await.iter().map(|v| (*v.0, v.1.clone())).collect()
     }
+
+    async fn find_one<F>(&self, f: F) -> Option<(task::TaskID, task::Task<Self::Data>)> where
+        F: Fn(&task::Task<Self::Data>) -> bool + Send
+    {
+        let tasks = self.tasks.read().await;
+        tasks
+            .iter()
+            .find(|(_, task)| f(task))
+            .map(|(id, task)| (*id, task.clone()))
+    }
+    async fn find_all<F>(&self, f: F) -> Vec<(task::TaskID, task::Task<Self::Data>)> where
+        F: Fn(&task::Task<Self::Data>) -> bool + Send
+    {
+        self.tasks.read().await
+            .iter()
+            .filter(|(_, task)| f(task))
+            .map(|v| (*v.0, v.1.clone()))
+            .collect()
+    }
 }
 
 pub struct Moderation {
@@ -553,6 +572,7 @@ impl Moderation {
                     }
                 }
             },
+            Sanction {data: SanctionType::Unban | SanctionType::Unmute, ..} => todo!("Unregister task if exists"),
             _ => ()
         }
         

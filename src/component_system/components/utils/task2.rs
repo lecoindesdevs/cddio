@@ -29,6 +29,10 @@ pub trait Registry
     async fn unregister(&mut self, id: TaskID) -> Result<(), String>;
     async fn get(&self, id: TaskID) -> Option<Task<Self::Data>>;
     async fn get_all(&self) -> Vec<(TaskID, Task<Self::Data>)>;
+    async fn find_one<F>(&self, f: F) -> Option<(TaskID, Task<Self::Data>)> where
+        F: Fn(&Task<Self::Data>) -> bool + Send;
+    async fn find_all<F>(&self, f: F) -> Vec<(TaskID, Task<Self::Data>)> where
+        F: Fn(&Task<Self::Data>) -> bool + Send;
 }
 
 type Tasks<R> = Arc<Mutex<R>>;
