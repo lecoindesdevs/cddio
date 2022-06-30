@@ -15,8 +15,8 @@ pub trait DataFunc: Send + Sync + 'static {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Task<D: DataFunc + Clone> 
 {
-    until: i64,
-    data: D
+    pub until: i64,
+    pub data: D
 }
 
 pub type TaskID = u64;
