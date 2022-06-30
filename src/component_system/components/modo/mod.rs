@@ -3,7 +3,6 @@ mod registry_file;
 
 use chrono::{Duration, Utc};
 use log::*;
-
 use futures_locks::RwLock;
 use opencdd_components::{ApplicationCommandEmbed, message};
 use opencdd_macros::commands;
@@ -14,18 +13,13 @@ use serenity::{
         event::*
     }
 };
-
-use super::utils;
+use super::utils::{self, task2::Registry};
 use super::utils::time_parser as time;
-
 use crate::component_system::components::utils::task;
 use self::{
     sanction::{Sanction, SanctionType},
     registry_file::RegistryFile,
 };
-
-
-
 
 pub struct Moderation {
     tasks: RwLock<Option<task::TaskManager<Sanction, RegistryFile, Context>>>,
@@ -37,7 +31,6 @@ impl Moderation {
         }
     }
 }
-
 
 #[commands]
 impl Moderation {
@@ -136,7 +129,6 @@ impl Moderation {
             }
             None => None
         };
-        // let duration = None;
         
         self.do_sanction(ctx, app_cmd, Sanction {
             user_id: member,
@@ -175,6 +167,32 @@ impl Moderation {
 }
 
 impl Moderation {
+    async fn abort_last_sanction(&self, user_id: UserId, guild_id: GuildId) {
+        match 
+        {
+            let tasks = self.tasks.read().await;
+            let reg = tasks
+                .as_ref()
+                .unwrap()
+                .registry()
+                .lock().await;
+            reg
+                .find_one(|v| v.data.user_id == user_id && v.data.guild_id == guild_id).await
+                .map(|(id, _)| id)
+        } 
+        // Some(2)
+        {
+            Some(v) => {
+                info!("Retrait de l'ancienne sanction du membre {}", user_id);
+                let mut tasks = self.tasks.write().await;
+                match tasks.as_mut().unwrap().remove(v).await {
+                    Ok(_) => info!("Sanction retirée"),
+                    Err(e) => error!("Impossible de supprimer la sanction: {}", e)
+                }
+            },
+            None => ()
+        };
+    }
     async fn do_sanction(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>, sanction: Sanction) {
         match app_cmd.get_guild_id() {
             None => {
@@ -194,6 +212,9 @@ impl Moderation {
             }
         };
         let user_id = sanction.user_id();
+        let guild_id = sanction.guild_id();
+        self.abort_last_sanction(user_id, guild_id).await;
+
         match sanction.data() {
             SanctionType::Ban { .. } | SanctionType::Mute { .. } | SanctionType::Kick { .. } => {
                 let user = match user_id.to_user(&ctx).await {
@@ -242,7 +263,6 @@ impl Moderation {
                     }
                 }
             },
-            Sanction {data: SanctionType::Unban | SanctionType::Unmute, ..} => todo!("Unregister task if exists"),
             _ => ()
         }
         
