@@ -80,7 +80,7 @@ impl Sanction {
                         warn!("Impossible de trouver le rôle \"{}\" dans le serveur {}", ROLE_MUTED, guild_id);
                         Err(serenity::Error::Other("Impossible de trouver le rôle \"muted\" dans le serveur"))
                     }
-                } 
+                }
             },
             SanctionType::Kick{reason} => {
                 guild_id.kick_with_reason(ctx, user_id, reason).await
@@ -152,7 +152,7 @@ impl Sanction {
         }
     }
     fn format_date(date: &DateTime<Utc>) -> String {
-        format!("{} (durée: {})", date.format("%d %B %Y à %H:%M:%S"), Sanction::estimation_time(date))
+        format!("{} (environ {})", date.format("%d %B %Y à %H:%M:%S"), Sanction::estimation_time(date))
     }
     
     fn to_message<S: ToString>(&self, color: serenity::utils::Colour, description: S) -> message::Message {
