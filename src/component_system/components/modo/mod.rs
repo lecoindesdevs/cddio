@@ -1,7 +1,7 @@
 mod sanction;
 mod registry_file;
 
-use chrono::{Duration, Utc};
+use chrono::{Duration, Utc, DateTime};
 use log::*;
 use futures_locks::RwLock;
 use opencdd_components::{ApplicationCommandEmbed, message};
@@ -180,10 +180,7 @@ impl Moderation {
     async fn do_sanction(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>, sanction: Sanction) {
         match app_cmd.get_guild_id() {
             None => {
-                match app_cmd.direct_response(ctx, message::error("Vous devez être dans un serveur pour utiliser cette commande")).await  {
-                    Ok(_) => (),
-                    Err(e) => error!("Impossible de renvoyer une réponse directe: {}", e)
-                }
+                Self::send_error(ctx, &app_cmd, "Vous devez être dans un serveur pour utiliser cette commande").await;
                 return;
             }
             _ => (),
