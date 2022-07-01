@@ -271,4 +271,24 @@ impl Moderation {
             Err(e) => warn!("Impossible de renvoyer la réponse d'une commande: {}", e.to_string())
         }
     }
+    #[inline]
+    async fn duration_to_datetime(ctx: &Context, app_cmd: &ApplicationCommandEmbed<'_>, duration_str: Option<String>) -> Option<Option<DateTime<Utc>>> {
+        let res = duration_str
+            .map(|v| time::parse(v))
+            .transpose()
+            .map(|v| v.map(|v| Utc::now() + Duration::seconds(v as _)));
+        match res {
+            Ok(v) => Some(v),
+            Err(e) => {
+                Self::send_error(ctx, app_cmd, format!("Impossible de parser la durée: {}", e)).await;
+                None
+            }
+        }
+    }
+    async fn send_error<S: ToString>(ctx: &Context, app_cmd: &ApplicationCommandEmbed<'_>, msg: S) {
+        match app_cmd.direct_response(ctx, message::error(msg)).await {
+            Ok(_) => (),
+            Err(e) => error!("Impossible de renvoyer une réponse directe: {}", e)
+        }
+    }
 }
