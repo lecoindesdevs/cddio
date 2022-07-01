@@ -62,22 +62,14 @@ impl Moderation {
         raison: String,
         #[argument(description="Supprimer l'historique du membre (nombre de jours de 0 à 7)", name="historique")]
         del_msg: Option<u8>,
-        // #[argument(description="Durée du ban")]
-        // duration: Option<String>
+        #[argument(description="Durée du ban")]
+        duree: Option<String>
     ) {
         let guild_id = app_cmd.get_guild_id().unwrap_or(GuildId(0));
-        // let duration = match duration.map(|v| time::parse(v)) {
-        //     Some(Ok(v)) => Some(Duration::seconds(v as _)),
-        //     Some(Err(e)) => {
-        //         match app_cmd.direct_response(ctx, message::error(format!("Impossible de parser la durée: {}", e))).await {
-        //             Ok(_) => (),
-        //             Err(e) => error!("Impossible de renvoyer une réponse directe: {}", e)
-        //         }
-        //         return;
-        //     }
-        //     None => None
-        // };
-        let until = None;
+        let until = match Self::duration_to_datetime(ctx, &app_cmd,  duree).await {
+            Some(v) => v,
+            None => return,
+        };
         
         self.do_sanction(ctx, app_cmd, Sanction {
             user_id: member,
@@ -106,6 +98,7 @@ impl Moderation {
             }
         }).await;
     }
+    
     #[command(description="Mute un membre du serveur")]
     pub async fn mute(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(description="Membre à mute", name="qui")]
@@ -113,21 +106,12 @@ impl Moderation {
         #[argument(description="Raison du ban")]
         raison: String,
         #[argument(description="Durée du mute")]
-        duration: Option<String>
+        duree: Option<String>
     ) {
         let guild_id = app_cmd.get_guild_id().unwrap_or(GuildId(0));
-        let until = match duration.map(|v| time::parse(v)) {
-            Some(Ok(v)) => {
-                Some(Utc::now() + Duration::seconds(v as _))
-            },
-            Some(Err(e)) => {
-                match app_cmd.direct_response(ctx, message::error(format!("Impossible de parser la durée: {}", e))).await {
-                    Ok(_) => (),
-                    Err(e) => error!("Impossible de renvoyer une réponse directe: {}", e)
-                }
-                return;
-            }
-            None => None
+        let until = match Self::duration_to_datetime(ctx, &app_cmd,  duree).await {
+            Some(v) => v,
+            None => return,
         };
         
         self.do_sanction(ctx, app_cmd, Sanction {
