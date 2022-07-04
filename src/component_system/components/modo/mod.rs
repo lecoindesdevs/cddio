@@ -4,7 +4,7 @@ mod log_audit;
 
 use chrono::{Duration, Utc, DateTime};
 use log::*;
-use futures_locks::RwLock;
+use futures_locks::{RwLock, Mutex};
 use opencdd_components::{ApplicationCommandEmbed, message};
 use opencdd_macros::commands;
 use serenity::{
@@ -24,19 +24,26 @@ use self::{
 
 pub struct Moderation {
     tasks: RwLock<Option<task::TaskManager<Sanction, RegistryFile, Context>>>,
+    logger: log_audit::Log,
+    bot_id: Mutex<UserId>
 }
 impl Moderation {
     pub fn new() -> Self {
         Moderation {
-            tasks: RwLock::new(None)
+            tasks: RwLock::new(None),
+            logger: log_audit::Log::new("data/moderation.ron"),
+            bot_id: Mutex::new(UserId(0))
         }
     }
 }
 
+const AUDIT_TIME_THRESHOLD: i64 = 60;
+
 #[commands]
 impl Moderation {
     #[event(Ready)]
-    async fn on_ready(&self, ctx: &Context, _: &ReadyEvent) {
+    async fn on_ready(&self, ctx: &Context, ready: &ReadyEvent) {
+        *self.bot_id.lock().await = ready.ready.user.id;
         let mut tasks = self.tasks.write().await;
         let ctx = ctx.clone();
         match &mut *tasks {
@@ -51,10 +58,34 @@ impl Moderation {
     }
     #[event(GuildBanAdd)]
     async fn on_ban_add(&self, ctx: &Context, event: &GuildBanAddEvent) {
-        // let guild_id = event.guild_id;
-        // let user_by = event.user;
-
+        match self.push_log(ctx, event.guild_id, event.user.id, 22).await {
+            Ok(_) => {},
+            Err(e) => error!("{}", e),
+        }
     }
+    #[event(GuildBanRemove)]
+    async fn on_ban_remove(&self, ctx: &Context, event: &GuildBanRemoveEvent) {
+        match self.push_log(ctx, event.guild_id, event.user.id, 23).await {
+            Ok(_) => {},
+            Err(e) => error!("{}", e),
+        }
+    }
+    #[event(GuildMemberRemove)]
+    async fn on_member_remove(&self, ctx: &Context, event: &GuildMemberRemoveEvent) {
+        match self.push_log(ctx, event.guild_id, event.user.id, 20).await {
+            Ok(_) => {},
+            Err(e) => error!("{}", e),
+        }
+    }
+    #[event(GuildMemberUpdate)]
+    async fn on_member_update(&self, ctx: &Context, event: &GuildMemberUpdateEvent) {
+        match self.push_log(ctx, event.guild_id, event.user.id, 20).await {
+            Ok(_) => {},
+            Err(e) => error!("{}", e),
+        }
+    }
+    
+    
     #[command(description="Banni un membre du serveur")]
     pub async fn ban(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(description="Membre à bannir", name="qui")]
@@ -71,17 +102,17 @@ impl Moderation {
             Some(v) => v,
             None => return,
         };
-        
+        let user_by = app_cmd.0.user.id;
         self.do_sanction(ctx, app_cmd, Sanction {
             user_id: member,
             guild_id,
+            user_by: user_by,
             data : SanctionType::Ban{
                 reason: raison,
                 until,
                 historique: del_msg.map(|v| v.clamp(0, 7)).unwrap_or(0)
             }
         }).await;
-        
     }
     #[command(description="Expulse un membre du serveur")]
     pub async fn kick(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
@@ -91,10 +122,12 @@ impl Moderation {
         reason: String
     ) {
         let guild_id = app_cmd.get_guild_id().unwrap_or(GuildId(0));
+        let user_by = app_cmd.0.user.id;
         self.do_sanction(ctx, app_cmd, Sanction {
             user_id: member,
+            user_by: user_by,
             guild_id,
-                data: SanctionType::Kick{
+            data: SanctionType::Kick{
                 reason
             }
         }).await;
@@ -109,44 +142,31 @@ impl Moderation {
         #[argument(description="Durée du mute")]
         duree: Option<String>
     ) {
-        let guild_id = app_cmd.get_guild_id().unwrap_or(GuildId(0));
         let until = match Self::duration_to_datetime(ctx, &app_cmd,  duree).await {
             Some(v) => v,
             None => return,
         };
-        
-        self.do_sanction(ctx, app_cmd, Sanction {
-            user_id: member,
-            guild_id,
-            data: SanctionType::Mute{
-                reason: raison,
-                until,
-            }
-        }).await;
+        let sanction = Sanction::from_app_command(&app_cmd, member, SanctionType::Mute{
+            reason: raison,
+            until,
+        });
+        self.do_sanction(ctx, app_cmd, sanction).await;
     }
     #[command(description="Débanni un membre du serveur")]
     pub async fn unban(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(description="Membre à débannir", name="qui")]
         member: UserId
     ) {
-        let guild_id = app_cmd.get_guild_id().unwrap_or(GuildId(0));
-        self.do_sanction(ctx, app_cmd, Sanction {
-            user_id: member,
-            guild_id,
-            data: SanctionType::Unban
-        }).await;
+        let sanction = Sanction::from_app_command(&app_cmd, member, SanctionType::Unban);
+        self.do_sanction(ctx, app_cmd, sanction).await;
     }
     #[command(description="Démute un membre du serveur")]
     pub async fn unmute(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(description="Membre à démute", name="qui")]
         member: UserId
     ) {
-        let guild_id = app_cmd.get_guild_id().unwrap_or(GuildId(0));
-        self.do_sanction(ctx, app_cmd, Sanction{
-            user_id: member,
-            guild_id, 
-            data: SanctionType::Unmute
-        }).await;
+        let sanction = Sanction::from_app_command(&app_cmd, member, SanctionType::Unmute);
+        self.do_sanction(ctx, app_cmd, sanction).await;
     }
 
 }
@@ -272,5 +292,71 @@ impl Moderation {
             Ok(_) => (),
             Err(e) => error!("Impossible de renvoyer une réponse directe: {}", e)
         }
+    }
+    async fn push_log(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, action_type: u8) -> Result<(), String>{
+        let audit = match guild_id.audit_logs(ctx,Some(action_type), Some(user_id), None, Some(1)).await {
+            Ok(audit) => audit,
+            Err(e) => {
+                warn!("Impossible de trouver ou récupérer l'audit: {}", e);
+                return Ok(());
+            }
+        };
+        let audit_entry = match audit.entries.first() {
+            Some(entry) => entry,
+            None => {
+                warn!("No audit entry found in a log event");
+                return Ok(())   
+            }
+        };
+        if Utc::now().timestamp() - audit_entry.id.created_at().unix_timestamp() > AUDIT_TIME_THRESHOLD {
+            warn!("Audit entry is too old");
+            return Ok(());
+        }
+        let data = match action_type {
+            22 => SanctionType::Ban{
+                until: None,
+                historique: 0,
+                reason: audit_entry.reason.clone().unwrap_or_default(),
+            },
+            23 => SanctionType::Unban,
+            20 => SanctionType::Kick{
+                reason: audit_entry.reason.clone().unwrap_or_default(),
+            },
+            25 => {
+                use serenity::model::guild::audit_log::Change;
+                let changes = match &audit_entry.changes {
+                    Some(changes) => changes,
+                    None => return Err("No changes found for mute in a mute event".into())
+                };
+                let is_mute = match changes.iter().filter_map(|change| match change {
+                    Change::RolesAdded{new: Some(roles), ..} | Change::RolesRemove{old: Some(roles), ..} => {
+                        roles.iter().find(|role| role.name == sanction::ROLE_MUTED)
+                            .and(Some(matches!(change, Change::RolesAdded{..})))
+                    },
+                    _ => None
+                }).next() {
+                    Some(change) => change,
+                    None => return Ok(())
+                };
+                if is_mute {
+                    SanctionType::Mute{
+                        until: None,
+                        reason: audit_entry.reason.clone().unwrap_or_default(),
+                    }
+                } else {
+                    SanctionType::Unmute
+                }
+            }
+            _ => unreachable!()
+        };
+        if audit_entry.user_id == self.bot_id.lock().await.0 {
+            return Ok(());
+        }
+        self.logger.push(&Sanction{
+            user_id,
+            guild_id,
+            user_by: audit_entry.user_id,
+            data
+        }).await
     }
 }
