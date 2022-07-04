@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use log::*;
-use opencdd_components::message;
+use opencdd_components::{message, ApplicationCommandEmbed};
 use serenity::{
     client::Context,
     model::id::*, 
@@ -8,7 +8,7 @@ use serenity::{
 };
 use serde::{Deserialize, Serialize};
 use super::utils;
-const ROLE_MUTED: &str = "muted";
+pub const ROLE_MUTED: &str = "muted";
 
 use crate::component_system::components::utils::task;
 
@@ -16,6 +16,7 @@ use crate::component_system::components::utils::task;
 pub struct Sanction {
     pub user_id: UserId,
     pub guild_id: GuildId,
+    pub user_by: UserId,
     pub data: SanctionType,
 }
 #[serde_with::serde_as]
@@ -40,6 +41,14 @@ pub enum SanctionType {
 }
 
 impl Sanction {
+    pub fn from_app_command(app_cmd: &ApplicationCommandEmbed, member: UserId, data: SanctionType) -> Self {
+        Self {
+            user_id: member,
+            guild_id: app_cmd.get_guild_id().unwrap(),
+            user_by: app_cmd.0.user.id,
+            data,
+        }
+    }
     pub const fn name(&self) -> &'static str {
         match &self.data {
             SanctionType::Ban{..} => "Ban",
