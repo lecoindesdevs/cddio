@@ -1,5 +1,6 @@
 mod sanction;
 mod registry_file;
+mod log_audit;
 
 use chrono::{Duration, Utc, DateTime};
 use log::*;
