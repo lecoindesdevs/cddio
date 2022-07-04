@@ -248,6 +248,9 @@ impl Moderation {
                 return;
             }
         };
+        if let Err(e) = self.logger.push(&sanction).await {
+            warn!("Impossible d'enregistrer la sanction dans les logs: {}", e.to_string());
+        }
         let msg = sanction.to_server_message(ctx).await;
         match sanction {
             Sanction { data: SanctionType::Ban { until: Some(until), .. } | SanctionType::Mute { until: Some(until), .. }, .. } => {
