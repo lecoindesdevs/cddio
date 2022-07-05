@@ -53,9 +53,8 @@ impl Function for Interaction {
     fn event_handle(&self) -> syn::Result<proc_macro2::TokenStream> {
         let func_name = self.name();
         let custom_id = &self.attr.custom_id;
-        let fn_args = util::fn_args_to_args_call(&self.impl_fn.sig.inputs)?;
         Ok(quote!{
-            serenity::model::event::Event::InteractionCreate(serenity::model::event::InteractionCreateEvent{interaction: serenity::model::interactions::Interaction::MessageComponent(message_interaction), ..}) if message_interaction.data.custom_id == #custom_id => self.#func_name(#fn_args).await
+            serenity::model::event::Event::InteractionCreate(serenity::model::event::InteractionCreateEvent{interaction: serenity::model::interactions::Interaction::MessageComponent(message_interaction), ..}) if message_interaction.data.custom_id == #custom_id => self.#func_name(ctx, message_interaction).await
         })
     }
 }
