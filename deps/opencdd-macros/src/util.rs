@@ -72,3 +72,22 @@ impl syn::parse::Parse for MacroArgs {
         Ok(Self { args })
     }
 }
+
+pub fn fn_args_to_args_call(fn_args: &syn::punctuated::Punctuated<syn::FnArg, syn::Token![,]>) -> syn::Result<TokenStream> {
+    use syn::*;
+    use quote::quote;
+    let mut args = TokenStream::new();
+    for arg in fn_args {
+        match arg {
+            FnArg::Receiver(_) => continue,
+            FnArg::Typed(arg) => {
+                match arg.pat.as_ref() {
+                    Pat::Ident(ident) => args.extend(quote! { #ident, }),
+                    Pat::Wild(_) => args.extend(quote! { _, }),
+                    _ => return Err(syn::Error::new_spanned(&arg.pat, "Unsupported pattern"))
+                }
+            }
+        }
+    }
+    Ok(args)
+}
