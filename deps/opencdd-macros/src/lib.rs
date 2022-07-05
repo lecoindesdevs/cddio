@@ -1,6 +1,7 @@
 mod function;
 mod command;
 mod event;
+mod message_component;
 
 mod util;
 mod log;

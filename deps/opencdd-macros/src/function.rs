@@ -6,6 +6,7 @@ use proc_macro2 as pm2;
 use super::util::*;
 use super::command::Command;
 use super::event::Event;
+use super::message_component::Interaction;
 
 pub trait Function : ToTokens + std::fmt::Debug {
     fn name(&self) -> pm2::TokenStream;
@@ -28,10 +29,10 @@ impl ToTokens for NoSpecial {
         self.0.to_tokens(tokens);
     }
 }
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum FunctionType {
     Command(Command),
-    Event(Event),
+    Event(Box<dyn Function>),
     NoSpecial(NoSpecial),
 }
 
@@ -66,7 +67,7 @@ impl FunctionType {
 
     pub fn new(mut impl_fn: syn::ImplItemMethod) -> syn::Result<Self> {
         let attrs = impl_fn.attrs.clone();
-        const LIST_ATTR: [&str; 2] = ["command", "event"];
+        const LIST_ATTR: [&str; 3] = ["command", "event", "message_component"];
         
         if attrs.iter().filter(|a| LIST_ATTR.contains(&a.path.to_token_stream().to_string().as_str())).count() > 1 {
             return Err(syn::Error::new_spanned(impl_fn.sig.ident, "Only one discord event type attribute is allowed"));
@@ -91,7 +92,14 @@ impl FunctionType {
         if let Some(attr_evt) = attr_evt {
             impl_fn.attrs = attrs;
             let evt = Event::new(attr_evt, impl_fn)?;
-            return Ok(FunctionType::Event(evt));
+            return Ok(FunctionType::Event(Box::new(evt)));
+        }
+        // Check if the function is an message_component event
+        let (attr_evt, attrs): (_, Vec<_>) = attrs.find_and_pop(finder("message_component"));
+        if let Some(attr_evt) = attr_evt {
+            impl_fn.attrs = attrs;
+            let evt = Interaction::new(attr_evt, impl_fn)?;
+            return Ok(FunctionType::Event(Box::new(evt)));
         }
         // Otherwise, it's a no special function
         Ok(FunctionType::NoSpecial(NoSpecial(impl_fn)))
