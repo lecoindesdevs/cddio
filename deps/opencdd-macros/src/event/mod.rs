@@ -2,6 +2,7 @@ use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
+use crate::util;
 use crate::{util::ParenValue, function::Function};
 use std::fmt;
 #[derive(Debug, Clone)]
@@ -60,28 +61,16 @@ impl Function for Event {
         quote! { #name }
     }
 
-    fn event_handle(&self) -> proc_macro2::TokenStream {
+    fn event_handle(&self) -> syn::Result<proc_macro2::TokenStream> {
         let func_name = self.name();
         
         match &self.attr.pattern {
-            syn::Pat::Ident(ident) => quote! {
+            syn::Pat::Ident(ident) => Ok(quote! {
                 serenity::model::event::Event::#ident(evt) => self.#func_name(ctx, evt).await
-            },
+            }),
             pat => {
-                use syn::*;
-                let args = self.impl_fn.sig.inputs.iter().filter_map(|arg| {
-                    match arg {
-                        FnArg::Receiver(_) => None,
-                        FnArg::Typed(arg) => {
-                            match arg.pat.as_ref() {
-                                Pat::Ident(ref pat) => Some(quote! { #pat }),
-                                Pat::Wild(_) => Some(quote! { _ }),
-                                _ => panic!("Unsupported pattern"),
-                            }
-                        }
-                    }
-                });
-                quote! {#pat => self.#func_name(#(#args), *).await}
+                let args = util::fn_args_to_args_call(&self.impl_fn.sig.inputs)?;
+                Ok(quote! {#pat => self.#func_name(#args).await})
             }
         }
     }

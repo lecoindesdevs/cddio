@@ -74,14 +74,14 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
         let func = func_rc.borrow();
         match &*func {
             FunctionType::Event(event) => {
-                events.push(event.event_handle());
+                events.push(event.event_handle()?);
                 impl_items.push(quote! {
                     #event
                 });
             },
             FunctionType::Command(command) => {
                 
-                let event = command.event_handle();
+                let event = command.event_handle()?;
                 let name = command.attr.name.clone().or_else(|| Some(command.name().to_string())).unwrap();
                 impl_items.push(quote! {
                     #command

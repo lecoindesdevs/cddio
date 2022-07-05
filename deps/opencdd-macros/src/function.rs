@@ -9,7 +9,7 @@ use super::event::Event;
 
 pub trait Function : ToTokens + std::fmt::Debug {
     fn name(&self) -> pm2::TokenStream;
-    fn event_handle(&self) -> pm2::TokenStream;
+    fn event_handle(&self) -> syn::Result<pm2::TokenStream>;
 }
 
 #[derive(Debug, Clone)]
@@ -19,8 +19,8 @@ impl Function for NoSpecial {
     fn name(&self) -> pm2::TokenStream {
         self.0.sig.ident.to_token_stream()
     }
-    fn event_handle(&self) -> pm2::TokenStream {
-        quote! {}
+    fn event_handle(&self) -> syn::Result<pm2::TokenStream> {
+        Ok(quote! {})
     }
 }
 impl ToTokens for NoSpecial {
@@ -45,7 +45,7 @@ impl Function for FunctionType {
             FunctionType::NoSpecial(n) => n.name(),
         }
     }
-    fn event_handle(&self) -> pm2::TokenStream {
+    fn event_handle(&self) -> syn::Result<pm2::TokenStream> {
         match self {
             FunctionType::Command(c) => c.event_handle(),
             FunctionType::Event(e) => e.event_handle(),

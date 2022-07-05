@@ -81,7 +81,7 @@ impl Function for Command {
         quote! { #name }
     }
 
-    fn event_handle(&self) -> pm2::TokenStream {
+    fn event_handle(&self) -> syn::Result<pm2::TokenStream> {
         let name = self.name();
         let mut args_call = vec![];
         let mut args_decode = vec![];
@@ -95,10 +95,10 @@ impl Function for Command {
                 ArgumentType::SelfArg => continue,
             }
         }
-        quote! {
+        Ok(quote! {
             #(#args_decode)*
             self.#name(#(#args_call),*).await;
-        }
+        })
     }
 }
 
