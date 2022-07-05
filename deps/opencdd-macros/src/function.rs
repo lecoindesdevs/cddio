@@ -63,48 +63,51 @@ impl ToTokens for FunctionType {
         }
     }
 }
-impl FunctionType {
 
+macro_rules! to_event {
+    ($impl_fn:ident, $(($title:expr, $event_type:ty, $function_type:ident)), *) => {
+        {
+            let mut attrs = $impl_fn.attrs.clone();
+            let func = 'a: loop{
+                $(
+                    let find = |attr: &syn::Attribute| {
+                        match attr.path.get_ident() {
+                            Some(ident) => ident.to_string() == $title,
+                            None => return false
+                        }
+                    };
+                    let (attr_evt, other): (_, Vec<_>) = attrs.find_and_pop(find);
+                    if let Some(attr_evt) = attr_evt {
+                        $impl_fn.attrs = other;
+                        let evt = <$event_type>::new(attr_evt, $impl_fn)?;
+                        break 'a FunctionType::$function_type(to_event!(evt, _result => $function_type));
+                    } else {
+                        attrs = other;
+                    }
+                )*
+                break 'a FunctionType::NoSpecial(NoSpecial($impl_fn));
+            };
+            Ok(func)
+        }
+    };
+    ($evt:ident, _result => Command) => {
+        $evt
+    };
+    ($evt:ident, _result => Event) => {
+        Box::new($evt)
+    };
+}
+
+impl FunctionType {
+    #[allow(unused_assignments)]
     pub fn new(mut impl_fn: syn::ImplItemMethod) -> syn::Result<Self> {
-        let attrs = impl_fn.attrs.clone();
-        const LIST_ATTR: [&str; 3] = ["command", "event", "message_component"];
-        
-        if attrs.iter().filter(|a| LIST_ATTR.contains(&a.path.to_token_stream().to_string().as_str())).count() > 1 {
-            return Err(syn::Error::new_spanned(impl_fn.sig.ident, "Only one discord event type attribute is allowed"));
-        }
-        let finder = |name: &'static str| {
-            move |attr: &syn::Attribute| {
-                match attr.path.get_ident() {
-                    Some(ident) => ident.to_string() == name,
-                    None => return false
-                }
-            }
-        };
-        // Check if the function is a command
-        let (attr_cmd, attrs): (_, Vec<_>) = attrs.find_and_pop(finder("command"));
-        if let Some(attr_cmd) = attr_cmd {
-            impl_fn.attrs = attrs;
-            let cmd = Command::new(attr_cmd, impl_fn)?;
-            return Ok(FunctionType::Command(cmd));
-        }
-        // Check if the function is an event
-        let (attr_evt, attrs): (_, Vec<_>) = attrs.find_and_pop(finder("event"));
-        if let Some(attr_evt) = attr_evt {
-            impl_fn.attrs = attrs;
-            let evt = Event::new(attr_evt, impl_fn)?;
-            return Ok(FunctionType::Event(Box::new(evt)));
-        }
-        // Check if the function is an message_component event
-        let (attr_evt, attrs): (_, Vec<_>) = attrs.find_and_pop(finder("message_component"));
-        if let Some(attr_evt) = attr_evt {
-            impl_fn.attrs = attrs;
-            let evt = Interaction::new(attr_evt, impl_fn)?;
-            return Ok(FunctionType::Event(Box::new(evt)));
-        }
-        // Otherwise, it's a no special function
-        Ok(FunctionType::NoSpecial(NoSpecial(impl_fn)))
+        to_event!(impl_fn, 
+            ("command", Command, Command),
+            ("event", Event, Event),
+            ("message_component", Interaction, Event)
+        )
     }
-    pub fn new_rc(mut impl_fn: syn::ImplItemMethod) -> syn::Result<RefFunction> {
+    pub fn new_rc(impl_fn: syn::ImplItemMethod) -> syn::Result<RefFunction> {
        Self::new(impl_fn).map(|f| Rc::new(RefCell::new(f)))
     }
 }
