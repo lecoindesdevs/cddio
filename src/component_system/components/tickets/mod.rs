@@ -9,7 +9,7 @@ use opencdd_macros::commands;
 use serde::{Serialize, Deserialize};
 use serenity::{
     client::Context,
-    model::{id::*, channel::Message},
+    model::{id::*, channel::Message, event::ReadyEvent},
     model::event::{
         Event::InteractionCreate,
         InteractionCreateEvent,
@@ -79,7 +79,18 @@ impl From<&CategoryTicket> for CreateSelectMenuOption {
             .description(ticket.desc.clone().unwrap_or_default());
         menu_option
     }
-} 
+}
+impl CategoryTicket {
+    fn to_message(&self, title: &str) -> message::Message {
+        let mut msg = message::Message::new();
+        let mut embed = message::Embed::default();
+        embed.color(message::COLOR_INFO);
+        embed.title(title);
+        embed.field(&self.name, self.desc.as_ref().map(|v| v.as_str()).unwrap_or("*Aucune description*"), false);
+        msg.add_embed(|e| {*e=embed; e});
+        msg
+    }
+}
 
 impl Tickets {
     /// Créer un nouveau composant de gestion des tickets
@@ -96,12 +107,61 @@ impl Tickets {
 #[group(parent="tickets", name="categories", description="Gestion des catégories de tickets")]
 #[group(name="ticket", description="Commandes dans un ticket")]
 impl Tickets {
+    #[event(Ready)]
+    async fn on_ready(&self, ctx: &Context, _:&ReadyEvent) {
+        let msg_choose = {
+            let data = self.data.read().await;
+            let data = data.read();
+            data.msg_choose.clone()
+        };
+        if let Some((chan_id, msg_id)) = msg_choose {
+            let mut msg = match ChannelId(chan_id).message(ctx, msg_id).await {
+                Ok(msg) => msg,
+                Err(err) => {
+                    warn!("Erreur lors de la récupération du message du menu: {}", err);
+                    self.reset_message_choose(None).await;
+                    return;
+                }
+            };
+            if let Err(err) = self.update_menu(ctx, &mut msg).await {
+                warn!("Erreur lors de la mise à jour du menu: {}", err);
+                self.reset_message_choose(None).await;
+            }
+        }
+    }
     #[command(group="tickets", description="Assigne le salon de création de tickets")]
     async fn set_channel(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(name="salon", description="Salon textuel")]
-        chan: ChannelId
+        chan: Option<ChannelId>
     ) {
-        let mut msg = match app_cmd.0.channel_id.send_message(ctx, |msg| msg.content("Sélectionnez le type de ticket que vous souhaitez créer :")).await {
+        let resp = match app_cmd.delayed_response(ctx, true).await {
+            Ok(resp) => resp,
+            Err(err) => {
+                error!("Erreur lors de la création de la réponse: {}", err);
+                return;
+            }
+        };
+        loop {
+            let data = self.data.read().await;
+            let data = data.read();
+            if let Some((chan_id, msg_id)) = data.msg_choose {
+                let msg = match ChannelId(chan_id).message(ctx, msg_id).await {
+                    Ok(msg) => msg,
+                    Err(err) => {
+                        warn!("Erreur lors de la récupération du menu: {}", err);
+                        break;
+                    }
+                };
+                if let Err(err) = msg.delete(ctx).await {
+                    warn!("Erreur lors de la récupération du message: {}", err);
+                    break;
+                }
+            }
+            break;
+        }
+        let channel = chan.unwrap_or(app_cmd.0.channel_id);
+
+        let mut msg = match channel.send_message(ctx, |msg| msg.content("Sélectionnez le type de ticket que vous souhaitez créer :")).await {
             Ok(msg) => msg,
             Err(err) => {
                 error!("Erreur lors de l'envoi du message: {}", err);
@@ -111,6 +171,15 @@ impl Tickets {
         self.update_menu(ctx, &mut msg).await.unwrap_or_else(|e| {
             error!("Erreur lors de l'envoi du message: {}", e);
         });
+        {
+            let mut data = self.data.write().await;
+            let mut data = data.write();
+
+            data.msg_choose = Some((channel.0, msg.id.0));
+        }
+        if let Err(err) = resp.send_message(message::success("Salon de création de tickets configuré")).await {
+            error!("Erreur lors de l'envoi de la réponse: {}", err);
+        }
     }
     #[command(group="tickets", name="close", description="Ferme le ticket actuel")]
     async fn ticket_close(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>) {
@@ -134,9 +203,7 @@ impl Tickets {
             let data = data.read();
             for category in &data.categories {
                 if category.name == name {
-                    app_cmd.direct_response(ctx, message::error("Cette catégorie existe déjà")).await.unwrap_or_else(|e| {
-                        error!("Erreur lors de l'envoi du message: {}", e);
-                    });
+                    Self::send_error(ctx, app_cmd, "Cette catégorie existe déjà");
                     return;
                 }
             }
@@ -155,13 +222,7 @@ impl Tickets {
         {
             let data = self.data.read().await;
             let data = data.read();
-            let category = data.categories.last().unwrap();
-            let mut msg = message::Message::new();
-            let mut embed = message::Embed::default();
-            embed.color(message::COLOR_INFO);
-            embed.title("Catégorie créée");
-            embed.field(&category.name, category.desc.clone().unwrap_or_else(|| "*Aucune desscription*".into()), false);
-            msg.add_embed(|e| {*e=embed; e});
+            let msg = data.categories.last().unwrap().to_message("Catégorie créée");
             app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
                 error!("Erreur lors de l'envoi du message: {}", e);
             });
@@ -183,16 +244,7 @@ impl Tickets {
                 return;
             }
         };
-        let msg = {
-            let category = &data.categories[pos];
-            let mut msg = message::Message::new();
-            let mut embed = message::Embed::default();
-            embed.color(message::COLOR_INFO);
-            embed.title("Catégorie supprimée");
-            embed.field(&category.name, category.desc.clone().unwrap_or_else(|| "*Aucune desscription*".into()), false);
-            msg.add_embed(|e| {*e=embed; e});
-            msg
-        };
+        let msg = data.categories[pos].to_message("Catégorie supprimée");
         data.categories.remove(pos);
 
         app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
@@ -209,7 +261,6 @@ impl Tickets {
         embed.color(message::COLOR_INFO);
         for category in &data.categories {
             embed.field(&category.name, category.desc.clone().unwrap_or_else(|| "*Aucune desscription*".into()), false);
-            
         }
         msg.add_embed(|e| {*e=embed; e});
         app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
@@ -295,5 +346,8 @@ impl Tickets {
             return Err(format!("Erreur lors de la suppression du ticket: {}", err));
         }
         Ok(())
+    }
+    async fn reset_message_choose(&self, new_ids: Option<(u64, u64)>) {
+        self.data.write().await.write().msg_choose = new_ids;
     }
 }
