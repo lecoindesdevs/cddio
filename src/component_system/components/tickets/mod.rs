@@ -252,4 +252,16 @@ impl Tickets {
             })
         }).await
     }
+    async fn send_error<D: std::fmt::Display>(ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>, error: D) {
+        error!("{}", error);
+        let mut msg = message::Message::new();
+        let mut embed = message::Embed::default();
+        embed.color(message::COLOR_ERROR);
+        embed.title("Erreur");
+        embed.description(error);
+        msg.add_embed(|e| {*e=embed; e});
+        app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
+            error!("Erreur lors de l'envoi du message: {}", e);
+        });
+    }
 }
