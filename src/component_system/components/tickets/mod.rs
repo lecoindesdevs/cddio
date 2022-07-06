@@ -114,42 +114,9 @@ impl Tickets {
     }
     #[command(group="tickets", name="close", description="Ferme le ticket actuel")]
     async fn ticket_close(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>) {
-        use serenity::model::channel::Channel;
-        let current_channel = match app_cmd.0.channel_id.to_channel(ctx).await {
-            Ok(Channel::Guild(chan)) => chan,
-            Ok(_) => {
-                Self::send_error(ctx, app_cmd, "Le salon n'est pas un salon de serveur").await;
-                return;
-            }
-            Err(err) => {
-                Self::send_error(ctx, app_cmd, format!("Erreur lors de la récupération du salon: {}", err)).await;
-                return;
-            }
-        };
-        let parent_channel = match current_channel.parent_id {
-            Some(id) => id,
-            None => {
-                Self::send_error(ctx, app_cmd, "Le salon n'est pas dans une catégorie").await;
-                return;
-            }
-        };
-        {
-            let data = self.data.read().await;
-            let data = data.read();
-            if let None = data.categories.iter().find(|cat| cat.id == parent_channel.0) {
-                Self::send_error(ctx, app_cmd, "Le salon n'est pas dans une catégorie de ticket").await;
-                return;
-            }
+        if let Err(e) = self.ticket_close_channel(ctx, app_cmd.0.channel_id).await {
+            Self::send_error(ctx, app_cmd, e).await;
         }
-        if let Err(err) = archive::archive_ticket(ctx, current_channel.id).await {
-            Self::send_error(ctx, app_cmd, format!("Erreur lors de l'archivage du ticket: {}", err)).await;
-            return;
-        }
-        if let Err(err) = current_channel.delete(ctx).await {
-            Self::send_error(ctx, app_cmd, format!("Erreur lors de la suppression du ticket: {}", err)).await;
-            return;
-        }
-
     }
     #[command(group="categories", name="add", description="Ajoute une catégorie de ticket. À ne pas confondre avec les catégories discord")]
     async fn add_categorie(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
@@ -265,10 +232,14 @@ impl Tickets {
     }
     #[message_component(custom_id="button_ticket_close")]
     async fn on_button_ticket_close(&self, ctx: &Context, msg: &MessageComponentInteraction) {
-        msg.create_interaction_response(ctx, |resp|{
-            let menus_str = msg.data.values.join(", ");
-            resp.interaction_response_data(|inter| inter.content(format!("Vous avez appuyé sur le menu '{}'", menus_str)))
-        }).await.unwrap();
+        if let Err(e) = self.ticket_close_channel(ctx, msg.channel_id).await {
+            error!("{}", e);
+            msg.create_interaction_response(ctx, |resp|{
+                resp.interaction_response_data(|inter| inter.content(e))
+            }).await.unwrap_or_else(|e| {
+                error!("Erreur lors de l'envoi d'une réponse d'interaction: {}", e);
+            });
+        }
     }
 }
 
@@ -298,5 +269,31 @@ impl Tickets {
         app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
             error!("Erreur lors de l'envoi du message: {}", e);
         });
+    }
+    async fn ticket_close_channel(&self, ctx: &Context, channel_id: ChannelId) -> Result<(), String> {
+        use serenity::model::channel::Channel;
+        let current_channel = match channel_id.to_channel(ctx).await {
+            Ok(Channel::Guild(chan)) => chan,
+            Ok(_) => return Err("Le salon n'est pas un salon de serveur".to_string()),
+            Err(err) => return Err(format!("Erreur lors de la récupération du salon: {}", err)),
+        };
+        let parent_channel = match current_channel.parent_id {
+            Some(id) => id,
+            None => return Err("Le salon n'est pas dans une catégorie".to_string()),
+        };
+        {
+            let data = self.data.read().await;
+            let data = data.read();
+            if let None = data.categories.iter().find(|cat| cat.id == parent_channel.0) {
+                return Err("Le salon n'est pas dans une catégorie de ticket".to_string());
+            }
+        }
+        if let Err(err) = archive::archive_ticket(ctx, current_channel.id).await {
+            return Err(format!("Erreur lors de l'archivage du ticket: {}", err));
+        }
+        if let Err(err) = current_channel.delete(ctx).await {
+            return Err(format!("Erreur lors de la suppression du ticket: {}", err));
+        }
+        Ok(())
     }
 }
