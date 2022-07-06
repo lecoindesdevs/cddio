@@ -114,7 +114,42 @@ impl Tickets {
     }
     #[command(group="tickets", name="close", description="Ferme le ticket actuel")]
     async fn ticket_close(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>) {
-        todo!()
+        use serenity::model::channel::Channel;
+        let current_channel = match app_cmd.0.channel_id.to_channel(ctx).await {
+            Ok(Channel::Guild(chan)) => chan,
+            Ok(_) => {
+                Self::send_error(ctx, app_cmd, "Le salon n'est pas un salon de serveur").await;
+                return;
+            }
+            Err(err) => {
+                Self::send_error(ctx, app_cmd, format!("Erreur lors de la récupération du salon: {}", err)).await;
+                return;
+            }
+        };
+        let parent_channel = match current_channel.parent_id {
+            Some(id) => id,
+            None => {
+                Self::send_error(ctx, app_cmd, "Le salon n'est pas dans une catégorie").await;
+                return;
+            }
+        };
+        {
+            let data = self.data.read().await;
+            let data = data.read();
+            if let None = data.categories.iter().find(|cat| cat.id == parent_channel.0) {
+                Self::send_error(ctx, app_cmd, "Le salon n'est pas dans une catégorie de ticket").await;
+                return;
+            }
+        }
+        if let Err(err) = archive::archive_ticket(ctx, current_channel.id).await {
+            Self::send_error(ctx, app_cmd, format!("Erreur lors de l'archivage du ticket: {}", err)).await;
+            return;
+        }
+        if let Err(err) = current_channel.delete(ctx).await {
+            Self::send_error(ctx, app_cmd, format!("Erreur lors de la suppression du ticket: {}", err)).await;
+            return;
+        }
+
     }
     #[command(group="categories", name="add", description="Ajoute une catégorie de ticket. À ne pas confondre avec les catégories discord")]
     async fn add_categorie(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
