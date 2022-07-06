@@ -1,3 +1,5 @@
+mod archive;
+
 use std::path::PathBuf;
 use futures::TryFutureExt;
 use log::*;
