@@ -35,6 +35,7 @@ impl Bot {
             .map(|id| UserId(id))
             .collect::<Vec<_>>();
         let app_id = ApplicationId(config.app_id);
+        let perms = config.permissions;
         // {
         //     use cmp::components::*;
         //     let mut manager_instance = manager.write().await;
@@ -56,6 +57,7 @@ impl Bot {
             container.add_component(cmp::components::Moderation::new());
             container.add_component(cmp::components::Tickets::new());
             container.add_component(cmp::components::SlashCommand::new(app_id, ref_container.clone(), owners_id));
+            container.add_component(cmp::components::Misc::new(app_id, perms, ref_container.clone()));
         }
         // let new_components: RwLock<Vec<Arc<dyn new_cmp::Component>>> = RwLock::new(vec![
         //     Arc::new(cmp::components::test_component2::Test),
