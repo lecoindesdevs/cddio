@@ -47,7 +47,7 @@ struct DataTickets {
 }
 
 /// Catégorie de tickets
-#[derive(Serialize, Deserialize, Default, Debug)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
 struct CategoryTicket {
     /// Nom de la catégorie
     name: String, 
@@ -203,7 +203,7 @@ impl Tickets {
             let data = data.read();
             for category in &data.categories {
                 if category.name == name {
-                    Self::send_error(ctx, app_cmd, "Cette catégorie existe déjà");
+                    Self::send_error(ctx, app_cmd, "Cette catégorie existe déjà").await;
                     return;
                 }
             }
@@ -276,10 +276,64 @@ impl Tickets {
     }
     #[message_component(custom_id="menu_ticket_create")]
     async fn on_menu_ticket_create(&self, ctx: &Context, msg: &MessageComponentInteraction) {
-        msg.create_interaction_response(ctx, |resp|{
-            let menus_str = msg.data.values.join(", ");
-            resp.interaction_response_data(|inter| inter.content(format!("Vous avez appuyé sur le menu '{}'", menus_str)))
-        }).await.unwrap();
+        use serenity::model::interactions::InteractionResponseType;
+        let ok = match msg.create_interaction_response(ctx, |resp| {
+            resp.kind(InteractionResponseType::DeferredChannelMessageWithSource)
+                .interaction_response_data(|data| {
+                    data.ephemeral(true)
+                })
+        }).await {
+            Ok(_) => true,
+            Err(e) => {
+                warn!("Erreur lors de la création de l'interaction: {}", e);
+                false
+            }
+        };
+        let guild_id = match msg.guild_id {
+            Some(guild_id) => guild_id,
+            None => {
+                error!("Le menu n'est pas dans un serveur");
+                return;
+            }
+        };
+        let user_id = msg.user.id;
+        let category_id = {
+            let category_name = match msg.data.values.iter().next() {
+                Some(value) => value.clone(),
+                None => {
+                    error!("Aucun item n'a été sélectionné");
+                    return;
+                }
+            };
+            let data = self.data.read().await;
+            let data = data.read();
+            let id = data.categories.iter().find(|category| category.name == category_name).map(|category| category.id);
+            if let Some(id) = id {
+                id
+            } else {
+                error!("La catégorie n'existe pas");
+                return;
+            }
+        };
+        let result = match self.ticket_create(ctx, guild_id, user_id, category_id).await {
+            Ok(result) => message::success(format!("Ticket créé: <#{}>", result)),
+            Err(e) => {
+                error!("Erreur lors de la création du ticket: {}", e);
+                message::error(e)
+            }
+        };
+        if ok {
+            match msg.edit_original_interaction_response(ctx, |resp| {
+                *resp = result.into();
+                resp
+            }).await {
+                Ok(_) => (),
+                Err(e) => {
+                    error!("Erreur lors de la modification de l'interaction: {}", e);
+                }
+            }
+        }
+        
     }
     #[message_component(custom_id="button_ticket_close")]
     async fn on_button_ticket_close(&self, ctx: &Context, msg: &MessageComponentInteraction) {
@@ -349,5 +403,89 @@ impl Tickets {
     }
     async fn reset_message_choose(&self, new_ids: Option<(u64, u64)>) {
         self.data.write().await.write().msg_choose = new_ids;
+    }
+    async fn ticket_create(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, category_id: u64) -> Result<ChannelId, String> {
+        use serenity::model::channel::{PermissionOverwrite, PermissionOverwriteType, ChannelType};
+        use serenity::model::id::UserId;
+        use serenity::model::permissions::Permissions;
+        use serenity::model::interactions::message_component::ButtonStyle;
+        let category = {
+            let data = self.data.read().await;
+            let data = data.read();
+            let category = data.categories.iter().find(|category| category.id == category_id);
+            match category {
+                Some(category) => category.clone(),
+                None => return Err("La catégorie n'existe pas. Ca ne devrait pas non plus... Putain vous faites quoi avec mon bot là!".to_string())
+            }
+        };
+        let role_staff = match guild_id.roles(ctx).await {
+            Ok(roles) => {
+                let role = roles.iter().find(|(_, role)| role.name == "staff");
+                match role {
+                    Some((role_id, _)) => *role_id,
+                    None => {
+                        error!("Une erreur s'est produite lors de la création du ticket: Le role 'staff' n'existe pas.");
+                        return Err("Une erreur s'est produite lors de la création du ticket.".to_string());
+                    }
+                }
+            },
+            Err(e) => return Err(format!("Erreur lors de la récupération des roles: {}", e))
+        };
+        let everyone = RoleId(guild_id.0);
+        
+        let permissions = vec![
+            PermissionOverwrite {
+                allow: Permissions::VIEW_CHANNEL,
+                deny: Permissions::default(),
+                kind: PermissionOverwriteType::Member(user_id),
+            },
+            PermissionOverwrite {
+                allow: Permissions::VIEW_CHANNEL,
+                deny: Permissions::default(),
+                kind: PermissionOverwriteType::Role(role_staff),
+            },
+            PermissionOverwrite {
+                allow: Permissions::default(),
+                deny: Permissions::VIEW_CHANNEL,
+                kind: PermissionOverwriteType::Role(everyone),
+            },
+        ];
+        let username = match user_id.to_user(ctx).await {
+            Ok(user) => user.name,
+            Err(_) => user_id.to_string()
+        };
+        let new_channel = match guild_id.create_channel(ctx, |chan| {
+            chan
+                .name(format!("{}-{}", category.prefix, username))
+                .kind(ChannelType::Text)
+                .category(category.id)
+                .permissions(permissions)
+        }).await {
+            Ok(chan) => chan,
+            Err(e) => return Err(format!("Erreur lors de la création du ticket: {}", e))
+        };
+        let mut msg_prez = match new_channel.say(ctx, format!("Hey <@{}>, par ici !\nDès que tu as fini avec le ticket, appuie sur le bouton \"Fermer le ticket\".", user_id.0)).await {
+            Ok(msg) => msg,
+            Err(e) => return Err(format!("Erreur pendent l'envoi du message de presentation: {}\nLe salon a tout de même été créé: <#{}>", e, new_channel.id.0))
+        };
+        msg_prez.edit(ctx, |msg| {
+            msg.components(|cmps| {
+                cmps.create_action_row(|action|{
+                    action.create_button(|button|{
+                        button
+                            .label("Fermer le ticket")
+                            .style(ButtonStyle::Danger)
+                            .custom_id("button_ticket_close")
+                    })
+                })
+            })
+        }).await.unwrap_or_else(|e| {
+            warn!("Erreur lors de la mise en place du bouton du message de présentation: {}", e);
+        });
+        msg_prez.pin(ctx).await.unwrap_or_else(|e| {
+            warn!("Erreur lors du pin du message de présentation: {}", e);
+        });
+
+        Ok(new_channel.id)
     }
 }

@@ -75,9 +75,7 @@ mod intern {
                         users.insert(ArchiveUser::from(&message.author));
                         messages.push(ArchiveMessage::from(message));
                     },
-                    Err(e) => {
-                        warn!("Error getting message while archiving channel: {}", e);
-                    },
+                    Err(e) => warn!("Error getting message while archiving channel: {}", e)
                 }
             }
             Self {
