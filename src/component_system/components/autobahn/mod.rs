@@ -1,13 +1,11 @@
-use std::collections::HashMap;
+use log::*;
 use std::sync::Arc;
-
-use crate::component_system::Component;
-use crate::component_system as cmp;
+use std::collections::HashMap;
+use chrono::Utc;
 use futures_locks::RwLock;
-use serenity::model::id::GuildId;
-use serenity::{model::{*, prelude::*}, async_trait};
+use opencdd_macros::commands;
+use serenity::{model::{*, prelude::*}, client::Context};
 use std::hash::Hash;
-
 use super::Moderation;
 type MessageHash = u64;
 
@@ -26,35 +24,14 @@ pub struct Autobahn {
     max_time: chrono::Duration,
     mute_time: chrono::Duration,
 }
-
-#[async_trait]
-impl Component for Autobahn {
-    fn name(&self) -> &'static str {
-        "autobahn"
-    }
-    async fn event(&self, ctx: &cmp::Context, evt: &cmp::Event) -> Result<(), String> {
-        use event::{*, Event::*};
-        match evt {
-            MessageCreate(MessageCreateEvent{message, ..}) => self.on_message_create(ctx, message).await,
-            _ => Ok(())
-        }
-    }
-}
-
+#[commands]
 impl Autobahn {
-    pub fn new(cmp_moderation: Arc<Moderation>) -> Autobahn {
-        Autobahn {
-            sent_messages: RwLock::new(Vec::new()),
-            cmp_moderation,
-            max_messages: 4,
-            max_time: chrono::Duration::seconds(20),
-            mute_time: chrono::Duration::days(1),
-        }
-    }
-    async fn on_message_create(&self, ctx: &cmp::Context, msg: &channel::Message) -> Result<(), String> {
-        let guild_id = match msg.guild_id{
+    #[event(MessageCreate)]
+    async fn on_message_create(&self, ctx: &Context, msg_create: &MessageCreateEvent) {
+        let msg = &msg_create.message;
+        let guild_id = match msg.guild_id {
             Some(id) => id,
-            None => return Ok(())
+            None => return,
         };
         let msg_hash = hashers::fx_hash::fxhash64(msg.content.as_bytes());
         let msg_info = MessageInfo {
@@ -73,24 +50,29 @@ impl Autobahn {
                 Ok(_) => (),
                 Err(e) => println!("autobahn: Failed to delete messages: {}", e)
             }
-            self.mute(ctx, guild_id, msg.author.id).await?;
+            if let Err(e) = self.cmp_moderation.mute(ctx, guild_id, msg.author.id, None, "Détection de spam".into(), Some(Utc::now() + self.mute_time)).await {
+                error!("autobahn: Failed to mute user: {}", e);
+                return;
+            };
             self.delete_messages(ctx, |(_, msg)| msg.who == msg_info.who).await;
             self.retain_messages(|(_,msg)| !(msg.who == msg_info.who)).await;
-            return Ok(());
         } else {
             self.sent_messages.write().await.push((msg_hash, msg_info));
         } 
-        
-        Ok(())
     }
-    async fn mute(&self, ctx: &cmp::Context, guild_id: GuildId, user_id: UserId) -> Result<(), String> {
-        let res = self.cmp_moderation.mute(ctx, guild_id, user_id, Some("Suspicion de spam".to_string()), Some(self.mute_time)).await;
-        match res {
-            Ok(_) => Ok(()),
-            Err(why) => Err(format!("Erreur autobahn mute : {}", why))
+}
+
+impl Autobahn {
+    pub fn new(cmp_moderation: Arc<Moderation>) -> Autobahn {
+        Autobahn {
+            sent_messages: RwLock::new(Vec::with_capacity(100)),
+            cmp_moderation,
+            max_messages: 4,
+            max_time: chrono::Duration::seconds(20),
+            mute_time: chrono::Duration::days(1),
         }
     }
-    async fn delete_messages<F>(&self, ctx: &cmp::Context, filter: F)
+    async fn delete_messages<F>(&self, ctx: &Context, filter: F)
         where F: Fn(&&(MessageHash, MessageInfo)) -> bool
     {
         let mut msg_to_delete: HashMap<ChannelId, Vec<MessageId>> = HashMap::new();
@@ -102,9 +84,10 @@ impl Autobahn {
                     .push(msg.id.1);
             });
         for (channel, msgs) in msg_to_delete.into_iter() {
+            println!("autobahn: Deleting {} messages from channel {}", msgs.len(), channel);
             match channel.delete_messages(ctx, &msgs).await {
                 Ok(_) => (),
-                Err(e) => println!("autobahn: Failed to delete messages: {}", e)
+                Err(e) => warn!("autobahn: Failed to delete messages: {}", e)
             }
         }
     }
@@ -117,7 +100,6 @@ impl Autobahn {
     }
     #[inline]
     async fn remove_old_messages(&self) {
-        let now = chrono::Utc::now();
-        self.retain_messages(|(_,v)| now-v.time < self.max_time).await;
+        self.retain_messages(|(_,v)| Utc::now()-v.time < self.max_time).await;
     }
 }
