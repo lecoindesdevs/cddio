@@ -86,8 +86,8 @@ impl Moderation {
     }
     
     
-    #[command(description="Banni un membre du serveur")]
-    pub async fn ban(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
+    #[command(name="ban",description="Banni un membre du serveur")]
+    async fn com_ban(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(description="Membre à bannir", name="qui")]
         member: UserId,
         #[argument(description="Raison du ban")]
@@ -97,44 +97,73 @@ impl Moderation {
         #[argument(description="Durée du ban")]
         duree: Option<String>
     ) {
-        let guild_id = app_cmd.get_guild_id().unwrap_or(GuildId(0));
-        let until = match Self::duration_to_datetime(ctx, &app_cmd,  duree).await {
-            Some(v) => v,
-            None => return,
-        };
-        let user_by = app_cmd.0.user.id;
-        self.do_sanction(ctx, app_cmd, Sanction {
-            user_id: member,
-            guild_id,
-            user_by: user_by,
-            data : SanctionType::Ban{
-                reason: raison,
-                until,
-                historique: del_msg.map(|v| v.clamp(0, 7)).unwrap_or(0)
+        let resp = match app_cmd.delayed_response(ctx, false).await {
+            Ok(resp) => resp,
+            Err(e) => {
+                error!("{}", e);
+                return;
             }
-        }).await;
+        };
+        let msg = loop {
+            let guild_id = match app_cmd.get_guild_id() {
+                Some(guild_id) => guild_id,
+                None => break message::error("Cette commande doit être executé sur un serveur.".to_string()),
+            };
+            let user_by = app_cmd.0.user.id;
+            let until = match Self::duration_to_datetime(ctx, &app_cmd,  duree).await {
+                Some(v) => v,
+                None => break message::error("Durée invalide"),
+            };
+            break match self.ban(ctx, guild_id, member, Some(user_by), raison, until, del_msg).await {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("{}", e);
+                    message::error(e)
+                }
+            };
+        };
+        match resp.send_message(msg).await {
+            Ok(_) => {},
+            Err(e) => error!("{}", e),
+        }
+        
     }
-    #[command(description="Expulse un membre du serveur")]
-    pub async fn kick(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
+    #[command(name="kick",description="Expulse un membre du serveur")]
+    async fn com_kick(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(description="Membre à expulser", name="qui")]
         member: UserId,
         #[argument(description="Raison de l'expulsion")]
-        reason: String
+        raison: String
     ) {
-        let guild_id = app_cmd.get_guild_id().unwrap_or(GuildId(0));
-        let user_by = app_cmd.0.user.id;
-        self.do_sanction(ctx, app_cmd, Sanction {
-            user_id: member,
-            user_by: user_by,
-            guild_id,
-            data: SanctionType::Kick{
-                reason
+        let resp = match app_cmd.delayed_response(ctx, false).await {
+            Ok(resp) => resp,
+            Err(e) => {
+                error!("{}", e);
+                return;
             }
-        }).await;
+        };
+        let msg = loop {
+            let guild_id = match app_cmd.get_guild_id() {
+                Some(guild_id) => guild_id,
+                None => break message::error("Cette commande doit être executé sur un serveur.".to_string()),
+            };
+            let user_by = app_cmd.0.user.id;
+            break match self.kick(ctx, guild_id, member, Some(user_by), raison).await {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("{}", e);
+                    message::error(e)
+                }
+            };
+        };
+        match resp.send_message(msg).await {
+            Ok(_) => {},
+            Err(e) => error!("{}", e),
+        }
     }
     
-    #[command(description="Mute un membre du serveur")]
-    pub async fn mute(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
+    #[command(name="mute",description="Mute un membre du serveur")]
+    async fn com_mute(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(description="Membre à mute", name="qui")]
         member: UserId,
         #[argument(description="Raison du ban")]
@@ -142,36 +171,161 @@ impl Moderation {
         #[argument(description="Durée du mute")]
         duree: Option<String>
     ) {
-        let until = match Self::duration_to_datetime(ctx, &app_cmd,  duree).await {
-            Some(v) => v,
-            None => return,
+        let resp = match app_cmd.delayed_response(ctx, false).await {
+            Ok(resp) => resp,
+            Err(e) => {
+                error!("{}", e);
+                return;
+            }
         };
-        let sanction = Sanction::from_app_command(&app_cmd, member, SanctionType::Mute{
-            reason: raison,
-            until,
-        });
-        self.do_sanction(ctx, app_cmd, sanction).await;
+        let msg = loop {
+            let guild_id = match app_cmd.get_guild_id() {
+                Some(guild_id) => guild_id,
+                None => break message::error("Cette commande doit être executé sur un serveur.".to_string()),
+            };
+            let user_by = app_cmd.0.user.id;
+            let until = match Self::duration_to_datetime(ctx, &app_cmd,  duree).await {
+                Some(v) => v,
+                None => break message::error("Durée invalide"),
+            };
+            break match self.mute(ctx, guild_id, member, Some(user_by), raison, until).await {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("{}", e);
+                    message::error(e)
+                }
+            };
+        };
+        match resp.send_message(msg).await {
+            Ok(_) => {},
+            Err(e) => error!("{}", e),
+        }
     }
-    #[command(description="Débanni un membre du serveur")]
-    pub async fn unban(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
+    #[command(name="unban",description="Débanni un membre du serveur")]
+    async fn com_unban(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(description="Membre à débannir", name="qui")]
         member: UserId
     ) {
-        let sanction = Sanction::from_app_command(&app_cmd, member, SanctionType::Unban);
-        self.do_sanction(ctx, app_cmd, sanction).await;
+        let resp = match app_cmd.delayed_response(ctx, false).await {
+            Ok(resp) => resp,
+            Err(e) => {
+                error!("{}", e);
+                return;
+            }
+        };
+        let msg = loop {
+            let guild_id = match app_cmd.get_guild_id() {
+                Some(guild_id) => guild_id,
+                None => break message::error("Cette commande doit être executé sur un serveur.".to_string()),
+            };
+            let user_by = app_cmd.0.user.id;
+            break match self.unban(ctx, guild_id, member, Some(user_by)).await {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("{}", e);
+                    message::error(e)
+                }
+            };
+        };
+        match resp.send_message(msg).await {
+            Ok(_) => {},
+            Err(e) => error!("{}", e),
+        }
     }
-    #[command(description="Démute un membre du serveur")]
-    pub async fn unmute(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
+    #[command(name="unmute",description="Démute un membre du serveur")]
+    async fn com_unmute(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(description="Membre à démute", name="qui")]
         member: UserId
     ) {
-        let sanction = Sanction::from_app_command(&app_cmd, member, SanctionType::Unmute);
-        self.do_sanction(ctx, app_cmd, sanction).await;
+        let resp = match app_cmd.delayed_response(ctx, false).await {
+            Ok(resp) => resp,
+            Err(e) => {
+                error!("{}", e);
+                return;
+            }
+        };
+        let msg = loop {
+            let guild_id = match app_cmd.get_guild_id() {
+                Some(guild_id) => guild_id,
+                None => break message::error("Cette commande doit être executé sur un serveur.".to_string()),
+            };
+            let user_by = app_cmd.0.user.id;
+            break match self.unmute(ctx, guild_id, member, Some(user_by)).await {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("{}", e);
+                    message::error(e)
+                }
+            };
+        };
+        match resp.send_message(msg).await {
+            Ok(_) => {},
+            Err(e) => error!("{}", e),
+        }
     }
 
 }
 
 impl Moderation {
+    #[inline]
+    pub async fn ban(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, user_by: Option<UserId>, reason: String, until: Option<DateTime<Utc>>, historique: Option<u8>) -> Result<message::Message, String> {
+        let sanction = Sanction {
+            user_id,
+            guild_id,
+            user_by: user_by.unwrap_or(ctx.cache.current_user_id()),
+            data: SanctionType::Ban{
+                reason,
+                until,
+                historique: historique.map(|v| v.clamp(0, 7)).unwrap_or(0)
+            }
+        };
+        self.do_sanction(ctx, sanction).await
+    }
+    #[inline]
+    pub async fn kick(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, user_by: Option<UserId>, reason: String) -> Result<message::Message, String> {
+        let sanction = Sanction {
+            user_id,
+            guild_id,
+            user_by: user_by.unwrap_or(ctx.cache.current_user_id()),
+            data: SanctionType::Kick{
+                reason
+            }
+        };
+        self.do_sanction(ctx, sanction).await
+    }
+    #[inline]
+    pub async fn mute(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, user_by: Option<UserId>, reason: String, until: Option<DateTime<Utc>>) -> Result<message::Message, String> {
+        let sanction = Sanction {
+            user_id,
+            guild_id,
+            user_by: user_by.unwrap_or(ctx.cache.current_user_id()),
+            data: SanctionType::Mute{
+                reason,
+                until
+            }
+        };
+        self.do_sanction(ctx, sanction).await
+    }
+    #[inline]
+    pub async fn unban(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, user_by: Option<UserId>) -> Result<message::Message, String> {
+        let sanction = Sanction {
+            user_id,
+            guild_id,
+            user_by: user_by.unwrap_or(ctx.cache.current_user_id()),
+            data: SanctionType::Unban
+        };
+        self.do_sanction(ctx, sanction).await
+    }
+    #[inline]
+    pub async fn unmute(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, user_by: Option<UserId>) -> Result<message::Message, String> {
+        let sanction = Sanction {
+            user_id,
+            guild_id,
+            user_by: user_by.unwrap_or(ctx.cache.current_user_id()),
+            data: SanctionType::Unmute
+        };
+        self.do_sanction(ctx, sanction).await
+    }
     async fn abort_last_sanction(&self, user_id: UserId, guild_id: GuildId) {
         match 
         {
@@ -198,21 +352,7 @@ impl Moderation {
             None => ()
         };
     }
-    async fn do_sanction(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>, sanction: Sanction) {
-        match app_cmd.get_guild_id() {
-            None => {
-                Self::send_error(ctx, &app_cmd, "Vous devez être dans un serveur pour utiliser cette commande").await;
-                return;
-            }
-            _ => (),
-        };
-        let resp = match app_cmd.delayed_response(ctx, false).await {
-            Ok(v) => v,
-            Err(e) => {
-                error!("Impossible de créer une réponse diférée: {}", e.to_string()); 
-                return;
-            }
-        };
+    async fn do_sanction(&self, ctx: &Context, sanction: Sanction) -> Result<message::Message, String> {
         let user_id = sanction.user_id();
         let guild_id = sanction.guild_id();
         self.abort_last_sanction(user_id, guild_id).await;
@@ -239,14 +379,7 @@ impl Moderation {
         }
         match sanction.apply(ctx).await {
             Ok(_) => (),
-            Err(e) => {
-                let msg = message::error(format!("Impossible d'appliquer la sanction: {}", e.to_string()));
-                match resp.send_message(msg).await {
-                    Ok(_) => (),
-                    Err(e) => warn!("Impossible de renvoyer la réponse d'une commande: {}", e.to_string())
-                }
-                return;
-            }
+            Err(e) => return Err(format!("Impossible d'appliquer la sanction: {}", e.to_string())),
         };
         if let Err(e) = self.logger.push(&sanction).await {
             warn!("Impossible d'enregistrer la sanction dans les logs: {}", e.to_string());
@@ -256,25 +389,13 @@ impl Moderation {
             Sanction { data: SanctionType::Ban { until: Some(until), .. } | SanctionType::Mute { until: Some(until), .. }, .. } => {
                 let mut tasks = self.tasks.write().await;
                 let tasks = tasks.as_mut().unwrap();
-                match tasks.add(sanction, until).await {
-                    Ok(_) => (),
-                    Err(e) => {
-                        let msg = message::error(format!("Impossible d'ajouter la sanction à la liste: {}", e.to_string()));
-                        match resp.send_message(msg).await {
-                            Ok(_) => (),
-                            Err(e) => warn!("Impossible de renvoyer la réponse d'une commande: {}", e.to_string())
-                        }
-                        return;
-                    }
+                if let Err(e) = tasks.add(sanction, until).await {
+                    return Err(format!("Impossible d'ajouter la sanction à la liste: {}", e.to_string()))
                 }
             },
             _ => ()
         }
-        
-        match resp.send_message(msg).await{
-            Ok(_) => (),
-            Err(e) => warn!("Impossible de renvoyer la réponse d'une commande: {}", e.to_string())
-        }
+        Ok(msg)
     }
     #[inline]
     async fn duration_to_datetime(ctx: &Context, app_cmd: &ApplicationCommandEmbed<'_>, duration_str: Option<String>) -> Option<Option<DateTime<Utc>>> {
