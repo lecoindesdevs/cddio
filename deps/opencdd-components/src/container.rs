@@ -13,8 +13,11 @@ impl ComponentContainer {
     pub fn get_event_dispatcher(&self) -> ComponentEventDispatcher {
         ComponentEventDispatcher::new(self.0.clone())
     }
-    pub fn add_component<T: 'static + Component>(&mut self, comp: T) {
-        self.0.push (Arc::new(comp))
+    pub fn add_component<T: 'static + Component>(&mut self, comp: T) -> Arc<T> {
+        let arc = Arc::new(comp);
+        let v = Arc::clone(&arc);
+        self.0.push (v);
+        arc
     }
 }
 impl AsRef<Components> for ComponentContainer {
