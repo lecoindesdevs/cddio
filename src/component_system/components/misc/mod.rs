@@ -33,8 +33,8 @@ impl Misc {
                 v
             })
             .unwrap_or_else(|| {
-                println!("Permission du bot dans la configuration invalide. Utilisation de la permission par défaut.");
-                Permissions::empty()
+                println!("Permission du bot dans la configuration invalide. Utilisation des permissions par défaut.");
+                Permissions::default()
             });
 
         
