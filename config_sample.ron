@@ -1,5 +1,6 @@
 Config(
     token:"",
+    app_id:0,
     prefix:'&',
     permissions:8,
     owners:[
