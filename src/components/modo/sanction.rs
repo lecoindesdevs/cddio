@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use super::utils;
 pub const ROLE_MUTED: &str = "muted";
 
-use crate::component_system::components::utils::task;
+use super::task;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Sanction {

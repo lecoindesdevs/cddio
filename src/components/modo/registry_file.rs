@@ -9,7 +9,7 @@ use serenity::{
 };
 
 use super::sanction::Sanction;
-use crate::component_system::components::utils::task;
+use super::task;
 
 pub struct RegistryFile {
     path_file: std::path::PathBuf,

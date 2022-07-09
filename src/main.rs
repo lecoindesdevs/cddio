@@ -24,7 +24,7 @@
 //! [`misc`]: crate::component::components::misc
 #![allow(unused_macros, dead_code)]
 mod bot;
-mod component_system;
+mod components;
 mod config;
 mod log;
 #[macro_use]

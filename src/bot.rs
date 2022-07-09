@@ -3,7 +3,7 @@
 
 use futures_locks::RwLock;
 use serenity::{Client, model::id::{ApplicationId, UserId}, prelude::GatewayIntents};
-use crate::{component_system as cmp, config::Config};
+use crate::{components as cmp, config::Config};
 use opencdd_components as new_cmp;
 
 type Result<T> = serenity::Result<T>;
@@ -36,12 +36,12 @@ impl Bot {
         let ref_container = RwLock::new(new_cmp::ComponentContainer::new());
         {
             let mut container = ref_container.write().await;
-            container.add_component(cmp::components::Help::new(ref_container.clone()));
-            let modo = container.add_component(cmp::components::Moderation::new());
-            container.add_component(cmp::components::Tickets::new());
-            container.add_component(cmp::components::SlashCommand::new(app_id, ref_container.clone(), owners_id));
-            container.add_component(cmp::components::Misc::new(app_id, perms, ref_container.clone()));
-            container.add_component(cmp::components::Autobahn::new(modo));
+            container.add_component(cmp::Help::new(ref_container.clone()));
+            let modo = container.add_component(cmp::Moderation::new());
+            container.add_component(cmp::Tickets::new());
+            container.add_component(cmp::SlashCommand::new(app_id, ref_container.clone(), owners_id));
+            container.add_component(cmp::Misc::new(app_id, perms, ref_container.clone()));
+            container.add_component(cmp::Autobahn::new(modo));
         }
         let client = Client::builder(&config.token, GatewayIntents::non_privileged())
             .raw_event_handler(ref_container.read().await.get_event_dispatcher())
