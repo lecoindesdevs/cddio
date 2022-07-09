@@ -27,8 +27,6 @@ mod bot;
 mod components;
 mod config;
 mod log;
-#[macro_use]
-mod util;
 
 /// Trait à implémenter pour logger les erreurs dans la console.
 trait ResultLog {
