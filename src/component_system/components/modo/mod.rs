@@ -14,7 +14,7 @@ use serenity::{
         event::*
     }
 };
-use super::utils::{self, task2::Registry};
+use super::utils::{self, task::Registry};
 use super::utils::time_parser as time;
 use crate::component_system::components::utils::task;
 use self::{

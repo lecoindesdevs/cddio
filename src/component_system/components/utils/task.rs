@@ -1,124 +1,144 @@
-use std::{sync::Arc, fmt::Display, str::FromStr, collections::HashMap};
-use async_std::io::WriteExt;
-use chrono::{Utc, DateTime};
-use futures_locks::RwLock;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use std::{time::Duration, collections::HashMap, sync::Arc};
+
+use chrono::{DateTime, Utc, TimeZone};
+use futures_locks::Mutex;
+use crate::{log_error, log_warn, log_info};
+use serde::{Deserialize, Serialize};
 use serenity::async_trait;
-use tokio::sync::watch;
 
 #[async_trait]
-pub trait Callable: Send + Sync + Clone + 'static {
-    type Data: Send+Sync;
-    async fn call(&self, data: Arc<Self::Data>);
+pub trait DataFunc: Send + Sync + 'static {
+    type Persistent: Send + Sync + 'static;
+    async fn run(&self, persistent: &Self::Persistent) -> Result<(), String>;
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Task<F> where 
-    F: Callable
+pub struct Task<D: DataFunc + Clone> 
 {
-    until: i64,
-    callable: F
+    pub until: i64,
+    pub data: D
 }
 
 pub type TaskID = u64;
-pub trait Registry<F> 
-where
-    F: Callable
+
+#[async_trait]
+pub trait Registry
 {
-    fn register(&self, callable: Task<F>) -> Result<TaskID, String>;
-    fn unregister(&self, id: TaskID) -> Result<(), String>;
+    type Data: DataFunc + Clone;
+    async fn register(&mut self, task: Task<Self::Data>) -> Result<TaskID, String>;
+    async fn unregister(&mut self, id: TaskID) -> Result<(), String>;
+    async fn get(&self, id: TaskID) -> Option<Task<Self::Data>>;
+    async fn get_all(&self) -> Vec<(TaskID, Task<Self::Data>)>;
+    async fn find_one<F>(&self, f: F) -> Option<(TaskID, Task<Self::Data>)> where
+        F: Fn(&Task<Self::Data>) -> bool + Send;
+    async fn find_all<F>(&self, f: F) -> Vec<(TaskID, Task<Self::Data>)> where
+        F: Fn(&Task<Self::Data>) -> bool + Send;
 }
 
+type Tasks<R> = Arc<Mutex<R>>;
 
-
-#[derive(Debug)]
-pub struct Tasks<F, Data> where 
-    F: Callable<Data=Data> + Serialize + DeserializeOwned,
-    Data: Send + Sync + Clone + 'static
+pub struct TaskManager<D, R, P> where
+    D: DataFunc<Persistent = P> + Clone,
+    R: Registry<Data = D> + Send + 'static,
+    P: Send + Sync + 'static
 {
-    tasks: RwLock<HashMap<u32, Task<F>>>,
-    task_counter: u32,
-    path_file: std::path::PathBuf,
-    waker: (watch::Sender<()>, watch::Receiver<()>),
-    data: Arc<Data>
+    tasks: Tasks<R>,
+    task_handles: HashMap<TaskID, tokio::task::JoinHandle<()>>,
+    persistent: Arc<P>
 }
 
-impl<F, Data> Tasks<F, Data> where
-    F: Callable<Data=Data> + Serialize + DeserializeOwned,
-    Data: Send + Sync + Clone + 'static
+impl<D, R, P> TaskManager<D, R, P> where
+    D: DataFunc<Persistent = P> + Clone + std::fmt::Debug,
+    R: Registry<Data = D> + Send + 'static,
+    P: Send + Sync + 'static
 {
-    pub async fn from_file(path_file: std::path::PathBuf, data: Data) -> Result<Self, String> {
-        let mut res = Self {
-            tasks: RwLock::new(HashMap::new()),
-            path_file,
-            waker: watch::channel(()),
-            data: Arc::new(data),
-            task_counter: 1
-        };
-        res.load().await?;
-        Ok(res)
-    }
-    pub async fn add(&mut self, callable: F, until: DateTime<Utc>) {
-        let task = Task{
-            until: until.timestamp(), 
-            callable: Arc::new(callable)
-        };
-        {
-            let mut tasks = self.tasks.write().await;
-            tasks.insert(self.task_counter, task.clone());
+    pub fn new(registry: R, persistent_data: P) -> Self {
+        Self {
+            tasks: Arc::new(Mutex::new(registry)),
+            task_handles: HashMap::new(),
+            persistent: Arc::new(persistent_data)
         }
-        self.run((self.task_counter, task));
-        self.task_counter += 1;
-        self.save().await
-            .or_else::<(), _>(|e| {
-                println!("{}", e);
-                Ok(())
-            })
-            .unwrap();
     }
-    fn stop(&mut self) {
-        self.waker.0.send(()).unwrap();
+    pub async fn init(&mut self) {
+        let tasks = self.tasks.lock().await.get_all().await;
+        log_info!("Initializing {} tasks", tasks.len());
+        for (task_id, task) in tasks {
+            log_info!("Initializing task {}. Data: {:?}", task_id, task);
+            let handle = self.spawn_task(task_id, task.data, Utc.timestamp(task.until, 0));
+            log_info!("Task {} initialized", task_id);
+            self.task_handles.insert(task_id, handle);
+        }
     }
-    fn run(&self, task: (u32, Task<F>)) {
-        use tokio::time::*;
-        let tasks = RwLock::clone(&self.tasks);
-        let mut waker = self.waker.1.clone();
-        let data = Arc::clone(&self.data);
+    pub async fn add(&mut self, data: D, until: DateTime<Utc>) -> Result<TaskID, String> {
+        let mut tasks = self.tasks.lock().await;
+        let id = tasks.register(Task {
+            until: until.timestamp(),
+            data: data.clone()
+        }).await?;
+        let handle = self.spawn_task(id, data, until);
+        self.task_handles.insert(id, handle);
+        Ok(id)
+    }
+    fn spawn_task(&self, id: TaskID, data: D, until: DateTime<Utc>) -> tokio::task::JoinHandle<()> {
+        let tasks = Arc::clone(&self.tasks);
+        let persistent = Arc::clone(&self.persistent);
         tokio::spawn(async move {
-            let duration = Duration::from_secs(i64::max(task.1.until - Utc::now().timestamp(), 0)  as _);
-            match tokio::time::timeout(duration, waker.changed()).await {
-                Err(_) => {
-                    task.1.callable.call(data).await;
-                    tasks.write().await.remove(&task.0);
-                },
-                Ok(_) => ()
-            };
-        });
-        
+            log_info!("Task {}: Spawning", id);
+            let seconds = until.timestamp() - Utc::now().timestamp();
+            if seconds > 0 {
+                let duration = Duration::from_secs(seconds as _ );
+                log_info!("Task {}: Sleeping for {} seconds", id, seconds);
+                tokio::time::sleep(duration).await;
+            }
+            log_info!("Task {}: Running", id);
+            if let Err(e) = data.run(&*persistent).await {
+                log_error!("Task {} failed: {}", id, e);
+                return;
+            }
+            if let Err(e) = Self::remove_from_registry(&tasks, id).await {
+                log_error!("Task {} failed to remove from registry: {}", id, e);
+                return;
+            }
+            log_info!("Task {}: Finished", id);
+        })
     }
-    async fn save(&self) -> Result<(), String> {
-        use async_std::{fs::File};
-        let data = ron::to_string(&*self.tasks.read().await)
-            .map_err(|e| format!("Impossible de serialiser les taches: {}", e.to_string()))?;            
-        let mut file = File::open(&self.path_file).await 
-            .map_err(|e| format!("Impossible d'ouvrir le fichier {}: {}", self.path_file.display(), e.to_string()))?;
-        file.write_all(data.as_bytes()).await
-            .map_err(|e| format!("Impossible d'écrire dans le fichier {}: {}", self.path_file.display(), e.to_string()))
+    pub async fn remove(&mut self, id: TaskID) -> Result<(), String> {
+        match self.task_handles.get(&id){
+            Some(handle) => {
+                handle.abort();
+                self.task_handles.remove(&id);
+                if let Err(e) = Self::remove_from_registry(&self.tasks, id).await {
+                    log_error!("Task {} failed to remove from registry: {}", id, e);
+                }
+                Ok(())
+            },
+            None => Err("Task not found".to_string())
+        }
     }
-    async fn load(&mut self) -> Result<(), String> {
-        use async_std::fs;
-        let content = fs::read_to_string(&self.path_file).await
-            .map_err(|e| format!("Impossible de lire le fichier {}: {}", self.path_file.display(), e.to_string()))?;
-        self.tasks = RwLock::new(ron::from_str(&content)
-            .map_err(|e| format!("Impossible de lire le fichier: {}", e.to_string()))?);
-        Ok(())
+    async fn remove_from_registry(tasks: &Tasks<R>, id: TaskID) -> Result<(), String> {
+        let mut registry = tasks.lock().await;
+        registry.unregister(id).await
+    }
+    pub async fn get(&self, id: TaskID) -> Option<Task<D>> {
+        let tasks = self.tasks.lock().await;
+        tasks.get(id).await
+    }
+    pub fn registry(&self) -> Arc<Mutex<R>> {
+        Arc::clone(&self.tasks)
+    }
+    pub fn reset_persistent(&mut self, data: P) {
+        self.persistent = Arc::new(data);
     }
 }
-impl<F, Data> Drop for Tasks<F, Data> where 
-    F: Callable<Data=Data> + Serialize + DeserializeOwned,
-    Data: Send + Sync + Clone + 'static
+
+impl<D, R, P> Drop for TaskManager<D, R, P> where
+    D: DataFunc<Persistent = P> + Clone,
+    R: Registry<Data = D> + Send + 'static, 
+    P: Send + Sync + 'static
 {
     fn drop(&mut self) {
-        self.stop();
+        for (_, task) in self.task_handles.iter() {
+            task.abort();
+        }
     }
 }

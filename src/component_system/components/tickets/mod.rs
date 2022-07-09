@@ -20,7 +20,7 @@ use serenity::{
     }, builder::{CreateMessage, CreateSelectMenuOption}
 };
 
-use super::utils::Data;
+use super::utils::data::Data;
 
 /// Le composant de gestion des tickets
 pub struct Tickets {
