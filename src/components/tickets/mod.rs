@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use futures::TryFutureExt;
 use crate::{log_error, log_warn, log_info};
 use futures_locks::RwLock;
-use opencdd_components::{message, ApplicationCommandEmbed};
-use opencdd_macros::commands;
+use cddio_components::{message, ApplicationCommandEmbed};
+use cddio_macros::commands;
 use serde::{Serialize, Deserialize};
 use serenity::{
     client::Context,

@@ -3,8 +3,8 @@
 /// https://www.wolframalpha.com/input/?i=distance+between+0+and+270+m%2Fs+in+seconds
 
 use crate::{log_error, log_warn, log_info};
-use opencdd_components::{self as cmp2, ApplicationCommandEmbed, message, message::ToMessage};
-use opencdd_macros::commands;
+use cddio_components::{self as cmp2, ApplicationCommandEmbed, message, message::ToMessage};
+use cddio_macros::commands;
 use serenity::{
     client::Context, 
     model::{id::ApplicationId, gateway::Ready, permissions::Permissions, event::ReadyEvent}

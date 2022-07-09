@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use cmp2::ApplicationCommandEmbed;
 use cmp2::declarative::Node;
-use opencdd_macros::commands;
-use opencdd_components as cmp2;
+use cddio_macros::commands;
+use cddio_components as cmp2;
 use serenity::model::event::ReadyEvent;
 use serenity::model::interactions::application_command::ApplicationCommandPermissionType;
 use serenity::prelude::*;
 use serenity::model::id::{UserId, ApplicationId, CommandId, GuildId};
-use opencdd_components::message;
+use cddio_components::message;
 
 pub struct SlashCommand {
     app_id: ApplicationId,

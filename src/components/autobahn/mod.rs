@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use chrono::Utc;
 use futures_locks::RwLock;
-use opencdd_macros::commands;
+use cddio_macros::commands;
 use serenity::{model::{*, prelude::*}, client::Context};
 use std::hash::Hash;
 use super::Moderation;

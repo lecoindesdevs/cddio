@@ -63,7 +63,7 @@ impl Command {
         let description = &self.attr.description;
         Some(
             quote! {
-                opencdd_components::declarative::Command {
+                cddio_components::declarative::Command {
                     name: #name,
                     description: #description,
                     args: &[

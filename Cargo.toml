@@ -1,5 +1,5 @@
 [package]
-name = "open_cdd"
+name = "cddio"
 version = "1.0.0"
 edition = "2021"
 readme = "README.md"
@@ -22,8 +22,8 @@ regex = "1.5"
 hashers = "1.0"
 serde_with = { version = "1", features = ["chrono"] }
 # sea-orm = "0.8.0"
-opencdd-macros = { path = "deps/opencdd-macros" }
-opencdd-components = { path = "deps/opencdd-components" }
+cddio-macros = { path = "deps/cddio-macros" }
+cddio-components = { path = "deps/cddio-components" }
 
 [dependencies.serenity]
 version = "0.11"
@@ -31,7 +31,7 @@ default-features = false
 features = ["unstable_discord_api", "builder", "cache", "client", "gateway", "http", "model", "utils", "rustls_backend"]
 
 [features]
-verbose = [ "opencdd-macros/verbose" ]
+verbose = [ "cddio-macros/verbose" ]
 
 [target.stable-aarch64-apple-darwin]
 rustflags = ["-C", "link-arg=-fuse-ld=lld"]

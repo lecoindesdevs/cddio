@@ -230,6 +230,46 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79c2681d6594606957bbb8631c4b90a7fcaaa72cdb714743a437b156d6a7eedd"
 
 [[package]]
+name = "cddio"
+version = "1.0.0"
+dependencies = [
+ "async-std",
+ "cddio-components",
+ "cddio-macros",
+ "chrono",
+ "futures",
+ "futures-locks",
+ "hashers",
+ "lazy_static",
+ "log",
+ "regex",
+ "ron",
+ "serde",
+ "serde_with",
+ "serenity",
+ "tokio 1.19.2",
+]
+
+[[package]]
+name = "cddio-components"
+version = "0.1.0"
+dependencies = [
+ "futures-locks",
+ "serenity",
+ "tokio 1.19.2",
+]
+
+[[package]]
+name = "cddio-macros"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -893,46 +933,6 @@ name = "once_cell"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "692fcb63b64b1758029e0a96ee63e049ce8c5948587f2f7208df04625e5f6b56"
-
-[[package]]
-name = "open_cdd"
-version = "1.0.0"
-dependencies = [
- "async-std",
- "chrono",
- "futures",
- "futures-locks",
- "hashers",
- "lazy_static",
- "log",
- "opencdd-components",
- "opencdd-macros",
- "regex",
- "ron",
- "serde",
- "serde_with",
- "serenity",
- "tokio 1.19.2",
-]
-
-[[package]]
-name = "opencdd-components"
-version = "0.1.0"
-dependencies = [
- "futures-locks",
- "serenity",
- "tokio 1.19.2",
-]
-
-[[package]]
-name = "opencdd-macros"
-version = "0.1.0"
-dependencies = [
- "lazy_static",
- "proc-macro2",
- "quote",
- "syn",
-]
 
 [[package]]
 name = "ordered-float"

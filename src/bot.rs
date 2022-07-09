@@ -4,7 +4,7 @@
 use futures_locks::RwLock;
 use serenity::{Client, model::id::{ApplicationId, UserId}, prelude::GatewayIntents};
 use crate::{components as cmp, config::Config};
-use opencdd_components as new_cmp;
+use cddio_components as new_cmp;
 
 type Result<T> = serenity::Result<T>;
 

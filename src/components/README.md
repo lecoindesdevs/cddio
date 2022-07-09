@@ -49,7 +49,7 @@ La création est simple :
 
 **Ajoutez un composant au module components**. Tous les composants sont défini dans [ce module](components/mod.rs) par un dossier qui leur est propre. Créez le votre et pensez à rendre votre composants accessible en publique dans le fichier mod.rs.
 
-**Appliquer le trait `open_cdd::component_system::Component`**. Sans ce trait, le composant ne pourra pas être pris en charge (une erreur de compilation va apparaitre au moment de l'ajouter au manager). Le trait `Component` nécessite la définition de quelques fonctions telles que `name()` et `event()`.
+**Appliquer le trait `cddio::component_system::Component`**. Sans ce trait, le composant ne pourra pas être pris en charge (une erreur de compilation va apparaitre au moment de l'ajouter au manager). Le trait `Component` nécessite la définition de quelques fonctions telles que `name()` et `event()`.
 
 **Instanciez et ajoutez le composants dans le bot**. Pour se faire, allez dans le fichier bot.rs, dans la fonction `Bot::new()` et ajoutez une nouvelle ligne dans la liste des composants du manager via `Manager::add_component`.
 

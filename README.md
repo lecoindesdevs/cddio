@@ -1,10 +1,10 @@
-# OpenCDD
+# CDDIO
 
 Bot Discord officiel du serveur Coin des Developpeur ([Rejoignez nous !](https://discord.gg/m9EZNKVaPz))
 
 Crée par la communauté pour la communauté.
 
-Ce bot est développé en [**Rust**](https://www.rust-lang.org/) et repose sur la crate [serenity](https://crates.io/crates/serenity) pour l'API Discord.
+Ce bot est développé en [**Rust**](https://www.rust-lang.org/) et repose sur la crate [**serenity**](https://crates.io/crates/serenity) pour l'API Discord.
 
 ## Fonctionnalités
 

@@ -1,4 +1,4 @@
-//! # Bot OpenCDD
+//! # Bot cddio
 //! 
 //! ## Bot asynchrone
 //! 

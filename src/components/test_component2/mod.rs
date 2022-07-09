@@ -1,9 +1,9 @@
-use opencdd_macros::*;
+use cddio_macros::*;
 use serenity::model::event::{MessageCreateEvent, ReadyEvent};
 use serenity::{client::Context};
 use serenity::model::id::RoleId;
 
-use opencdd_components::ApplicationCommandEmbed;
+use cddio_components::ApplicationCommandEmbed;
 
 pub struct Test;
 

@@ -5,8 +5,8 @@ mod log_audit;
 use chrono::{Duration, Utc, DateTime};
 use crate::{log_error, log_warn, log_info};
 use futures_locks::{RwLock, Mutex};
-use opencdd_components::{ApplicationCommandEmbed, message};
-use opencdd_macros::commands;
+use cddio_components::{ApplicationCommandEmbed, message};
+use cddio_macros::commands;
 use serenity::{
     client::Context,
     model::{
