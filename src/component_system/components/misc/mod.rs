@@ -2,7 +2,7 @@
 /// calculer la durée pour atteindre cette vitesse en secondes
 /// https://www.wolframalpha.com/input/?i=distance+between+0+and+270+m%2Fs+in+seconds
 
-use log::*;
+use crate::{log_error, log_warn, log_info};
 use opencdd_components::{self as cmp2, ApplicationCommandEmbed, message, message::ToMessage};
 use opencdd_macros::commands;
 use serenity::{
@@ -40,13 +40,13 @@ impl Misc {
         
         match ready.ready.user.invite_url(&ctx.http, perms).await {
             Ok(v) => println!("Invitation: {}", v),
-            Err(e) => warn!("Lien d'invitation impossiblre à créer: {}", e.to_string()),
+            Err(e) => log_warn!("Lien d'invitation impossiblre à créer: {}", e.to_string()),
         }
     }
     #[command(description="Pong!")]
     async fn ping(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>) {
         if let Err(e) = app_cmd.direct_response(ctx, message::success("Pong!")).await {
-            error!("ping: Erreur lors de la réponse: {}", e);
+            log_error!("ping: Erreur lors de la réponse: {}", e);
         }
     }
 }

@@ -3,7 +3,7 @@ mod registry_file;
 mod log_audit;
 
 use chrono::{Duration, Utc, DateTime};
-use log::*;
+use crate::{log_error, log_warn, log_info};
 use futures_locks::{RwLock, Mutex};
 use opencdd_components::{ApplicationCommandEmbed, message};
 use opencdd_macros::commands;
@@ -60,28 +60,28 @@ impl Moderation {
     async fn on_ban_add(&self, ctx: &Context, event: &GuildBanAddEvent) {
         match self.push_log(ctx, event.guild_id, event.user.id, 22).await {
             Ok(_) => {},
-            Err(e) => error!("{}", e),
+            Err(e) => log_error!("{}", e),
         }
     }
     #[event(GuildBanRemove)]
     async fn on_ban_remove(&self, ctx: &Context, event: &GuildBanRemoveEvent) {
         match self.push_log(ctx, event.guild_id, event.user.id, 23).await {
             Ok(_) => {},
-            Err(e) => error!("{}", e),
+            Err(e) => log_error!("{}", e),
         }
     }
     #[event(GuildMemberRemove)]
     async fn on_member_remove(&self, ctx: &Context, event: &GuildMemberRemoveEvent) {
         match self.push_log(ctx, event.guild_id, event.user.id, 20).await {
             Ok(_) => {},
-            Err(e) => error!("{}", e),
+            Err(e) => log_error!("{}", e),
         }
     }
     #[event(GuildMemberUpdate)]
     async fn on_member_update(&self, ctx: &Context, event: &GuildMemberUpdateEvent) {
         match self.push_log(ctx, event.guild_id, event.user.id, 20).await {
             Ok(_) => {},
-            Err(e) => error!("{}", e),
+            Err(e) => log_error!("{}", e),
         }
     }
     
@@ -100,7 +100,7 @@ impl Moderation {
         let resp = match app_cmd.delayed_response(ctx, false).await {
             Ok(resp) => resp,
             Err(e) => {
-                error!("{}", e);
+                log_error!("{}", e);
                 return;
             }
         };
@@ -117,14 +117,14 @@ impl Moderation {
             break match self.ban(ctx, guild_id, member, Some(user_by), raison, until, del_msg).await {
                 Ok(v) => v,
                 Err(e) => {
-                    error!("{}", e);
+                    log_error!("{}", e);
                     message::error(e)
                 }
             };
         };
         match resp.send_message(msg).await {
             Ok(_) => {},
-            Err(e) => error!("{}", e),
+            Err(e) => log_error!("{}", e),
         }
         
     }
@@ -138,7 +138,7 @@ impl Moderation {
         let resp = match app_cmd.delayed_response(ctx, false).await {
             Ok(resp) => resp,
             Err(e) => {
-                error!("{}", e);
+                log_error!("{}", e);
                 return;
             }
         };
@@ -151,14 +151,14 @@ impl Moderation {
             break match self.kick(ctx, guild_id, member, Some(user_by), raison).await {
                 Ok(v) => v,
                 Err(e) => {
-                    error!("{}", e);
+                    log_error!("{}", e);
                     message::error(e)
                 }
             };
         };
         match resp.send_message(msg).await {
             Ok(_) => {},
-            Err(e) => error!("{}", e),
+            Err(e) => log_error!("{}", e),
         }
     }
     
@@ -174,7 +174,7 @@ impl Moderation {
         let resp = match app_cmd.delayed_response(ctx, false).await {
             Ok(resp) => resp,
             Err(e) => {
-                error!("{}", e);
+                log_error!("{}", e);
                 return;
             }
         };
@@ -191,14 +191,14 @@ impl Moderation {
             break match self.mute(ctx, guild_id, member, Some(user_by), raison, until).await {
                 Ok(v) => v,
                 Err(e) => {
-                    error!("{}", e);
+                    log_error!("{}", e);
                     message::error(e)
                 }
             };
         };
         match resp.send_message(msg).await {
             Ok(_) => {},
-            Err(e) => error!("{}", e),
+            Err(e) => log_error!("{}", e),
         }
     }
     #[command(name="unban",description="Débanni un membre du serveur")]
@@ -209,7 +209,7 @@ impl Moderation {
         let resp = match app_cmd.delayed_response(ctx, false).await {
             Ok(resp) => resp,
             Err(e) => {
-                error!("{}", e);
+                log_error!("{}", e);
                 return;
             }
         };
@@ -222,14 +222,14 @@ impl Moderation {
             break match self.unban(ctx, guild_id, member, Some(user_by)).await {
                 Ok(v) => v,
                 Err(e) => {
-                    error!("{}", e);
+                    log_error!("{}", e);
                     message::error(e)
                 }
             };
         };
         match resp.send_message(msg).await {
             Ok(_) => {},
-            Err(e) => error!("{}", e),
+            Err(e) => log_error!("{}", e),
         }
     }
     #[command(name="unmute",description="Démute un membre du serveur")]
@@ -240,7 +240,7 @@ impl Moderation {
         let resp = match app_cmd.delayed_response(ctx, false).await {
             Ok(resp) => resp,
             Err(e) => {
-                error!("{}", e);
+                log_error!("{}", e);
                 return;
             }
         };
@@ -253,14 +253,14 @@ impl Moderation {
             break match self.unmute(ctx, guild_id, member, Some(user_by)).await {
                 Ok(v) => v,
                 Err(e) => {
-                    error!("{}", e);
+                    log_error!("{}", e);
                     message::error(e)
                 }
             };
         };
         match resp.send_message(msg).await {
             Ok(_) => {},
-            Err(e) => error!("{}", e),
+            Err(e) => log_error!("{}", e),
         }
     }
 
@@ -342,11 +342,11 @@ impl Moderation {
         // Some(2)
         {
             Some(v) => {
-                info!("Retrait de l'ancienne sanction du membre {}", user_id);
+                log_info!("Retrait de l'ancienne sanction du membre {}", user_id);
                 let mut tasks = self.tasks.write().await;
                 match tasks.as_mut().unwrap().remove(v).await {
-                    Ok(_) => info!("Sanction retirée"),
-                    Err(e) => error!("Impossible de supprimer la sanction: {}", e)
+                    Ok(_) => log_info!("Sanction retirée"),
+                    Err(e) => log_error!("Impossible de supprimer la sanction: {}", e)
                 }
             },
             None => ()
@@ -371,7 +371,7 @@ impl Moderation {
                    }).await;
                    match res {
                         Ok(_) => (),
-                        Err(e) => warn!("L'utilisateur {} a été trouvé mais impossible de lui envoyer un message: {}", user_id, e.to_string())
+                        Err(e) => log_warn!("L'utilisateur {} a été trouvé mais impossible de lui envoyer un message: {}", user_id, e.to_string())
                    }
                 }
             }
@@ -382,7 +382,7 @@ impl Moderation {
             Err(e) => return Err(format!("Impossible d'appliquer la sanction: {}", e.to_string())),
         };
         if let Err(e) = self.logger.push(&sanction).await {
-            warn!("Impossible d'enregistrer la sanction dans les logs: {}", e.to_string());
+            log_warn!("Impossible d'enregistrer la sanction dans les logs: {}", e.to_string());
         }
         let msg = sanction.to_server_message(ctx).await;
         match sanction {
@@ -414,26 +414,26 @@ impl Moderation {
     async fn send_error<S: ToString>(ctx: &Context, app_cmd: &ApplicationCommandEmbed<'_>, msg: S) {
         match app_cmd.direct_response(ctx, message::error(msg)).await {
             Ok(_) => (),
-            Err(e) => error!("Impossible de renvoyer une réponse directe: {}", e)
+            Err(e) => log_error!("Impossible de renvoyer une réponse directe: {}", e)
         }
     }
     async fn push_log(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, action_type: u8) -> Result<(), String>{
         let audit = match guild_id.audit_logs(ctx,Some(action_type), Some(user_id), None, Some(1)).await {
             Ok(audit) => audit,
             Err(e) => {
-                warn!("Impossible de trouver ou récupérer l'audit: {}", e);
+                log_warn!("Impossible de trouver ou récupérer l'audit: {}", e);
                 return Ok(());
             }
         };
         let audit_entry = match audit.entries.first() {
             Some(entry) => entry,
             None => {
-                warn!("No audit entry found in a log event");
+                log_warn!("No audit entry found in a log event");
                 return Ok(())   
             }
         };
         if Utc::now().timestamp() - audit_entry.id.created_at().unix_timestamp() > AUDIT_TIME_THRESHOLD {
-            warn!("Audit entry is too old");
+            log_warn!("Audit entry is too old");
             return Ok(());
         }
         let data = match action_type {

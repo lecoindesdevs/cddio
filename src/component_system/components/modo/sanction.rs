@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use log::*;
+use crate::{log_error, log_warn, log_info};
 use opencdd_components::{message, ApplicationCommandEmbed};
 use serenity::{
     client::Context,
@@ -86,7 +86,7 @@ impl Sanction {
                         Ok(())
                     },
                     None => {
-                        warn!("Impossible de trouver le rôle \"{}\" dans le serveur {}", ROLE_MUTED, guild_id);
+                        log_warn!("Impossible de trouver le rôle \"{}\" dans le serveur {}", ROLE_MUTED, guild_id);
                         Err(serenity::Error::Other("Impossible de trouver le rôle \"muted\" dans le serveur"))
                     }
                 }
@@ -110,7 +110,7 @@ impl Sanction {
                         Ok(())
                     },
                     None => {
-                        warn!("Impossible de trouver le rôle \"muted\" dans le serveur {}", guild_id);
+                        log_warn!("Impossible de trouver le rôle \"muted\" dans le serveur {}", guild_id);
                         Err(serenity::Error::Other("Impossible de trouver le rôle \"muted\" dans le serveur"))
                     }
                 } 
@@ -249,7 +249,7 @@ impl Sanction {
             _ => Err(serenity::Error::Other("Sanction impossible à annuler."))
         };
         if let Err(e) = result {
-            error!("Impossible de rétablir la sanction {}: {}", self.user_id(), e);
+            log_error!("Impossible de rétablir la sanction {}: {}", self.user_id(), e);
         }
     }
 }

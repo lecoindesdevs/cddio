@@ -1,4 +1,4 @@
-use log::*;
+use crate::{log_error, log_warn, log_info};
 use std::sync::Arc;
 use std::collections::HashMap;
 use chrono::Utc;
@@ -51,7 +51,7 @@ impl Autobahn {
                 Err(e) => println!("autobahn: Failed to delete messages: {}", e)
             }
             if let Err(e) = self.cmp_moderation.mute(ctx, guild_id, msg.author.id, None, "Détection de spam".into(), Some(Utc::now() + self.mute_time)).await {
-                error!("autobahn: Failed to mute user: {}", e);
+                log_error!("autobahn: Failed to mute user: {}", e);
                 return;
             };
             self.delete_messages(ctx, |(_, msg)| msg.who == msg_info.who).await;
@@ -87,7 +87,7 @@ impl Autobahn {
             println!("autobahn: Deleting {} messages from channel {}", msgs.len(), channel);
             match channel.delete_messages(ctx, &msgs).await {
                 Ok(_) => (),
-                Err(e) => warn!("autobahn: Failed to delete messages: {}", e)
+                Err(e) => log_warn!("autobahn: Failed to delete messages: {}", e)
             }
         }
     }

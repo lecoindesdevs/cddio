@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use log::*;
+use crate::{log_error, log_warn, log_info};
 
 use async_std::io::WriteExt;
 use futures_locks::RwLock;
@@ -30,7 +30,7 @@ impl RegistryFile {
     async fn save(&self) -> Result<(), String> {
         let log_error = |msg, e| {
             let e = format!("modo::RegistryFile::save: {}: {}", msg, e);
-            error!("{}", e);
+            log_error!("{}", e);
             e
         };
         let mut file = async_std::fs::File::create(&self.path_file).await
@@ -46,7 +46,7 @@ impl RegistryFile {
     async fn load(&self) -> Result<(), String> {
         let log_error = |msg, e| {
             let e = format!("modo::RegistryFile::load: {}: {}", msg, e);
-            error!("{}", e);
+            log_error!("{}", e);
             e
         };
         if self.path_file.exists() {

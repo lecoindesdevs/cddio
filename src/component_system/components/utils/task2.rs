@@ -2,7 +2,7 @@ use std::{time::Duration, collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Utc, TimeZone};
 use futures_locks::Mutex;
-use log::{error, warn, info};
+use crate::{log_error, log_warn, log_info};
 use serde::{Deserialize, Serialize};
 use serenity::async_trait;
 
@@ -61,11 +61,11 @@ impl<D, R, P> TaskManager<D, R, P> where
     }
     pub async fn init(&mut self) {
         let tasks = self.tasks.lock().await.get_all().await;
-        info!("Initializing {} tasks", tasks.len());
+        log_info!("Initializing {} tasks", tasks.len());
         for (task_id, task) in tasks {
-            info!("Initializing task {}. Data: {:?}", task_id, task);
+            log_info!("Initializing task {}. Data: {:?}", task_id, task);
             let handle = self.spawn_task(task_id, task.data, Utc.timestamp(task.until, 0));
-            info!("Task {} initialized", task_id);
+            log_info!("Task {} initialized", task_id);
             self.task_handles.insert(task_id, handle);
         }
     }
@@ -83,23 +83,23 @@ impl<D, R, P> TaskManager<D, R, P> where
         let tasks = Arc::clone(&self.tasks);
         let persistent = Arc::clone(&self.persistent);
         tokio::spawn(async move {
-            info!("Task {}: Spawning", id);
+            log_info!("Task {}: Spawning", id);
             let seconds = until.timestamp() - Utc::now().timestamp();
             if seconds > 0 {
                 let duration = Duration::from_secs(seconds as _ );
-                info!("Task {}: Sleeping for {} seconds", id, seconds);
+                log_info!("Task {}: Sleeping for {} seconds", id, seconds);
                 tokio::time::sleep(duration).await;
             }
-            info!("Task {}: Running", id);
+            log_info!("Task {}: Running", id);
             if let Err(e) = data.run(&*persistent).await {
-                error!("Task {} failed: {}", id, e);
+                log_error!("Task {} failed: {}", id, e);
                 return;
             }
             if let Err(e) = Self::remove_from_registry(&tasks, id).await {
-                error!("Task {} failed to remove from registry: {}", id, e);
+                log_error!("Task {} failed to remove from registry: {}", id, e);
                 return;
             }
-            info!("Task {}: Finished", id);
+            log_info!("Task {}: Finished", id);
         })
     }
     pub async fn remove(&mut self, id: TaskID) -> Result<(), String> {
@@ -108,7 +108,7 @@ impl<D, R, P> TaskManager<D, R, P> where
                 handle.abort();
                 self.task_handles.remove(&id);
                 if let Err(e) = Self::remove_from_registry(&self.tasks, id).await {
-                    error!("Task {} failed to remove from registry: {}", id, e);
+                    log_error!("Task {} failed to remove from registry: {}", id, e);
                 }
                 Ok(())
             },

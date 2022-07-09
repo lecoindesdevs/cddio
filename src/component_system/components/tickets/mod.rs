@@ -2,7 +2,7 @@ mod archive;
 
 use std::path::PathBuf;
 use futures::TryFutureExt;
-use log::*;
+use crate::{log_error, log_warn, log_info};
 use futures_locks::RwLock;
 use opencdd_components::{message, ApplicationCommandEmbed};
 use opencdd_macros::commands;
@@ -118,13 +118,13 @@ impl Tickets {
             let mut msg = match ChannelId(chan_id).message(ctx, msg_id).await {
                 Ok(msg) => msg,
                 Err(err) => {
-                    warn!("Erreur lors de la récupération du message du menu: {}", err);
+                    log_warn!("Erreur lors de la récupération du message du menu: {}", err);
                     self.reset_message_choose(None).await;
                     return;
                 }
             };
             if let Err(err) = self.update_menu(ctx, &mut msg).await {
-                warn!("Erreur lors de la mise à jour du menu: {}", err);
+                log_warn!("Erreur lors de la mise à jour du menu: {}", err);
                 self.reset_message_choose(None).await;
             }
         }
@@ -137,7 +137,7 @@ impl Tickets {
         let resp = match app_cmd.delayed_response(ctx, true).await {
             Ok(resp) => resp,
             Err(err) => {
-                error!("Erreur lors de la création de la réponse: {}", err);
+                log_error!("Erreur lors de la création de la réponse: {}", err);
                 return;
             }
         };
@@ -148,12 +148,12 @@ impl Tickets {
                 let msg = match ChannelId(chan_id).message(ctx, msg_id).await {
                     Ok(msg) => msg,
                     Err(err) => {
-                        warn!("Erreur lors de la récupération du menu: {}", err);
+                        log_warn!("Erreur lors de la récupération du menu: {}", err);
                         break;
                     }
                 };
                 if let Err(err) = msg.delete(ctx).await {
-                    warn!("Erreur lors de la récupération du message: {}", err);
+                    log_warn!("Erreur lors de la récupération du message: {}", err);
                     break;
                 }
             }
@@ -164,12 +164,12 @@ impl Tickets {
         let mut msg = match channel.send_message(ctx, |msg| msg.content("Sélectionnez le type de ticket que vous souhaitez créer :")).await {
             Ok(msg) => msg,
             Err(err) => {
-                error!("Erreur lors de l'envoi du message: {}", err);
+                log_error!("Erreur lors de l'envoi du message: {}", err);
                 return;
             }
         };
         self.update_menu(ctx, &mut msg).await.unwrap_or_else(|e| {
-            error!("Erreur lors de l'envoi du message: {}", e);
+            log_error!("Erreur lors de l'envoi du message: {}", e);
         });
         {
             let mut data = self.data.write().await;
@@ -178,7 +178,7 @@ impl Tickets {
             data.msg_choose = Some((channel.0, msg.id.0));
         }
         if let Err(err) = resp.send_message(message::success("Salon de création de tickets configuré")).await {
-            error!("Erreur lors de l'envoi de la réponse: {}", err);
+            log_error!("Erreur lors de l'envoi de la réponse: {}", err);
         }
     }
     #[command(group="tickets", name="close", description="Ferme le ticket actuel")]
@@ -224,7 +224,7 @@ impl Tickets {
             let data = data.read();
             let msg = data.categories.last().unwrap().to_message("Catégorie créée");
             app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
-                error!("Erreur lors de l'envoi du message: {}", e);
+                log_error!("Erreur lors de l'envoi du message: {}", e);
             });
         }
     }
@@ -239,7 +239,7 @@ impl Tickets {
             Some(pos) => pos,
             None => {
                 app_cmd.direct_response(ctx, message::error("Cette catégorie n'existe pas")).await.unwrap_or_else(|e| {
-                    error!("Erreur lors de l'envoi du message: {}", e);
+                    log_error!("Erreur lors de l'envoi du message: {}", e);
                 });
                 return;
             }
@@ -248,7 +248,7 @@ impl Tickets {
         data.categories.remove(pos);
 
         app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
-            error!("Erreur lors de l'envoi du message: {}", e);
+            log_error!("Erreur lors de l'envoi du message: {}", e);
         });
     }
     #[command(group="categories", name="list", description="Liste les catégories de ticket")]
@@ -264,7 +264,7 @@ impl Tickets {
         }
         msg.add_embed(|e| {*e=embed; e});
         app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
-            error!("Erreur lors de l'envoi du message: {}", e);
+            log_error!("Erreur lors de l'envoi du message: {}", e);
         });
     }
     #[command(group="ticket", description="Ajoute une personne au ticket")]
@@ -285,14 +285,14 @@ impl Tickets {
         }).await {
             Ok(_) => true,
             Err(e) => {
-                warn!("Erreur lors de la création de l'interaction: {}", e);
+                log_warn!("Erreur lors de la création de l'interaction: {}", e);
                 false
             }
         };
         let guild_id = match msg.guild_id {
             Some(guild_id) => guild_id,
             None => {
-                error!("Le menu n'est pas dans un serveur");
+                log_error!("Le menu n'est pas dans un serveur");
                 return;
             }
         };
@@ -301,7 +301,7 @@ impl Tickets {
             let category_name = match msg.data.values.iter().next() {
                 Some(value) => value.clone(),
                 None => {
-                    error!("Aucun item n'a été sélectionné");
+                    log_error!("Aucun item n'a été sélectionné");
                     return;
                 }
             };
@@ -311,14 +311,14 @@ impl Tickets {
             if let Some(id) = id {
                 id
             } else {
-                error!("La catégorie n'existe pas");
+                log_error!("La catégorie n'existe pas");
                 return;
             }
         };
         let result = match self.ticket_create(ctx, guild_id, user_id, category_id).await {
             Ok(result) => message::success(format!("Ticket créé: <#{}>", result)),
             Err(e) => {
-                error!("Erreur lors de la création du ticket: {}", e);
+                log_error!("Erreur lors de la création du ticket: {}", e);
                 message::error(e)
             }
         };
@@ -329,7 +329,7 @@ impl Tickets {
             }).await {
                 Ok(_) => (),
                 Err(e) => {
-                    error!("Erreur lors de la modification de l'interaction: {}", e);
+                    log_error!("Erreur lors de la modification de l'interaction: {}", e);
                 }
             }
         }
@@ -338,11 +338,11 @@ impl Tickets {
     #[message_component(custom_id="button_ticket_close")]
     async fn on_button_ticket_close(&self, ctx: &Context, msg: &MessageComponentInteraction) {
         if let Err(e) = self.ticket_close_channel(ctx, msg.channel_id).await {
-            error!("{}", e);
+            log_error!("{}", e);
             msg.create_interaction_response(ctx, |resp|{
                 resp.interaction_response_data(|inter| inter.content(e))
             }).await.unwrap_or_else(|e| {
-                error!("Erreur lors de l'envoi d'une réponse d'interaction: {}", e);
+                log_error!("Erreur lors de l'envoi d'une réponse d'interaction: {}", e);
             });
         }
     }
@@ -364,7 +364,7 @@ impl Tickets {
         }).await
     }
     async fn send_error<D: std::fmt::Display>(ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>, error: D) {
-        error!("{}", error);
+        log_error!("{}", error);
         let mut msg = message::Message::new();
         let mut embed = message::Embed::default();
         embed.color(message::COLOR_ERROR);
@@ -372,7 +372,7 @@ impl Tickets {
         embed.description(error);
         msg.add_embed(|e| {*e=embed; e});
         app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
-            error!("Erreur lors de l'envoi du message: {}", e);
+            log_error!("Erreur lors de l'envoi du message: {}", e);
         });
     }
     async fn ticket_close_channel(&self, ctx: &Context, channel_id: ChannelId) -> Result<(), String> {
@@ -424,7 +424,7 @@ impl Tickets {
                 match role {
                     Some((role_id, _)) => *role_id,
                     None => {
-                        error!("Une erreur s'est produite lors de la création du ticket: Le role 'staff' n'existe pas.");
+                        log_error!("Une erreur s'est produite lors de la création du ticket: Le role 'staff' n'existe pas.");
                         return Err("Une erreur s'est produite lors de la création du ticket.".to_string());
                     }
                 }
@@ -480,10 +480,10 @@ impl Tickets {
                 })
             })
         }).await.unwrap_or_else(|e| {
-            warn!("Erreur lors de la mise en place du bouton du message de présentation: {}", e);
+            log_warn!("Erreur lors de la mise en place du bouton du message de présentation: {}", e);
         });
         msg_prez.pin(ctx).await.unwrap_or_else(|e| {
-            warn!("Erreur lors du pin du message de présentation: {}", e);
+            log_warn!("Erreur lors du pin du message de présentation: {}", e);
         });
 
         Ok(new_channel.id)

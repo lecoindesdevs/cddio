@@ -6,7 +6,7 @@ use serenity::{
     }
 };
 mod intern {
-    use log::*;
+    use crate::{log_error, log_warn, log_info};
     use std::collections::HashSet;
 
     use futures::StreamExt;
@@ -75,7 +75,7 @@ mod intern {
                         users.insert(ArchiveUser::from(&message.author));
                         messages.push(ArchiveMessage::from(message));
                     },
-                    Err(e) => warn!("Error getting message while archiving channel: {}", e)
+                    Err(e) => log_warn!("Error getting message while archiving channel: {}", e)
                 }
             }
             Self {
