@@ -1,23 +1,17 @@
 mod archive;
 
 use std::path::PathBuf;
-use futures::TryFutureExt;
 use crate::{log_error, log_warn, log_info};
 use futures_locks::RwLock;
-use cddio_components::{message, ApplicationCommandEmbed};
+use cddio_core::{message, ApplicationCommandEmbed};
 use cddio_macros::commands;
 use serde::{Serialize, Deserialize};
 use serenity::{
     client::Context,
     model::{id::*, channel::Message, event::ReadyEvent},
-    model::event::{
-        Event::InteractionCreate,
-        InteractionCreateEvent,
-    },
     model::interactions:: {
-        Interaction,
         message_component::MessageComponentInteraction
-    }, builder::{CreateMessage, CreateSelectMenuOption}
+    }, builder::CreateSelectMenuOption
 };
 
 use super::utils::data::Data;

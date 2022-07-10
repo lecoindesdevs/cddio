@@ -1,24 +1,21 @@
 use std::collections::HashMap;
 
-use cmp2::ApplicationCommandEmbed;
-use cmp2::declarative::Node;
 use cddio_macros::commands;
-use cddio_components as cmp2;
+use cddio_core::{self as core, message, ApplicationCommandEmbed, declarative::Node};
 use serenity::model::event::ReadyEvent;
 use serenity::model::interactions::application_command::ApplicationCommandPermissionType;
 use serenity::prelude::*;
 use serenity::model::id::{UserId, ApplicationId, CommandId, GuildId};
-use cddio_components::message;
 
 pub struct SlashCommand {
     app_id: ApplicationId,
-    container: cmp2::container::RefContainer,
+    container: core::container::RefContainer,
     owners: Vec<UserId>,
     application_commands: RwLock<HashMap<GuildId,HashMap<String, CommandId>>>
 }
 
 impl SlashCommand {
-    pub fn new(app_id: ApplicationId, container: cmp2::container::RefContainer, owners: Vec<UserId>) -> SlashCommand {
+    pub fn new(app_id: ApplicationId, container: core::container::RefContainer, owners: Vec<UserId>) -> SlashCommand {
         SlashCommand {
             app_id,
             container,

@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use crate::{log_error, log_warn, log_info};
-use cddio_components::{message, ApplicationCommandEmbed};
+use cddio_core::{message, ApplicationCommandEmbed};
 use serenity::{
     client::Context,
     model::id::*, 

@@ -178,7 +178,7 @@ impl Argument {
         };
         let description = &attr.description;
         Some(quote! {
-            cddio_components::declarative::Argument{
+            cddio_core::declarative::Argument{
                 name: #name,
                 type_: #option_type,
                 description: #description,

@@ -4,7 +4,7 @@
 use futures_locks::RwLock;
 use serenity::{Client, model::id::{ApplicationId, UserId}, prelude::GatewayIntents};
 use crate::{components as cmp, config::Config};
-use cddio_components as new_cmp;
+use cddio_core as core;
 
 type Result<T> = serenity::Result<T>;
 
@@ -20,7 +20,7 @@ pub struct Bot {
     client: Client,
     /// Handler des composants.
     /// Actuellement un vecteur mais prochainement un gestionnaire est prévu.
-    cmp_container: RwLock<new_cmp::ComponentContainer>
+    cmp_container: RwLock<core::ComponentContainer>
 }
 
 impl Bot {
@@ -33,7 +33,7 @@ impl Bot {
             .collect::<Vec<_>>();
         let app_id = ApplicationId(config.app_id);
         let perms = config.permissions;
-        let ref_container = RwLock::new(new_cmp::ComponentContainer::new());
+        let ref_container = RwLock::new(core::ComponentContainer::new());
         {
             let mut container = ref_container.write().await;
             container.add_component(cmp::Help::new(ref_container.clone()));

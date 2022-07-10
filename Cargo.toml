@@ -23,7 +23,7 @@ hashers = "1.0"
 serde_with = { version = "1", features = ["chrono"] }
 # sea-orm = "0.8.0"
 cddio-macros = { path = "deps/cddio-macros" }
-cddio-components = { path = "deps/cddio-components" }
+cddio-core = { path = "deps/cddio-core" }
 
 [dependencies.serenity]
 version = "0.11"

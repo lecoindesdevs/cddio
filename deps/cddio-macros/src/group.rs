@@ -71,7 +71,7 @@ impl Group {
         });
         let it_children = self.children.iter().map(|f| f.borrow().get_declarative());
         let node = quote! {
-            cddio_components::declarative::Node {
+            cddio_core::declarative::Node {
                 commands: &[#(#it_commands), *],
                 children: &[#(#it_children), *]
             }
@@ -81,7 +81,7 @@ impl Group {
             let name = &attr.name;
             let description = &attr.description;
             quote!(
-                cddio_components::declarative::ChildNode {
+                cddio_core::declarative::ChildNode {
                     name: #name,
                     description: #description,
                     node: #node

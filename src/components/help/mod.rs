@@ -2,7 +2,7 @@
 //! Il se repose sur le groupe de commande retournée par la fonction [`Component::group_parser`].
 
 use cmp2::declarative::IterType;
-use cddio_components::{self as cmp2, ApplicationCommandEmbed, message, message::ToMessage};
+use cddio_core::{self as cmp2, ApplicationCommandEmbed, message, message::ToMessage};
 use cddio_macros::commands;
 use serenity::client::Context;
 

@@ -3,7 +3,7 @@
 /// https://www.wolframalpha.com/input/?i=distance+between+0+and+270+m%2Fs+in+seconds
 
 use crate::{log_error, log_warn, log_info};
-use cddio_components::{self as cmp2, ApplicationCommandEmbed, message, message::ToMessage};
+use cddio_core::{self as core, ApplicationCommandEmbed, message, message::ToMessage};
 use cddio_macros::commands;
 use serenity::{
     client::Context, 
@@ -13,12 +13,12 @@ use serenity::{
 pub struct Misc {
     app_id: ApplicationId,
     bot_permissions: u64,
-    container: cmp2::container::RefContainer,
+    container: core::container::RefContainer,
 }
 
 #[commands]
 impl Misc {
-    pub fn new(app_id: ApplicationId, bot_permissions: u64, container: cmp2::container::RefContainer) -> Self {
+    pub fn new(app_id: ApplicationId, bot_permissions: u64, container: core::container::RefContainer) -> Self {
         Self {
             app_id,
             bot_permissions,

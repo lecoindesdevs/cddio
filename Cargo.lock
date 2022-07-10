@@ -234,7 +234,7 @@ name = "cddio"
 version = "1.0.0"
 dependencies = [
  "async-std",
- "cddio-components",
+ "cddio-core",
  "cddio-macros",
  "chrono",
  "futures",
@@ -251,7 +251,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cddio-components"
+name = "cddio-core"
 version = "0.1.0"
 dependencies = [
  "futures-locks",
@@ -261,9 +261,8 @@ dependencies = [
 
 [[package]]
 name = "cddio-macros"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
- "lazy_static",
  "proc-macro2",
  "quote",
  "syn",

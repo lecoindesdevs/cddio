@@ -109,11 +109,11 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
     }
     let impl_event = quote! {
         #[serenity::async_trait]
-        impl cddio_components::ComponentEvent for #struct_name {
+        impl cddio_core::ComponentEvent for #struct_name {
             async fn event(&self, ctx: &serenity::client::Context, event: &serenity::model::event::Event) {
                 match event {
                     serenity::model::event::Event::InteractionCreate(serenity::model::event::InteractionCreateEvent{interaction: serenity::model::interactions::Interaction::ApplicationCommand(orig_app_command), ..}) => {
-                        let app_command = cddio_components::ApplicationCommandEmbed::new(orig_app_command);
+                        let app_command = cddio_core::ApplicationCommandEmbed::new(orig_app_command);
                         let command_name = app_command.fullname();
                         match command_name.as_str() {
                             #(#commands), *
@@ -134,9 +134,9 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
     };
     let declaratives = groups.get_declarative();
     let impl_declaratives = quote!{
-        impl cddio_components::ComponentDeclarative for #struct_name {
-            fn declarative(&self) -> Option<&'static cddio_components::declarative::Node> {
-                const decl: cddio_components::declarative::Node = #declaratives;
+        impl cddio_core::ComponentDeclarative for #struct_name {
+            fn declarative(&self) -> Option<&'static cddio_core::declarative::Node> {
+                const decl: cddio_core::declarative::Node = #declaratives;
                 Some(&decl)
             }
         }
@@ -145,7 +145,7 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
         #impl_event
         #impl_declaratives
 
-        impl cddio_components::Component for #struct_name {}
+        impl cddio_core::Component for #struct_name {}
         
         #impl_functions
     };
