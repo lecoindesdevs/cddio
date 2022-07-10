@@ -7,15 +7,11 @@ mod util;
 mod log;
 mod group;
 
-use std::sync::Mutex;
 use quote::quote;
 use proc_macro::TokenStream;
 use function::{Function, RefFunction, FunctionType};
 use std::rc::Rc;
 
-lazy_static::lazy_static!(
-    static ref TEST_COUNTER: Mutex<i32> = Mutex::new(0);
-);
 
 #[proc_macro_attribute]
 pub fn commands(_attr: TokenStream, item: TokenStream) -> TokenStream {
