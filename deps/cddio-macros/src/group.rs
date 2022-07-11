@@ -30,6 +30,9 @@ impl GroupAttribute {
         if result.description.is_empty() {
             return Err(Error::new(arg_span, "missing description argument"));
         }
+        if result.name.is_empty() {
+            return Err(Error::new(arg_span, "missing name argument"));
+        }
         Ok(result)
     }
 }
