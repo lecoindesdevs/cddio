@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use cddio_macros::commands;
+use cddio_macros::component;
 use cddio_core::{self as core, message, ApplicationCommandEmbed, declarative::Node};
 use serenity::model::event::ReadyEvent;
 use serenity::model::interactions::application_command::ApplicationCommandPermissionType;
@@ -25,7 +25,7 @@ impl SlashCommand {
     }
 }
 
-#[commands]
+#[component]
 #[group(name="slash", description="Gestion des commandes slash")]
 #[group(name="permissions", description="Gérer les permissions des commandes", parent="slash")]
 impl SlashCommand {

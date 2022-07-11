@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use crate::{log_error, log_warn, log_info};
 use futures_locks::RwLock;
 use cddio_core::{message, ApplicationCommandEmbed};
-use cddio_macros::commands;
+use cddio_macros::component;
 use serde::{Serialize, Deserialize};
 use serenity::{
     client::Context,
@@ -96,7 +96,7 @@ impl Tickets {
     }
 }
 
-#[commands]
+#[component]
 #[group(name="tickets", description="Gestion des tickets")]
 #[group(parent="tickets", name="categories", description="Gestion des catégories de tickets")]
 #[group(name="ticket", description="Commandes dans un ticket")]

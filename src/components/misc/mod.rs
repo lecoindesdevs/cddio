@@ -4,7 +4,7 @@
 
 use crate::{log_error, log_warn, log_info};
 use cddio_core::{self as core, ApplicationCommandEmbed, message, message::ToMessage};
-use cddio_macros::commands;
+use cddio_macros::component;
 use serenity::{
     client::Context, 
     model::{id::ApplicationId, gateway::Ready, permissions::Permissions, event::ReadyEvent}
@@ -16,7 +16,7 @@ pub struct Misc {
     container: core::container::RefContainer,
 }
 
-#[commands]
+#[component]
 impl Misc {
     pub fn new(app_id: ApplicationId, bot_permissions: u64, container: core::container::RefContainer) -> Self {
         Self {

@@ -14,7 +14,7 @@ use std::rc::Rc;
 
 
 #[proc_macro_attribute]
-pub fn commands(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
     expand_commands(item.into()).unwrap_or_else(syn::Error::into_compile_error).into()
 }
 

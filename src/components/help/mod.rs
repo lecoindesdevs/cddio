@@ -3,7 +3,7 @@
 
 use cmp2::declarative::IterType;
 use cddio_core::{self as cmp2, ApplicationCommandEmbed, message, message::ToMessage};
-use cddio_macros::commands;
+use cddio_macros::component;
 use serenity::client::Context;
 
 pub struct Help {
@@ -18,7 +18,7 @@ impl Help {
     }
 }
 
-#[commands]
+#[component]
 impl Help {
     #[command(description="Affiche l'aide d'une commanded ou du bot")]
     async fn help(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>, 

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use chrono::Utc;
 use futures_locks::RwLock;
-use cddio_macros::commands;
+use cddio_macros::component;
 use serenity::{model::{*, prelude::*}, client::Context};
 use std::hash::Hash;
 use super::Moderation;
@@ -24,7 +24,7 @@ pub struct Autobahn {
     max_time: chrono::Duration,
     mute_time: chrono::Duration,
 }
-#[commands]
+#[component]
 impl Autobahn {
     #[event(MessageCreate)]
     async fn on_message_create(&self, ctx: &Context, msg_create: &MessageCreateEvent) {

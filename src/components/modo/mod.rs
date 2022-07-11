@@ -6,7 +6,7 @@ use chrono::{Duration, Utc, DateTime};
 use crate::{log_error, log_warn, log_info};
 use futures_locks::{RwLock, Mutex};
 use cddio_core::{ApplicationCommandEmbed, message};
-use cddio_macros::commands;
+use cddio_macros::component;
 use serenity::{
     client::Context,
     model::{
@@ -42,7 +42,7 @@ impl Moderation {
 
 const AUDIT_TIME_THRESHOLD: i64 = 60;
 
-#[commands]
+#[component]
 impl Moderation {
     #[event(Ready)]
     async fn on_ready(&self, ctx: &Context, ready: &ReadyEvent) {
