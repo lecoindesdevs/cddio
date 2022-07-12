@@ -41,6 +41,7 @@ impl Bot {
             container.add_component(cmp::Tickets::new());
             container.add_component(cmp::SlashCommand::new(app_id, ref_container.clone(), owners_id));
             container.add_component(cmp::Misc::new(app_id, perms, ref_container.clone()));
+            container.add_component(cmp::DalleMini);
             container.add_component(cmp::Autobahn::new(modo));
         }
         let client = Client::builder(&config.token, GatewayIntents::non_privileged())
