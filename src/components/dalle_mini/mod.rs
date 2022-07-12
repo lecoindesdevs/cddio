@@ -4,16 +4,16 @@ use cddio_core::{ApplicationCommandEmbed, message};
 use cddio_macros::component;
 use serde::{Serialize, Deserialize};
 use serenity::{client::Context, model::channel::AttachmentType};
-use image::{ImageDecoder, ImageError, RgbaImage, GenericImage};
+use image::{RgbaImage, GenericImage};
 
 use crate::{log_warn, log_error};
 
-
+/// The dalle mini component.
 pub struct DalleMini;
-
 
 #[component]
 impl DalleMini {
+    /// Command to send a dalle mini image to a channel.
     #[command(name = "dalle_mini", description = "Dalle Mini generator")]
     async fn dalle_mini(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(description="What do you want to see ?")]
@@ -27,7 +27,7 @@ impl DalleMini {
             }
         };
         let result = loop {
-            let resp = match Self::fetch("https://bf.dallemini.ai/generate", what.clone()).await {
+            let resp = match Self::fetch(what.clone()).await {
                 Ok(resp) => resp,
                 Err(e) => break Err(format!("{}", e))
             };
@@ -66,19 +66,26 @@ impl DalleMini {
         
     }
 }
+/// Dalle mini request API structure
 #[derive(Serialize)]
 struct DalleRequest {
+    /// The sentence to ask to dalle mini
     prompt: String,
 }
+/// Dalle mini response API structure
 #[derive(Deserialize)]
 struct DalleResponse {
+    /// 9 images sent by dalle mini. 
+    /// 
+    /// Formatted in base64.
     images: Vec<String>
 }
 
 impl DalleMini {
-    async fn fetch(url: &str, prompt: String) -> Result<DalleResponse, reqwest::Error> {
+    /// Fetch the dalle mini images from the API
+    async fn fetch(prompt: String) -> Result<DalleResponse, reqwest::Error> {
         let client = reqwest::Client::new();
-        let res = client.post(url)
+        let res = client.post("https://bf.dallemini.ai/generate")
             .header("Accept", "application/json")
             .header("Content-Type", "application/json")
             .json(&DalleRequest{
@@ -89,6 +96,7 @@ impl DalleMini {
         
         Ok(body)
     }
+    /// Parse the API response into a vector of images
     async fn parse(resp: DalleResponse) -> Vec<RgbaImage> {
         resp.images.into_iter().map(|b64img| {
             let b64img  =b64img.chars().into_iter().filter(|c| c.is_ascii_alphanumeric() || *c == '+' || *c == '/' || *c == '=').collect::<String>();
@@ -108,7 +116,9 @@ impl DalleMini {
             }
         }).collect()
     }
+    /// Merge the images into a single image (in a 3x3 mosaic like craiyon does)
     async fn merge(images: Vec<RgbaImage>) -> image::ImageResult<image::RgbaImage> {
+        // if images.len() != 9 {}
         assert_eq!(images.len(), 9);
         let small = (images[0].width(), images[0].height());
         const MARGIN:u32 = 10;
