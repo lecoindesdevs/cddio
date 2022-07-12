@@ -26,30 +26,44 @@ impl DalleMini {
                 return;
             }
         };
-
-        let resp = match Self::fetch("https://bf.dallemini.ai/generate", what).await {
-            Ok(resp) => resp,
+        let result = loop {
+            let resp = match Self::fetch("https://bf.dallemini.ai/generate", what.clone()).await {
+                Ok(resp) => resp,
+                Err(e) => break Err(format!("{}", e))
+            };
+            let images = Self::parse(resp).await;
+    
+            let image = match Self::merge(images).await {
+                Ok(image) => image,
+                Err(e) => break Err(format!("{}", e))
+            };
+            let mut bytes: Vec<u8> = Vec::new();
+            match image.write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageOutputFormat::Png) {
+                Ok(_) => (),
+                Err(e) => break Err(format!("{}", e))
+            }
+            let attacment = AttachmentType::Bytes { data: Cow::Borrowed(&bytes), filename: "dalle-mini.png".to_string() };
+            match app_cmd.0.channel_id.send_message(ctx, |msg| {
+                msg
+                    .add_file(attacment)
+                    .content(what)
+            }).await {
+                Ok(_) => (),
+                Err(e) => break Err(format!("{}", e))
+            };
+            break Ok(());
+        };
+        let result = match result {
+            Ok(_) => delay_resp.send_message(message::success("Image généré")).await,
             Err(e) => {
-                delay_resp.send_message(message::error(e)).await;
-                return;
+                log_error!("{}", e);
+                delay_resp.send_message(message::Message::with_text(e)).await
             }
         };
-        let images = Self::parse(resp).await;
-
-        let image = match Self::merge(images).await {
-            Ok(image) => image,
-            Err(e) => {
-                delay_resp.send_message(message::error(e)).await;
-                return;
-            }
-        };
-        let mut bytes: Vec<u8> = Vec::new();
-        image.write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageOutputFormat::Png).unwrap();
-        let attacment = AttachmentType::Bytes { data: Cow::Borrowed(&bytes), filename: "dalle-mini.png".to_string() };
-        app_cmd.0.channel_id.send_message(ctx, |msg| {
-            msg.add_file(attacment)
-        }).await;
-        delay_resp.send_message(message::success("Image generated")).await;
+        if let Err(e) = result {
+            log_error!("{}", e);
+        }
+        
     }
 }
 #[derive(Serialize)]
@@ -78,7 +92,6 @@ impl DalleMini {
     async fn parse(resp: DalleResponse) -> Vec<RgbaImage> {
         resp.images.into_iter().map(|b64img| {
             let b64img  =b64img.chars().into_iter().filter(|c| c.is_ascii_alphanumeric() || *c == '+' || *c == '/' || *c == '=').collect::<String>();
-            std::fs::write("./test.txt", &b64img);
             let raw_data = match base64::decode(&b64img){
                 Ok(data) => data,
                 Err(e) => {
@@ -86,7 +99,6 @@ impl DalleMini {
                     return RgbaImage::new(0, 0);
                 }
             };
-            std::fs::write("./test1.png", &raw_data);
             match image::load_from_memory(&raw_data) {
                 Ok(img) => img.into_rgba8(),
                 Err(e) => {
@@ -102,7 +114,6 @@ impl DalleMini {
         const MARGIN:u32 = 10;
         let big = (small.0 * 3 + MARGIN * 2, small.1 * 3 + MARGIN * 2);
 
-        //mozaic of 3x3 images, with a margin of 10px between each image
         let mut img = image::RgbaImage::new(
             big.0,
             big.1
