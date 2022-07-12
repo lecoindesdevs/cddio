@@ -1,4 +1,4 @@
-use serenity::{model::{id::{GuildId, UserId, RoleId}, interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandOptionType, ApplicationCommandInteractionData}}, client::Context};
+use serenity::{model::{id::{GuildId, UserId, RoleId}, interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandOptionType, ApplicationCommandInteractionData}}, client::Context, builder::{CreateInteractionResponse, EditInteractionResponse}};
 
 use crate::message::Message;
 #[derive(Clone)]
@@ -59,6 +59,11 @@ impl<'a> DelayedResponse<'a> {
     pub async fn send_message(mut self, msg: Message) -> serenity::Result<()> {
         self.message = Some(msg);
         self.send().await
+    }
+    pub async fn edit_and_send<F>(self, f: F) -> serenity::Result<()> where
+        F: FnOnce(&mut EditInteractionResponse) -> &mut EditInteractionResponse
+        {
+        self.app_cmd.0.edit_original_interaction_response(self.ctx, f).await.and(Ok(()))
     }
     async fn send_new_response(ctx: &Context, app_cmd: &ApplicationCommandInteraction, ephemeral: bool) -> serenity::Result<()> {
         use serenity::model::interactions::InteractionResponseType;
