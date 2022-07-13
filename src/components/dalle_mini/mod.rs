@@ -1,3 +1,5 @@
+//! Dall-e mini image generator command 
+
 use std::borrow::Cow;
 
 use cddio_core::{ApplicationCommandEmbed, message};

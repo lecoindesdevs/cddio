@@ -1,3 +1,5 @@
+//! Anti-spam system
+
 use crate::{log_error, log_warn, log_info};
 use std::sync::Arc;
 use std::collections::HashMap;

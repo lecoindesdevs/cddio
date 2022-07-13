@@ -1,3 +1,5 @@
+//! Ticket manager
+
 mod archive;
 
 use std::path::PathBuf;

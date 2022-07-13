@@ -1,6 +1,4 @@
-//! Module commmun au composant.
-//! 
-//! Contient notamment des fonctions utiles.
+//! Utilities for the components.
 
 pub mod task;
 pub mod time_parser;

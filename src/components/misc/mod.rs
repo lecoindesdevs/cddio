@@ -1,6 +1,4 @@
-/// Sur 250 metres, on passe d'une vitesse de 0 m/s a 270 m/s.
-/// calculer la durée pour atteindre cette vitesse en secondes
-/// https://www.wolframalpha.com/input/?i=distance+between+0+and+270+m%2Fs+in+seconds
+//! Miscellaneous commands and events.
 
 use crate::{log_error, log_warn, log_info};
 use cddio_core::{self as core, ApplicationCommandEmbed, message, message::ToMessage};

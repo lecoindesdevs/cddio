@@ -1,3 +1,5 @@
+//! Internal slash declaration handler
+
 use std::collections::HashMap;
 
 use cddio_macros::component;

@@ -1,3 +1,5 @@
+//! Moderation management
+
 mod sanction;
 mod registry_file;
 mod log_audit;
