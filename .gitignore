@@ -6,3 +6,4 @@ config.ron
 /.vscode
 
 .DS_Store
+mod_old.rs

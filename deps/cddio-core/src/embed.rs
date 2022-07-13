@@ -1,6 +1,14 @@
-use serenity::{model::{id::{GuildId, UserId, RoleId}, interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandOptionType, ApplicationCommandInteractionData}}, client::Context};
-
+use serenity::{
+    model::{
+        id::{GuildId, UserId, RoleId}, 
+        interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandOptionType, ApplicationCommandInteractionData}
+    }, 
+    client::Context, 
+    builder::EditInteractionResponse
+};
 use crate::message::Message;
+
+/// Helper to parse an application command.
 #[derive(Clone)]
 enum CommandType<'b> {
     Command(&'b ApplicationCommandInteractionData),
@@ -20,6 +28,12 @@ impl<'a> CommandType<'a> {
     }
 }
 
+/// # Delayed interaction response
+/// 
+/// Once created by [`Self::new`] a delayed response is sent in response to the application command.
+/// You must call [`Self::send`] to send the finished response.
+/// 
+/// See [`Self::new`] for more information.
 pub struct DelayedResponse<'a> {
     pub message: Option<Message>,
     ctx: &'a Context,
@@ -27,6 +41,9 @@ pub struct DelayedResponse<'a> {
 }
 
 impl<'a> DelayedResponse<'a> {
+    /// Create a new delayed response
+    /// 
+    /// Send a delayed response to the application command
     pub async fn new(ctx: &'a Context, app_cmd: ApplicationCommandEmbed<'a>, ephemeral: bool) -> serenity::Result<DelayedResponse<'a>> {
         Self::send_new_response(ctx, app_cmd.0, ephemeral).await.or_else(|e| {
             eprintln!("Cannot create response: {}", e);
@@ -39,6 +56,7 @@ impl<'a> DelayedResponse<'a> {
             app_cmd
         })
     }
+    /// Returns the embedded message. If the message is not yet created, it will be created.
     pub fn message(&mut self) -> &mut Message {
         if let None = self.message {
             self.message = Some(Message::with_text(String::new()));
@@ -48,6 +66,7 @@ impl<'a> DelayedResponse<'a> {
             None => unreachable!("Message already created")
         }
     }
+    /// Consume the response and send it to edit the interaction
     pub async fn send(mut self) -> serenity::Result<()> {
         let result = Self::edit_response(self.ctx, self.app_cmd.0, &self.message).await.or_else(|e| {
             eprintln!("Cannot create response: {}", e);
@@ -56,9 +75,16 @@ impl<'a> DelayedResponse<'a> {
         self.message = None;
         result
     }
+    /// Consume the response and send a message to edit the interaction
     pub async fn send_message(mut self, msg: Message) -> serenity::Result<()> {
         self.message = Some(msg);
         self.send().await
+    }
+    /// Edit the interaction without taking account of the message
+    pub async fn edit_and_send<F>(self, f: F) -> serenity::Result<()> where
+        F: FnOnce(&mut EditInteractionResponse) -> &mut EditInteractionResponse
+        {
+        self.app_cmd.0.edit_original_interaction_response(self.ctx, f).await.and(Ok(()))
     }
     async fn send_new_response(ctx: &Context, app_cmd: &ApplicationCommandInteraction, ephemeral: bool) -> serenity::Result<()> {
         use serenity::model::interactions::InteractionResponseType;
@@ -101,7 +127,7 @@ impl<'a> Drop for DelayedResponse<'a> {
 pub struct ApplicationCommandEmbed<'a>(pub &'a ApplicationCommandInteraction, CommandType<'a>);
 
 impl<'a> ApplicationCommandEmbed<'a> {
-    /// Créer un conteneur d'application command
+    /// Create a new application command embed
     /// 
     /// La (sous) commande est recherchée dans la commande principale, puis dans les options.
     pub fn new(interaction: &'a ApplicationCommandInteraction) -> Self {

@@ -2,6 +2,7 @@ use serenity::builder::{CreateEmbed, CreateInteractionResponse, EditInteractionR
 use serenity::utils::Colour;
 pub use serenity::builder::CreateEmbed as Embed;
 
+/// Trait to create a message from the current object.
 pub trait ToMessage {
     fn to_message(&self) -> Message;
 }
@@ -28,24 +29,29 @@ impl Message {
     pub fn new() -> Self {
         Default::default()
     }
+    /// Création d'un message avec un texte
     pub fn with_text(message: String) -> Self {
         Message {
             message,
             ..Default::default()
         }
     }
+    /// Rend un message éphémère
     pub fn set_ephemeral(mut self, ephemeral: bool) -> Self {
         self.ephemeral = ephemeral;
         self
     }
+    /// Ajoute un embed au message
     pub fn add_embed(&mut self, callback: impl FnOnce(&mut Embed) -> &mut Embed) {
         let mut embed = Embed::default();
         callback(&mut embed);
         self.embeds.push(embed);
     }
+    /// Retourne le dernier embed ajouté s'il existe
     pub fn last_embed(&self) -> Option<&CreateEmbed> {
         self.embeds.last()
     }
+    /// Retourne le dernier embed ajouté s'il existe
     pub fn last_embed_mut(&mut self) -> Option<&mut CreateEmbed> {
         self.embeds.last_mut()
     }

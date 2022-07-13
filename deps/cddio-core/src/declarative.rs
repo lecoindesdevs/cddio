@@ -3,12 +3,23 @@ use std::{slice::Iter, fmt::Display};
 use serenity::{model::{interactions::application_command::ApplicationCommandOptionType}, builder::{CreateApplicationCommands, CreateApplicationCommandOption, CreateApplicationCommand}};
 use crate::message::{self, ToMessage};
 
+/// The component declaration trait.
+/// 
+/// This trait is used to declare groups and root slash commands from a component.
+/// 
+/// This trait is required if at least one command is declared. 
+/// It is not required if the component only handles events.
 pub trait ComponentDeclarative{
     fn declarative(&self) -> Option<&'static Node> {
         None
     }
 }
-
+/// Node of the component declaration.
+/// 
+/// The component declaration is a tree of nodes. 
+/// Each node contains a reference to other nodes ([`ChildNode`]) and to commands [`Command`].
+/// 
+/// `children` and `commands` shoudl be declared const/static in the program and per component.
 pub struct Node {
     pub children: &'static [ChildNode],
     pub commands: &'static [Command]
@@ -26,12 +37,19 @@ impl Node {
         IterFlatNode::new(self)
     }
 }
+/// Node description data
 pub struct ChildNode {
+    /// The name of the node.
+    /// 
+    /// This name is used name the group application command the node is related to.
     pub name: &'static str,
+    /// The node description.
     pub description: &'static str,
+    /// The node children.
     pub node: Node,
 }
 impl ChildNode {
+    /// Iterate over the node to extract only commands.
     pub fn iter_flat(&'static self) -> IterFlatNode {
         IterFlatNode::new(&self.node)
     }
@@ -74,7 +92,6 @@ impl Display for ChildNode {
 
 impl ToMessage for &'static ChildNode {
     fn to_message(&self) -> message::Message {
-        
         let cmds = self.iter_flat()
             .filter_map(|(fullname, iter_type)| {
                 match iter_type {
@@ -94,10 +111,13 @@ impl ToMessage for &'static ChildNode {
         message::Message { message: String::new(), embeds: vec![embed], ephemeral: false }
     }
 }
-
+/// Command description data
 pub struct Command {
+    /// The name of the command.
     pub name: &'static str,
+    /// The command description.
     pub description: &'static str,
+    /// The command arguments. Can be empty.
     pub args: &'static [Argument],
 }
 impl From<&Command> for CreateApplicationCommandOption {
@@ -152,10 +172,15 @@ impl message::ToMessage for Command {
         message::Message { message: String::new(), embeds: vec![embed], ephemeral: false }
     }
 }
+/// Argument description data
 pub struct Argument {
+    /// The name of the argument.
     pub name: &'static str,
-    pub type_: serenity :: model :: interactions :: application_command :: ApplicationCommandOptionType,
+    /// The argument type. Restricted to [`ApplicationCommandOptionType`].
+    pub type_: serenity::model::interactions::application_command::ApplicationCommandOptionType,
+    /// The argument description.
     pub description: &'static str,
+    /// Whether the argument is optional to the command.
     pub optional: bool,
 }
 impl From<&Argument> for CreateApplicationCommandOption {
@@ -176,10 +201,17 @@ impl Display for Argument {
     }
 }
 
+/// Flat node iterator.
+/// 
+/// Iterate over all the node tree recursively.
+/// It begins to iterate through children (if any) then the commands (if any)
+/// 
+/// [`next()`] returns a tuple of complete path to the current item 
+/// and the current item ([Node] or [Command])
+/// 
+/// [`next()`]: IterFlatNode::next
 pub struct IterFlatNode
 {
-    // node: &'static Node,
-    // nodes_chain: Vec<IterFlatCommand>,
     name: Option<&'static str>,
     children: Iter<'static, ChildNode>,
     current_child: Option<Box<IterFlatNode>>,
@@ -206,6 +238,8 @@ impl IterFlatNode
     }
 }
 
+/// Item returned by [`IterFlatNode::next()`]. 
+/// Can be either a [Node] or a [Command].
 pub enum IterType {
     Node(&'static ChildNode),
     Command(&'static Command)
@@ -236,6 +270,7 @@ impl IterType {
 
 impl Iterator for IterFlatNode
 {
+    /// Tuple to the complete path of the current item and the current item
     type Item = (String, IterType);
     fn next(&mut self) -> Option<Self::Item> {
         let fullname = |other: &str| {
