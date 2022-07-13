@@ -12,6 +12,8 @@ mod modo;
 pub use modo::*;
 mod autobahn;
 pub use autobahn::*;
+mod dalle_mini;
+pub use dalle_mini::*;
 
 // Fonctions utiles pour les composants
 mod utils;
