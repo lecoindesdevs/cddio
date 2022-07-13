@@ -6,6 +6,9 @@ readme = "README.md"
 license = "GPL-3.0-or-later"
 licence-file = "LICENSE"
 
+[workspace]
+members = ["deps/*"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
