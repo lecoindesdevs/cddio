@@ -10,9 +10,7 @@ use serde::{Deserialize, Serialize};
 /// 
 /// Actuellement, contient l'intégralité des données de l'application.
 /// 
-/// Le format choisi pour le fichier de configuration est le [ron]. 
-/// Le format RON (Rusty Object Notation) est un format de données adapté pour le Rust 
-/// et est pratique et lisible.
+/// Le format choisi pour le fichier de configuration est le [json] pour l'interopérabilité. 
 #[derive(Serialize, Deserialize)]
 pub struct Config {
     pub token: String,

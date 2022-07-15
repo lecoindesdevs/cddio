@@ -9,12 +9,13 @@ Ce bot est développé en [**Rust**](https://www.rust-lang.org/) et repose sur l
 
 ## Fonctionnalités
 
-* [*Autobahn*, l'anti spam](src/component_system/components/autobahn/)
-* [Aide du bot](src/component_system/components/help/)
-* [Commandes diverses](src/component_system/components/misc/)
-* [Commandes de modération](src/component_system/components/modo/)
-* [Déclaration des slash commands](src/component_system/components/slash/)
-* [Gestion de ticket du serveur](src/component_system/components/tickets/)
+* [*Autobahn*, l'anti spam](components::autobahn)
+* [Aide du bot](components::help)
+* [Commandes diverses](components::misc)
+* [Commandes de modération](components::modo)
+* [Déclaration des slash commands](components::slash)
+* [Gestion de ticket du serveur](components::tickets)
+* [Dall-e Mini](components::dalle_mini)
 
 ## Licence
 
@@ -22,10 +23,10 @@ Ce projet est licencié sous **GPLv3**.
 Je vous invite à aller [sur cette page](https://choosealicense.com/licenses/gpl-3.0/) pour plus de renseignement.
 */
 #![allow(unused_macros, dead_code)]
-mod bot;
-mod components;
-mod config;
-mod log;
+pub mod bot;
+pub mod components;
+pub mod config;
+pub mod log;
 
 /// Trait à implémenter pour logger les erreurs dans la console.
 trait ResultLog {

@@ -1,18 +1,18 @@
 //! Module comportant les composants
 
-mod misc;
+pub mod misc;
 pub use misc::*;
-mod help;
+pub mod help;
 pub use help::*;
-mod tickets;
+pub mod tickets;
 pub use tickets::*;
-mod slash;
+pub mod slash;
 pub use slash::*;
-mod modo;
+pub mod modo;
 pub use modo::*;
-mod autobahn;
+pub mod autobahn;
 pub use autobahn::*;
-mod dalle_mini;
+pub mod dalle_mini;
 pub use dalle_mini::*;
 
 // Fonctions utiles pour les composants
