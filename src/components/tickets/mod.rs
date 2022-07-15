@@ -3,7 +3,8 @@
 mod archive;
 
 use std::path::PathBuf;
-use crate::{log_error, log_warn, log_info};
+use crate::{log_error, log_warn};
+use futures::TryFutureExt;
 use futures_locks::RwLock;
 use cddio_core::{message, ApplicationCommandEmbed};
 use cddio_macros::component;
@@ -266,9 +267,58 @@ impl Tickets {
     #[command(group="ticket", description="Ajoute une personne au ticket")]
     async fn add_member(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(name="qui", description="Personne à ajouter au ticket")]
-        person: UserId
+        personne: UserId
     ) {
-        todo!()
+        use serenity::model::{
+            channel::{PermissionOverwrite, PermissionOverwriteType},
+            permissions::Permissions,
+        };
+        let channel_id = app_cmd.0.channel_id;
+        let delay_resp = match app_cmd.delayed_response(ctx, false).await {
+            Ok(resp) => resp,
+            Err(e) => {
+                log_error!("Erreur lors de l'envoi du message: {}", e);
+                return;
+            }
+        };
+        let msg = loop {
+            let guild_id = match app_cmd.0.guild_id {
+                Some(guild_id) => guild_id,
+                None => break message::error("Cette commande n'est pas disponible dans un DM"),
+            };
+            
+            match self.is_a_ticket(ctx, channel_id).await  {
+                Ok(true) => (),
+                Ok(false) => break message::error("Ce salon n'est pas un ticket"),
+                Err(e) => break message::error(e),
+            }
+            let is_staff = match Self::is_staff(ctx, guild_id, personne).await {
+                Ok(true) => true,
+                Ok(false) => false,
+                Err(e) => break message::error(e),
+            };
+            let is_owner = match Self::is_ticket_owner(ctx, channel_id, personne).await {
+                Ok(true) => true,
+                Ok(false) => false,
+                Err(e) => break message::error(e),
+            };
+            if !is_staff && !is_owner {
+                break message::error("Vous n'avez pas la permission d'ajouter des membres au ticket.");
+            }
+            
+            let username = personne.to_user(ctx).await.map(|u| super::utils::user_fullname(&u)).unwrap_or_else(|_| personne.0.to_string());
+            break match channel_id.create_permission(ctx, &PermissionOverwrite {
+                allow: Permissions::VIEW_CHANNEL,
+                deny: Default::default(),
+                kind: PermissionOverwriteType::Member(personne),
+            }).await {
+                Ok(_) => message::success(format!("{} a bien été ajoutée.", username)),
+                Err(e) => message::error(format!("Impossible d'ajouter {}: {}", personne, e.to_string()))
+            };
+        };
+        delay_resp.send_message(msg).await.unwrap_or_else(|e| {
+            log_error!("Erreur lors de l'envoi du message: {}", e);
+        });
     }
     #[message_component(custom_id="menu_ticket_create")]
     async fn on_menu_ticket_create(&self, ctx: &Context, msg: &MessageComponentInteraction) {
@@ -372,37 +422,70 @@ impl Tickets {
         });
     }
     async fn ticket_close_channel(&self, ctx: &Context, channel_id: ChannelId) -> Result<(), String> {
+        match self.is_a_ticket(ctx, channel_id).await {
+            Ok(true) => (),
+            Ok(false) => return Err("Ce n'est pas un ticket".to_string()),
+            Err(e) => return Err(e),
+        }
+        if let Err(err) = archive::archive_ticket(ctx, channel_id).await {
+            return Err(format!("Erreur lors de l'archivage du ticket: {}", err));
+        }
+        if let Err(err) = channel_id.delete(ctx).await {
+            return Err(format!("Erreur lors de la suppression du ticket: {}", err));
+        }
+        Ok(())
+    }
+    async fn is_a_ticket(&self, ctx: &Context, channel_id: ChannelId) -> Result<bool, String> {
         use serenity::model::channel::Channel;
         let current_channel = match channel_id.to_channel(ctx).await {
             Ok(Channel::Guild(chan)) => chan,
-            Ok(_) => return Err("Le salon n'est pas un salon de serveur".to_string()),
-            Err(err) => return Err(format!("Erreur lors de la récupération du salon: {}", err)),
+            Ok(_) => return Ok(false),
+            Err(e) => return Err(format!("Une erreur s'est produite lors de la récupération du channel: {}", e)),
         };
         let parent_channel = match current_channel.parent_id {
             Some(id) => id,
-            None => return Err("Le salon n'est pas dans une catégorie".to_string()),
+            None => return Ok(false),
         };
         {
             let data = self.data.read().await;
             let data = data.read();
             if let None = data.categories.iter().find(|cat| cat.id == parent_channel.0) {
-                return Err("Le salon n'est pas dans une catégorie de ticket".to_string());
+                return Ok(false);
             }
         }
-        if let Err(err) = archive::archive_ticket(ctx, current_channel.id).await {
-            return Err(format!("Erreur lors de l'archivage du ticket: {}", err));
-        }
-        if let Err(err) = current_channel.delete(ctx).await {
-            return Err(format!("Erreur lors de la suppression du ticket: {}", err));
-        }
-        Ok(())
+        Ok(true)
+    }
+    async fn is_ticket_owner(ctx: &Context, channel: ChannelId, user_by: UserId) -> Result<bool, String> {
+        let pins = match channel.pins(ctx).await {
+            Ok(pins) => pins,
+            Err(e) => return Err(format!("{}", e))
+        };
+        let first_message = match pins.last() {
+            Some(pin) => pin,
+            None => return Ok(false)
+        };
+        Ok(first_message.mentions.iter().find(|m| m.id == user_by).is_some())
+    }
+    async fn is_staff(ctx: &Context, guild_id: GuildId, user_by: UserId) -> Result<bool, String> {
+        let roles = match guild_id.roles(ctx).await {
+            Ok(roles) => roles,
+            Err(e) => return Err(format!("{}", e))
+        };
+        let staff_role = match roles.into_iter().find(|role| role.1.name == "staff") {
+            Some(role) => role,
+            None => return Err("Le rôle 'staff' n'existe pas.".to_string())
+        };
+        let member = match guild_id.member(ctx, user_by).await {
+            Ok(member) => member,
+            Err(e) => return Err(format!("{}", e))
+        };
+        Ok(member.roles.into_iter().find(|role| role == &staff_role.0).is_some())
     }
     async fn reset_message_choose(&self, new_ids: Option<(u64, u64)>) {
         self.data.write().await.write().msg_choose = new_ids;
     }
     async fn ticket_create(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, category_id: u64) -> Result<ChannelId, String> {
         use serenity::model::channel::{PermissionOverwrite, PermissionOverwriteType, ChannelType};
-        use serenity::model::id::UserId;
         use serenity::model::permissions::Permissions;
         use serenity::model::interactions::message_component::ButtonStyle;
         let category = {
