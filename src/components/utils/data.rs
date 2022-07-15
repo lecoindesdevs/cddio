@@ -29,14 +29,15 @@ pub type DataResult<T> = std::result::Result<T, DataError>;
 /// Gestionnaire de donnée.
 /// 
 /// La structure contient les données d'un composant. Elle se charge de la lecture et de l'enregistrement des données sur le disque dur.
+#[derive(Clone, Default)]
 pub struct Data<T> 
-    where T: DeserializeOwned + Serialize 
+    where T: DeserializeOwned + Serialize + Default
 {
     pub name: String,
     pub value: T,
 }
 impl<T> Debug for Data<T> 
-    where T: DeserializeOwned + Serialize + Debug
+    where T: DeserializeOwned + Serialize + Debug + Default
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Data {{ name: {}, value: {:?} }}", self.name, self.value)
@@ -44,7 +45,7 @@ impl<T> Debug for Data<T>
 }
 
 impl<T> Data<T> 
-    where T: DeserializeOwned + Serialize 
+    where T: DeserializeOwned + Serialize + Default
 {
     /// Crée une nouvelle donnée.
     pub fn new(name: &str, value: T) -> Data<T> {
@@ -59,7 +60,7 @@ impl<T> Data<T>
     pub fn from_file<S: AsRef<str>>(name: S) -> DataResult<Data<T>> {
         let path_data = DATA_DIR.join(format!("{}.json", name.as_ref()));
         if !path_data.exists() {
-            return Err(DataError::MissingFileError);
+            return Ok(Data::new(name.as_ref(), Default::default()));
         }
         let file = fs::File::open(path_data).or_else(|e| Err(FileError(e)))?;
         let data = Data { 
@@ -112,10 +113,10 @@ impl<T> Data<T>
 /// 
 /// Dès que le [`DataGuard`] est détruit, les données sont enregistrées dans le fichier correspondant.
 pub struct DataGuard<'a, T>(&'a mut Data<T>)
-    where T:Serialize + DeserializeOwned;
+    where T:Serialize + DeserializeOwned + Default;
 
 impl<T> Deref for DataGuard<'_, T> 
-where T: DeserializeOwned + Serialize 
+where T: DeserializeOwned + Serialize + Default
 {
     type Target = T;
     fn deref(&self) -> &Self::Target {
@@ -123,7 +124,7 @@ where T: DeserializeOwned + Serialize
     }
 }
 impl<T> DerefMut for DataGuard<'_, T> 
-where T: DeserializeOwned + Serialize 
+where T: DeserializeOwned + Serialize + Default
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0.value
@@ -131,7 +132,7 @@ where T: DeserializeOwned + Serialize
 }
 
 impl<T> Drop for DataGuard<'_, T> 
-where T: DeserializeOwned + Serialize 
+where T: DeserializeOwned + Serialize + Default
 {
     fn drop(&mut self) {
         let ron_content = match serde_json::ser::to_string_pretty(&self.0.value) {
