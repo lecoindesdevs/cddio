@@ -1,5 +1,5 @@
 /target
-config.ron
+config.json
 /data
 
 /.cargo

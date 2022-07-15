@@ -36,7 +36,7 @@ impl Moderation {
     pub fn new() -> Self {
         Moderation {
             tasks: RwLock::new(None),
-            logger: log_audit::Log::new("data/moderation.ron"),
+            logger: log_audit::Log::new("data/moderation.json"),
             bot_id: Mutex::new(UserId(0))
         }
     }
@@ -54,7 +54,7 @@ impl Moderation {
         match &mut *tasks {
             Some(tasks) => tasks.reset_persistent(ctx.clone()),
             None => {
-                let registry = RegistryFile::from_file("./data/moderation2.ron").await.unwrap();
+                let registry = RegistryFile::from_file("./data/moderation2.json").await.unwrap();
                 let mut new_tasks = task::TaskManager::new(registry, ctx.clone());
                 new_tasks.init().await;
                 *tasks = Some(new_tasks);

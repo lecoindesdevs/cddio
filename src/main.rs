@@ -50,7 +50,7 @@ async fn main() {
     if let Err(e) =  log::init() {
         panic!("Unable to set logger: {}", e);
     }
-    let config = config::Config::load("./config.ron").expect_log("Could not load the configuration file");
+    let config = config::Config::load("./config.json").expect_log("Could not load the configuration file");
     let mut bot = bot::Bot::new(&config).await
         .or_else(|e|Err(e.to_string()))
         .expect_log("");

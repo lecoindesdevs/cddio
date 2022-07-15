@@ -97,8 +97,8 @@ pub async fn archive_ticket(ctx: &Context, channel: ChannelId) -> serenity::Resu
     };
     let name = channel.name.clone();
     let id = channel.id.0;
-    let archive = ron::to_string(&intern::ArchiveChannel::from_channel(ctx, channel).await).unwrap();
-    let path = format!("{}/{}-{}.ron", ARCHIVE_PATH, id, name);
+    let archive = serde_json::to_string(&intern::ArchiveChannel::from_channel(ctx, channel).await).unwrap();
+    let path = format!("{}/{}-{}.json", ARCHIVE_PATH, id, name);
     async_std::fs::write(path, archive).await?;
 
     Ok(())

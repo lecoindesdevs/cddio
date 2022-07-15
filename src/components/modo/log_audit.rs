@@ -27,7 +27,7 @@ impl Log {
             .append(true)
             .open(&self.path).await
             .or_else(|e| Err(format!("modo: Impossible d'ouvrir le fichier de log: {}", e.to_string())))?;
-        let log_str = ron::to_string(&LogEntry{
+        let log_str = serde_json::to_string(&LogEntry{
             datetime: Utc::now(),
             data: data,
         })

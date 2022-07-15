@@ -37,7 +37,7 @@ impl RegistryFile {
             .map_err(|e| log_error(format!("Unable to open/create file at '{}'", self.path_file.to_string_lossy()), e.to_string()))?;
 
         let tasks = self.tasks.read().await;
-        let data = ron::to_string(&*tasks)
+        let data = serde_json::to_string(&*tasks)
             .map_err(|e| log_error(format!("Unable to serialize tasks"), e.to_string()))?;
         file.write_all(data.as_bytes()).await
             .map_err(|e| log_error(format!("Unable to open/create file at '{}'", self.path_file.to_string_lossy()), e.to_string()))?;
@@ -52,7 +52,7 @@ impl RegistryFile {
         if self.path_file.exists() {
             let data = std::fs::read_to_string(&self.path_file)
                 .map_err(|e| log_error(format!("Unable to read file at '{}'", self.path_file.to_string_lossy()), e.to_string()))?;
-            let tasks: HashMap<_,_> = ron::from_str(&data)
+            let tasks: HashMap<_,_> = serde_json::from_str(&data)
                 .map_err(|e| log_error(format!("Unable to parse tasks"), e.to_string()))?;
             let highest_id = tasks.iter().map(|(id, _)| *id).max().unwrap_or(0);
             *self.tasks.write().await = tasks;

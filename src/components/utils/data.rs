@@ -18,7 +18,7 @@ pub enum DataError {
     /// Erreur lors de la lecture/écriture du fichier.
     FileError(std::io::Error),
     /// Erreur de sérialisation/déserialisation.
-    SerdeError(ron::error::Error),
+    SerdeError(serde_json::error::Error),
     /// Le fichier n'existe pas dans le dossier [`struct@DATA_DIR`].
     MissingFileError,
 }
@@ -57,14 +57,14 @@ impl<T> Data<T>
     /// 
     /// Si le fichier n'existe pas, une nouvelle donnée est créée.
     pub fn from_file<S: AsRef<str>>(name: S) -> DataResult<Data<T>> {
-        let path_data = DATA_DIR.join(format!("{}.ron", name.as_ref()));
+        let path_data = DATA_DIR.join(format!("{}.json", name.as_ref()));
         if !path_data.exists() {
             return Err(DataError::MissingFileError);
         }
         let file = fs::File::open(path_data).or_else(|e| Err(FileError(e)))?;
         let data = Data { 
             name: name.as_ref().to_string(), 
-            value: ron::de::from_reader(file).or_else(|e| Err(SerdeError(e)))?
+            value: serde_json::de::from_reader(file).or_else(|e| Err(SerdeError(e)))?
         };
         
         Ok(data)
@@ -134,7 +134,7 @@ impl<T> Drop for DataGuard<'_, T>
 where T: DeserializeOwned + Serialize 
 {
     fn drop(&mut self) {
-        let ron_content = match ron::ser::to_string_pretty(&self.0.value, ron::ser::PrettyConfig::default()) {
+        let ron_content = match serde_json::ser::to_string_pretty(&self.0.value) {
             Ok(content) => content,
             Err(err) => {
                 eprintln!("Saving {} - Unable to serialize the data: {}", self.0.name, err);
@@ -147,7 +147,7 @@ where T: DeserializeOwned + Serialize
                 return;
             }
         }
-        let path_file = DATA_DIR.join(format!("{}.ron", self.0.name));
+        let path_file = DATA_DIR.join(format!("{}.json", self.0.name));
 
         fs::write(path_file, &ron_content).unwrap_or_else(|err| {
             eprintln!("Saving {} - Unable to write the file: {}", self.0.name, err);
