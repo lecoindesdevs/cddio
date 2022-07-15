@@ -1,5 +1,7 @@
 //! Le composant help permet d'afficher une aide en fonction de la commande.
-//! Il se repose sur le groupe de commande retournée par la fonction [`Component::group_parser`].
+//! Il se repose sur le le resultat des composants ayant pour trait [ComponentDeclarative].
+//! 
+//! [ComponentDeclarative]: cddio_core::ComponentDeclarative
 
 use cmp2::declarative::IterType;
 use cddio_core::{self as cmp2, ApplicationCommandEmbed, message, message::ToMessage};

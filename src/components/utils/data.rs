@@ -1,5 +1,4 @@
 //! Module de gestion des données des composants.
-//! 
 
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
@@ -11,6 +10,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 lazy_static! {
     /// Chemin du dossier contenant les données.
+    /// = "$CWD/data"
     pub static ref DATA_DIR: PathBuf = env::current_dir().unwrap().join("data");
 }
 #[derive(Debug)]
@@ -19,7 +19,7 @@ pub enum DataError {
     FileError(std::io::Error),
     /// Erreur de sérialisation/déserialisation.
     SerdeError(ron::error::Error),
-    /// Le fichier n'existe pas dans le dossier [`DATA_DIR`].
+    /// Le fichier n'existe pas dans le dossier [`struct@DATA_DIR`].
     MissingFileError,
 }
 use DataError::*;
