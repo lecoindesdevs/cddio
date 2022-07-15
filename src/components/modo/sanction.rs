@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use crate::{log_error, log_warn, log_info};
+use crate::{log_error, log_warn};
 use cddio_core::{message, ApplicationCommandEmbed};
 use serenity::{
     client::Context,

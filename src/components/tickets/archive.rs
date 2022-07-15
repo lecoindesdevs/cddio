@@ -6,7 +6,7 @@ use serenity::{
     }
 };
 mod intern {
-    use crate::{log_error, log_warn, log_info};
+    use crate::log_warn;
     use std::collections::HashSet;
 
     use futures::StreamExt;

@@ -1,6 +1,6 @@
 //! Anti-spam system
 
-use crate::{log_error, log_warn, log_info};
+use crate::{log_error, log_warn};
 use std::sync::Arc;
 use std::collections::HashMap;
 use chrono::Utc;

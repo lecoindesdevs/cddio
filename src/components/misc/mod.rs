@@ -1,11 +1,11 @@
 //! Miscellaneous commands and events.
 
-use crate::{log_error, log_warn, log_info};
-use cddio_core::{self as core, ApplicationCommandEmbed, message, message::ToMessage};
+use crate::{log_error, log_warn};
+use cddio_core::{self as core, ApplicationCommandEmbed, message};
 use cddio_macros::component;
 use serenity::{
     client::Context, 
-    model::{id::ApplicationId, gateway::Ready, permissions::Permissions, event::ReadyEvent}
+    model::{id::ApplicationId, permissions::Permissions, event::ReadyEvent}
 };
 
 pub struct Misc {

@@ -4,7 +4,6 @@ mod archive;
 
 use std::path::PathBuf;
 use crate::{log_error, log_warn};
-use futures::TryFutureExt;
 use futures_locks::RwLock;
 use cddio_core::{message, ApplicationCommandEmbed};
 use cddio_macros::component;
