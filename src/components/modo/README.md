@@ -4,49 +4,51 @@ Plusieurs commandes de modération sont disponible pour modérer la communauté 
 
 ## Commandes
 
-```
-/ban <qui:@id_user> <pourquoi:explication> [pendant:durée]
-```
+### /ban
 
-Bannir un membre du serveur. Temporaire si le [paramètre *pendant*](#format-paramètre-pendant) est renseigné. Un message avec la raison et la durée du bannissement si renseignée est envoyé au membre bani.
+Banni un membre du serveur
 
-### Paramètres
+#### Arguments
 
-* **qui** : Le membre à bannir.
-* **pourquoi** : La raison du ban. S'enregistre dans le ban discord et est envoyé au membre.
-* **pendant** (*opt*) : Pendant combien de temps. Indéfiniment si non renseigné. 
+* **qui**: Membre à bannir
+* **raison**: Raison du ban
+* **historique** (optionnel): Supprimer l'historique du membre (nombre de jours de 0 à 7)
+* **duree** (optionnel): Durée du ban ([voir le format ici](#format-paramètre-pendant))
 
-```
-/mute <qui:@id_user> <pourquoi:explication> [pendant:durée]
-```
+### /kick
 
-Attribue le rôle *muted* à un membre. Temporaire si le [paramètre *pendant*](#format-paramètre-pendant) est renseigné. Un message avec la raison et la durée du mute si rensignée est envoyé au membre en sourdine.
+Expulse un membre du serveur
 
-### Paramètres
+#### Arguments
 
-* **qui** : Le membre à mute.
-* **pourquoi** : La raison du mute. S'enregistre dans le ban discord et est envoyé au membre.
-* **pendant** (*opt*) : Pendant combien de temps. Indéfiniment si non renseigné. 
+* **qui**: Membre à expulser
+* **raison**: Raison de l'expulsion
 
-```
-/unban <qui:@id_user>
-```
+### /mute
 
-Débannir un membre du serveur.
+Mute un membre du serveur
 
-### Paramètres
+#### Arguments
 
-* **qui** : Le membre à débannir.
+* **qui**: Membre à mute
+* **raison**: Raison du ban
+* **duree** (optionnel): Durée du mute ([voir le format ici](#format-paramètre-pendant))
 
-```
-/unmute <qui:@id_user>
-```
+### /unban
 
-Retire le rôle *muted* à un membre.
+Débanni un membre du serveur
 
-### Paramètres
+#### Arguments
 
-* **qui** : Le membre à unmute.
+* **qui**: Membre à débannir
+
+### /unmute
+
+Démute un membre du serveur
+
+#### Arguments
+
+* **qui**: Membre à démute
 
 ## Notes
 

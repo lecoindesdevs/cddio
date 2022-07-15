@@ -4,12 +4,14 @@ La commande help afficher l'aide d'une commande ou la liste des commandes du bot
 
 ## Commande
 
-```
-/help [commande:nom commande]
-```
+### /help
 
-Affiche l'aide de la commande dont le nom est précisé dans le parametre **commande**. Si le paramètre **commande** n'est pas renseigné, Affiche la liste des commandes du bot.
+Affiche l'aide d'une commanded ou du bot
 
-### Paramètres
+#### Arguments
 
-* **commande** : Nom de la commande
+* **commande**: Nom de la commande ou du groupe
+
+### /liste_commandes
+
+Affiche la liste des commandes du bot

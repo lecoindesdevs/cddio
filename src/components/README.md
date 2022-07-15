@@ -91,7 +91,7 @@ Assigne le salon de création de tickets
 
 * **salon** (optionnel): Salon textuel
 
-## /tickets close
+## /ticket close
 
 Ferme le ticket actuel
 
