@@ -36,6 +36,18 @@ impl Node {
     pub fn iter_flat(&'static self) -> IterFlatNode {
         IterFlatNode::new(self)
     }
+    pub fn to_markdown(&'static self) -> String {
+        let mut s = String::new();
+        self.iter_flat()
+            .filter_map(|(name, v)| match v {
+                IterType::Command(command) => Some((name, command)),
+                _ => None
+            })
+            .for_each(|(fullname, item)| {
+                s.push_str(&format!("## /{}\n\n{}\n", fullname, item.to_markdown()));
+            });
+        s
+    }
 }
 /// Node description data
 pub struct ChildNode {
@@ -120,6 +132,20 @@ pub struct Command {
     /// The command arguments. Can be empty.
     pub args: &'static [Argument],
 }
+
+impl Command {
+    pub fn to_markdown(&'static self) -> String {
+        let mut s = format!("{}\n\n", self.description);
+        if !self.args.is_empty() {
+            s.push_str("### Arguments\n\n");
+            for arg in self.args {
+                s.push_str(&format!("* {}\n", arg.to_markdown()));
+            }
+        }
+        s
+    }
+}
+
 impl From<&Command> for CreateApplicationCommandOption {
     fn from(command: &Command) -> Self {
         let mut app_cmd = CreateApplicationCommandOption::default();
@@ -182,6 +208,12 @@ pub struct Argument {
     pub description: &'static str,
     /// Whether the argument is optional to the command.
     pub optional: bool,
+}
+impl Argument {
+    pub fn to_markdown(&'static self) -> String {
+        let opt_str = if self.optional { " (optionnel)" } else { "" };
+        format!("**{}**{}: {}", self.name, opt_str, self.description)
+    }
 }
 impl From<&Argument> for CreateApplicationCommandOption {
     fn from(argument: &Argument) -> Self {
