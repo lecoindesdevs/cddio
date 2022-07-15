@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /*!
  # CDDIO MACROS
 
@@ -196,6 +197,7 @@ async fn on_button_ticket_close(&self, ctx: &Context, msg: &MessageComponentInte
 Cette attribut est un helper en plus de l'attribut [event](#event). L'équivalent de l'exemple au dessus en utilisant l'attribut event :
 
 ```rust
+
 use serenity::model::{
     event::{
         Event::InteractionCreate,
