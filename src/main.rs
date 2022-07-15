@@ -22,7 +22,6 @@ Ce bot est développé en [**Rust**](https://www.rust-lang.org/) et repose sur l
 Ce projet est licencié sous **GPLv3**. 
 Je vous invite à aller [sur cette page](https://choosealicense.com/licenses/gpl-3.0/) pour plus de renseignement.
 */
-#![allow(unused_macros, dead_code)]
 pub mod bot;
 pub mod components;
 pub mod config;
