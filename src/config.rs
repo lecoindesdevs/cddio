@@ -1,3 +1,8 @@
+//! Configuration de l'application
+//! 
+//! Un fichier config.ron est lu et utilisé pour configurer l'application.
+//! Celui ci contient des informations pour le client.
+
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
