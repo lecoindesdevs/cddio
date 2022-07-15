@@ -1,3 +1,8 @@
+//! Configuration de l'application
+//! 
+//! Un fichier config.json est lu et utilisé pour configurer l'application.
+//! Celui ci contient des informations pour le client.
+
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
@@ -25,21 +30,11 @@ impl Config {
             Ok(v) => v,
             Err(e) => return Err(format!("Unable to read file {}: {}", filepath.as_ref().to_string_lossy(), e.to_string())),
         };
-        let mut config: Config = match ron::from_str(&str_config) {
+        let mut config: Config = match serde_json::from_str(&str_config) {
             Ok(v) => v,
             Err(e) => return Err(format!("Unable to parse {}: {}", filepath.as_ref().to_string_lossy(), e.to_string())),
         };
         config.filepath = filepath.as_ref().to_path_buf();
         Ok(config)
-    }
-    pub fn save(&self) -> Result<(), String> {
-        let str_config = match ron::ser::to_string_pretty(&self, ron::ser::PrettyConfig::default()) {
-            Ok(v) => v,
-            Err(e) => return Err(format!("Unable to serialize {}: {}", self.filepath.to_string_lossy(), e.to_string())),
-        };
-        match std::fs::write(&self.filepath, str_config) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(format!("Unable to write {}: {}", self.filepath.to_string_lossy(), e.to_string())),
-        }
     }
 }

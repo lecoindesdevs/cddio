@@ -1,24 +1,26 @@
-# OpenCDD
+# CDDIO
 
-Bot Discord officiel du serveur Coin des Developpeur ([Rejoignez nous !](https://discord.gg/m9EZNKVaPz))
+Bot Discord officiel du serveur Coin des Developpeurs ([Rejoignez nous !](https://discord.gg/m9EZNKVaPz))
 
 Crée par la communauté pour la communauté.
 
-Ce bot est développé en [**Rust**](https://www.rust-lang.org/) et repose sur la crate [serenity](https://crates.io/crates/serenity) pour l'API Discord.
+Ce bot est développé en [**Rust**](https://www.rust-lang.org/) et utilise les crates [**serenity**](https://crates.io/crates/serenity), **cddio-core** et **cddio-macro** pour gérer l'API Discord.
+
+[**Vous pouvez retrouver la liste des commandes ici**](src/components/README.md)
 
 ## Fonctionnalités
 
-* [Gestion de ticket du serveur](src/component_system/components/tickets/)
-* [Commandes de modération](src/component_system/components/modo/)
-* [Création des slash commands](src/component_system/components/slash/)
-* [Aide du bot](src/component_system/components/help/)
-* [Commandes diverses](src/component_system/components/misc/)
+* [*Autobahn*, l'anti spam](src/components/autobahn/README.md)
+* [Aide du bot](src/components/help/README.md)
+* [Commandes diverses](src/components/misc/README.md)
+* [Commandes de modération](src/components/modo/README.md)
+* [Déclaration des slash commands](src/components/slash/README.md)
+* [Gestion de ticket du serveur](src/components/tickets/README.md)
+* [Dall-e Mini](src/components/dalle_mini/README.md)
 
 ## Contribution
 
 Retrouvez la documentation technique du bot [ici](https://lecoindesdevs.github.io/openCDD/open_cdd/)
-
-Retrouvez la documentation de contribution des *composants* du bot [ici](src/component_system/README.md)
 
 ## Licence
 

@@ -1,8 +1,9 @@
 /target
-config.ron
+config.json
 /data
 
 /.cargo
 /.vscode
 
 .DS_Store
+mod_old.rs

@@ -1,61 +1,59 @@
 //! Core de l'application. 
 //! L'initialisation du bot et la gestion des composants se fait dans ce module.
+
 use futures_locks::RwLock;
-use serenity::{Client, client::bridge::gateway::GatewayIntents, model::id::{ApplicationId, UserId}};
-use crate::{component_system::{self as cmp, ComponentExt, manager::{Manager, ArcManager}}, config::Config};
+use serenity::{Client, model::id::{ApplicationId, UserId}, prelude::GatewayIntents};
+use crate::{components as cmp, config::Config};
+use cddio_core as core;
 
 type Result<T> = serenity::Result<T>;
 
 /// Structure du bot.
 /// 
-/// Il s'agit de la classe mère De l'application. 
+/// Il s'agit de la classe mère de l'application. 
 /// 
-/// Se charge d'initialiser le client serenity en incorporant un command handler ([`crate::component::Framework`]) et un event handler ([`crate::component::EventDispatcher`]) puis de lancer le bot.
+/// Le bot est composé de plusieurs composants qui sont créés et placés dans un [ComponentContainer]. 
+/// Le conteneur retourne au client du bot un [ComponentEventDispatcher], un event dispatcher 
+/// qui se charge de déployer les événements Discord dans les composants.
 /// 
-/// Le bot est composé de plusieurs composants qui sont chargés dans le framework et dans l'event container par le biais de la classe [`ComponentHandler`].
+/// [ComponentContainer]: core::ComponentContainer
+/// [ComponentEventDispatcher]: core::event::ComponentEventDispatcher
 pub struct Bot {
     /// Client discord de serenity
     client: Client,
     /// Handler des composants.
     /// Actuellement un vecteur mais prochainement un gestionnaire est prévu.
-    _components: ArcManager
+    cmp_container: RwLock<core::ComponentContainer>
 }
 
 impl Bot {
     /// Crée un nouveau bot et l'initialise.
     pub async fn new(config: &Config) -> Result<Bot> {
-        let manager = RwLock::new(Manager::new());
         let owners_id = config.owners
             .iter()
             .map(|id| id.parse::<u64>().unwrap())
             .map(|id| UserId(id))
             .collect::<Vec<_>>();
         let app_id = ApplicationId(config.app_id);
+        let perms = config.permissions;
+        let ref_container = RwLock::new(core::ComponentContainer::new());
         {
-            use cmp::components::*;
-            let mut manager_instance = manager.write().await;
-            let moderation = Moderation::new(app_id).to_arc();
-            // AJOUTER LES COMPOSANTS ICI A LA SUITE
-            manager_instance
-                .add_component(Misc::new(app_id, config.permissions, manager.clone()).to_arc())
-                .add_component(Tickets::new().to_arc())
-                .add_component(Help::new(manager.clone()).to_arc())
-                .add_component(moderation.clone())
-                .add_component(Autobahn::new(moderation).to_arc())
-                .add_component(SlashCommands::new(manager.clone(), owners_id, app_id).to_arc());
-        };
-        
-        let framework = cmp::Framework::new(config.prefix, manager.clone());
-        let event_container = cmp::EventDispatcher::new(manager.clone());
-        let client = Client::builder(&config.token)
-            .framework(framework)
-            .intents(GatewayIntents::all())
-            .raw_event_handler(event_container)
+            let mut container = ref_container.write().await;
+            container.add_component(cmp::Help::new(ref_container.clone()));
+            let modo = container.add_component(cmp::Moderation::new());
+            container.add_component(cmp::Tickets::new());
+            container.add_component(cmp::SlashCommand::new(app_id, ref_container.clone(), owners_id));
+            container.add_component(cmp::Misc::new(app_id, perms, ref_container.clone()));
+            container.add_component(cmp::DalleMini);
+            container.add_component(cmp::Autobahn::new(modo));
+        }
+        let client = Client::builder(&config.token, GatewayIntents::non_privileged())
+            .raw_event_handler(ref_container.read().await.get_event_dispatcher())
             .application_id(config.app_id)
             .await?;
         Ok(Bot{
             client,
-            _components: manager
+            cmp_container: ref_container
         })
     }
     /// Lance le bot.
