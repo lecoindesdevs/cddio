@@ -36,13 +36,16 @@ impl SlashCommand {
         let container = self.container.read().await;
         let mut list_declarative = Vec::<&'static Node>::new();
         let mut app_cmds = HashMap::new();
+        let mut markdown = "# Commandes Slash\n\n".to_string();
         for cont in container.as_ref() {
             if let Some(node) = cont.declarative() {
                 list_declarative.push(node);
                 #[cfg(debug_assertions)]
                 node.iter_flat().for_each(|(fullname, item)| println!("|{}| {}", fullname, item));
+                markdown.push_str(&format!("{}", node.to_markdown()));
             }
         }
+        println!("{}", markdown);
         for guild in &ready.ready.guilds {
             let status = guild.id.set_application_commands(ctx, |v| {
                 list_declarative.iter().for_each(|node| node.add_application_command(v));
@@ -125,4 +128,17 @@ impl SlashCommand {
         delayed.send().await.unwrap();
     }
 
+}
+
+impl SlashCommand {
+    async fn to_markdown(&self) -> String {
+        let container = self.container.read().await;
+        container.as_ref().iter().map(|cont| {
+            let mut result = String::new();
+            cont.declarative().map(|node| {
+                result.push_str(&node.to_markdown());
+            });
+            result
+        }).collect::<Vec<_>>().join("\n")
+    }
 }

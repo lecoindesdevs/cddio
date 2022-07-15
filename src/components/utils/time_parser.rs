@@ -1,3 +1,23 @@
+//! Small utility to parse time strings.
+//!
+//! ## Format
+//!
+//! ```text
+//! duration    ::= integer unit | time
+//! integer     ::= digit+
+//! digit       ::= "0"..."9"
+//! unit        ::= "sec" | "min" | "hr" | "jr" | "sem" | "mo" | "an" 
+//! time        ::= digit{1,2} ":" digit{2} ":" digit{2}
+//! ```
+//!
+//! ## Examples : 
+//!
+//! * 4 days: 4jr
+//! * 3 weeks: 3sem
+//! * 10 hours: 10h 
+//! * 2 hours et 13 minutes: 2:13:00
+//! 
+//! 
 const MINUTES: u64 = 60;
 const HOURS: u64 = MINUTES * 60;
 const DAYS: u64 = HOURS * 24;

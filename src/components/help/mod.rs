@@ -1,19 +1,18 @@
 //! Le composant help permet d'afficher une aide en fonction de la commande.
-//! Il se repose sur le le resultat des composants ayant pour trait [ComponentDeclarative].
-//! 
-//! [ComponentDeclarative]: cddio_core::ComponentDeclarative
+//! Il se repose sur le noeud déclaratif de l'arbre de commandes retournée 
+//! par le trait [core::ComponentDeclarative].
 
-use cmp2::declarative::IterType;
-use cddio_core::{self as cmp2, ApplicationCommandEmbed, message, message::ToMessage};
+use cddio_core::{self as core, ApplicationCommandEmbed, message, message::ToMessage};
+use self::core::declarative::IterType;
 use cddio_macros::component;
 use serenity::client::Context;
 
 pub struct Help {
-    container: cmp2::container::RefContainer,
+    container: core::container::RefContainer,
 }
 
 impl Help {
-    pub fn new(container: cmp2::container::RefContainer) -> Self {
+    pub fn new(container: core::container::RefContainer) -> Self {
         Self {
             container
         }

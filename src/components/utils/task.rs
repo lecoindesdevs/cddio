@@ -1,3 +1,8 @@
+//! Task runner for the bot. 
+//! 
+//! Used to create and feed a tasks manager. 
+//! Every task is executed in background after a bunch of time.
+
 use std::{time::Duration, collections::HashMap, sync::Arc};
 
 use chrono::{DateTime, Utc, TimeZone};

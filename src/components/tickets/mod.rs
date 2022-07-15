@@ -178,7 +178,7 @@ impl Tickets {
             log_error!("Erreur lors de l'envoi de la réponse: {}", err);
         }
     }
-    #[command(group="tickets", name="close", description="Ferme le ticket actuel")]
+    #[command(group="ticket", name="close", description="Ferme le ticket actuel")]
     async fn ticket_close(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>) {
         if let Err(e) = self.ticket_close_channel(ctx, app_cmd.0.channel_id).await {
             Self::send_error(ctx, app_cmd, e).await;
