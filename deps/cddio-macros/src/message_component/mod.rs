@@ -2,9 +2,9 @@ use quote::ToTokens;
 use syn::spanned::Spanned;
 use std::fmt;
 use quote::quote;
-use crate::util::{self, MacroArgs};
+use crate::util::{MacroArgs, ParenValue};
 
-use crate::{util::ParenValue, function::Function};
+use crate::function::Function;
 
 #[derive(Debug, Clone, Default)]
 pub struct InteractionAttribute {

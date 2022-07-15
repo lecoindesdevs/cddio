@@ -1,6 +1,4 @@
-use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
-use syn::spanned::Spanned;
 
 use crate::util;
 use crate::{util::ParenValue, function::Function};
@@ -19,7 +17,6 @@ pub enum EventPattern {
 impl syn::parse::Parse for EventPattern  {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         if let Ok(value) = input.parse::<syn::Ident>() {
-            return Err(input.error("test"));
             Ok(EventPattern::Ident(value))
         } else if let Ok(value) = input.parse::<syn::Pat>() {
             Ok(EventPattern::Pattern(value))
@@ -32,8 +29,6 @@ impl syn::parse::Parse for EventPattern  {
 impl EventAttribute {
     fn from_attr(attr: syn::Attribute) -> syn::Result<Self> {
         use syn::*;
-        
-        let arg_span = attr.span();
         let args = parse2::<ParenValue<Pat>>(attr.tokens)?;
         Ok(EventAttribute{
             pattern: args.value

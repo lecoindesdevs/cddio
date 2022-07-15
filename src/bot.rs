@@ -10,11 +10,9 @@ type Result<T> = serenity::Result<T>;
 
 /// Structure du bot.
 /// 
-/// Il s'agit de la classe mère De l'application. 
+/// Il s'agit de la classe mère de l'application. 
 /// 
-/// Se charge d'initialiser le client serenity en incorporant un command handler ([`crate::component::Framework`]) et un event handler ([`crate::component::EventDispatcher`]) puis de lancer le bot.
-/// 
-/// Le bot est composé de plusieurs composants qui sont chargés dans le framework et dans l'event container par le biais de la classe [`ComponentHandler`].
+/// La structure a pour but d'initialiser les composants et le client du bot.
 pub struct Bot {
     /// Client discord de serenity
     client: Client,

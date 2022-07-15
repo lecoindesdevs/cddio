@@ -19,7 +19,7 @@ pub enum DataError {
     FileError(std::io::Error),
     /// Erreur de sérialisation/déserialisation.
     SerdeError(ron::error::Error),
-    /// Le fichier n'existe pas dans le dossier [`DATA_DIR`].
+    /// Le fichier n'existe pas dans le dossier [`struct@DATA_DIR`].
     MissingFileError,
 }
 use DataError::*;
