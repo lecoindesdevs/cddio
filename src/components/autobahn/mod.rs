@@ -30,8 +30,11 @@ pub struct Autobahn {
 impl Autobahn {
     #[event(MessageCreate)]
     async fn on_message_create(&self, ctx: &Context, msg_create: &MessageCreateEvent) {
-        log_info!("MessageCreateEvent");
         let msg = &msg_create.message;
+        if msg.author.id == ctx.cache.current_user().id {
+            return;
+        }
+        log_info!("MessageCreateEvent");
         let msg_content = match msg.channel_id.message(ctx, msg_create.message.id).await {
             Ok(msg) => msg.content,
             Err(e) => {
