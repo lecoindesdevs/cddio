@@ -1,6 +1,6 @@
 //! Anti-spam system
 
-use crate::{log_error, log_warn};
+use crate::{log_error, log_warn, log_info};
 use std::sync::Arc;
 use std::collections::HashMap;
 use chrono::Utc;
@@ -30,12 +30,25 @@ pub struct Autobahn {
 impl Autobahn {
     #[event(MessageCreate)]
     async fn on_message_create(&self, ctx: &Context, msg_create: &MessageCreateEvent) {
+        log_info!("MessageCreateEvent");
         let msg = &msg_create.message;
+        let msg_content = match msg.channel_id.message(ctx, msg_create.message.id).await {
+            Ok(msg) => msg.content,
+            Err(e) => {
+                log_error!("Error getting message: {:?}", e);
+                return;
+            }
+        };
         let guild_id = match msg.guild_id {
             Some(id) => id,
-            None => return,
+            None => {
+                log_info!("Message is not in a guild");
+                return;
+            },
         };
-        let msg_hash = hashers::fx_hash::fxhash64(msg.content.as_bytes());
+        let msg_hash = hashers::fx_hash::fxhash64(msg_content.as_bytes());
+        log_info!("{} sent message, hash: {}", msg.author.name, msg_hash);
+
         let msg_info = MessageInfo {
             time: chrono::Utc::now(),
             who: (guild_id, msg.author.id),
