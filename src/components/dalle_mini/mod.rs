@@ -31,7 +31,7 @@ impl DalleMini {
         {
             let current_counter = *DALLE_MINI_COUNTER.read().await;
             if current_counter >= DALLE_MINI_MAX_COUNT {
-                app_cmd.direct_response(ctx, message::error(format!("{} requêtes sont déjà en cours. Attendez qu'elle se termine avant d'en relancer une autre...", DALLE_MINI_MAX_COUNT))).await.unwrap_or_else(|e| {
+                app_cmd.direct_response(ctx, message::error(format!("{} requêtes sont déjà en cours. Attendez qu'elles se terminent avant d'en relancer une autre...", DALLE_MINI_MAX_COUNT))).await.unwrap_or_else(|e| {
                     log_error!("Error sending message: {:?}", e);
                 });
                 return;
