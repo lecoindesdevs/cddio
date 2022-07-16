@@ -47,7 +47,7 @@ impl Bot {
             container.add_component(cmp::DalleMini);
             container.add_component(cmp::Autobahn::new(modo));
         }
-        let client = Client::builder(&config.token, GatewayIntents::non_privileged())
+        let client = Client::builder(&config.token, GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT)
             .raw_event_handler(ref_container.read().await.get_event_dispatcher())
             .application_id(config.app_id)
             .await?;

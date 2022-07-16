@@ -35,13 +35,7 @@ impl Autobahn {
             return;
         }
         log_info!("MessageCreateEvent");
-        let msg_content = match msg.channel_id.message(ctx, msg_create.message.id).await {
-            Ok(msg) => msg.content,
-            Err(e) => {
-                log_error!("Error getting message: {:?}", e);
-                return;
-            }
-        };
+        let msg_content = &msg.content;
         let guild_id = match msg.guild_id {
             Some(id) => id,
             None => {
