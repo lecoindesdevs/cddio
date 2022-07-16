@@ -73,7 +73,7 @@ impl DalleMini {
             break Ok(());
         };
         let result = match result {
-            Ok(_) => delay_resp.send_message(message::success("Image généré")).await,
+            Ok(_) => delay_resp.send_message(message::success("Génération terminée")).await,
             Err(e) => {
                 log_error!("{}", e);
                 delay_resp.send_message(message::Message::with_text(e)).await
