@@ -4,11 +4,18 @@ use std::borrow::Cow;
 
 use cddio_core::{ApplicationCommandEmbed, message};
 use cddio_macros::component;
+use futures_locks::RwLock;
+use lazy_static::lazy_static;
 use serde::{Serialize, Deserialize};
 use serenity::{client::Context, model::channel::AttachmentType};
 use image::{RgbaImage, GenericImage};
 
 use crate::{log_warn, log_error};
+
+lazy_static!(
+    static ref DALLE_MINI_COUNTER: RwLock<u8> = RwLock::new(0);
+);
+const DALLE_MINI_MAX_COUNT: u8 = 5;
 
 /// The dalle mini component.
 pub struct DalleMini;
@@ -21,6 +28,15 @@ impl DalleMini {
         #[argument(description="What do you want to see ?")]
         what: String,
     ) {
+        {
+            let current_counter = *DALLE_MINI_COUNTER.read().await;
+            if current_counter >= DALLE_MINI_MAX_COUNT {
+                app_cmd.direct_response(ctx, message::error(format!("{} requêtes sont déjà en cours. Attendez qu'elle se termine avant d'en relancer une autre...", DALLE_MINI_MAX_COUNT))).await.unwrap_or_else(|e| {
+                    log_error!("Error sending message: {:?}", e);
+                });
+                return;
+            }
+        }
         let delay_resp = match app_cmd.delayed_response(ctx, false).await {
             Ok(delay_resp) => delay_resp,
             Err(e) => {
@@ -28,6 +44,7 @@ impl DalleMini {
                 return;
             }
         };
+        *DALLE_MINI_COUNTER.write().await+=1;
         let result = loop {
             let resp = match Self::fetch(what.clone()).await {
                 Ok(resp) => resp,
@@ -62,6 +79,7 @@ impl DalleMini {
                 delay_resp.send_message(message::Message::with_text(e)).await
             }
         };
+        *DALLE_MINI_COUNTER.write().await-=1;
         if let Err(e) = result {
             log_error!("{}", e);
         }
