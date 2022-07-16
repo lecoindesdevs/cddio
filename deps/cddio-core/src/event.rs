@@ -29,8 +29,11 @@ impl ComponentEventDispatcher {
 #[async_trait]
 impl RawEventHandler for ComponentEventDispatcher {
     async fn raw_event(&self, ctx: Context, ev: Event) {
-        for comp in &self.components {
-            comp.event(&ctx, &ev).await
-        }
+        let components = self.components.clone();
+        tokio::spawn(async move {
+            for component in components.into_iter() {
+                component.event(&ctx, &ev).await;
+            }
+        });
     }
 }
