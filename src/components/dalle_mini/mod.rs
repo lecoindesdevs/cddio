@@ -46,6 +46,7 @@ impl DalleMini {
         };
         *DALLE_MINI_COUNTER.write().await+=1;
         let result = loop {
+            let username = &app_cmd.0.user.name;
             let resp = match Self::fetch(what.clone()).await {
                 Ok(resp) => resp,
                 Err(e) => break Err(format!("{}", e))
@@ -65,7 +66,7 @@ impl DalleMini {
             match app_cmd.0.channel_id.send_message(ctx, |msg| {
                 msg
                     .add_file(attacment)
-                    .content(what)
+                    .content(format!("{} a demandé \"{}\"",username,what))
             }).await {
                 Ok(_) => (),
                 Err(e) => break Err(format!("{}", e))
