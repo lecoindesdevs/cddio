@@ -20,7 +20,7 @@ Ce bot est développé en [**Rust**](https://www.rust-lang.org/) et utilise les 
 
 ## Contribution
 
-Retrouvez la documentation technique du bot [ici](https://lecoindesdevs.github.io/openCDD/open_cdd/)
+Retrouvez la documentation technique du bot [ici](https://lecoindesdevs.github.io/openCDD/cddio/)
 
 ## Licence
 
