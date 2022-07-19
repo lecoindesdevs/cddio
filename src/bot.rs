@@ -23,7 +23,7 @@ pub struct Bot {
     client: Client,
     /// Handler des composants.
     /// Actuellement un vecteur mais prochainement un gestionnaire est prévu.
-    cmp_container: RwLock<core::ComponentContainer>
+    _cmp_container: RwLock<core::ComponentContainer>
 }
 
 impl Bot {
@@ -53,7 +53,7 @@ impl Bot {
             .await?;
         Ok(Bot{
             client,
-            cmp_container: ref_container
+            _cmp_container: ref_container
         })
     }
     /// Lance le bot.
