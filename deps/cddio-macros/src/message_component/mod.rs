@@ -54,7 +54,7 @@ impl Function for Interaction {
         let func_name = self.name();
         let custom_id = &self.attr.custom_id;
         Ok(quote!{
-            serenity::model::event::Event::InteractionCreate(serenity::model::event::InteractionCreateEvent{interaction: serenity::model::interactions::Interaction::MessageComponent(message_interaction), ..}) if message_interaction.data.custom_id == #custom_id => self.#func_name(ctx, message_interaction).await
+            serenity::model::event::Event::InteractionCreate(serenity::model::event::InteractionCreateEvent{interaction: serenity::model::application::interaction::Interaction::MessageComponent(message_interaction), ..}) if message_interaction.data.custom_id == #custom_id => self.#func_name(ctx, message_interaction).await
         })
     }
 }

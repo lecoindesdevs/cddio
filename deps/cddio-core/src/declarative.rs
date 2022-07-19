@@ -1,6 +1,9 @@
 use std::{slice::Iter, fmt::Display};
 
-use serenity::{model::{interactions::application_command::ApplicationCommandOptionType}, builder::{CreateApplicationCommands, CreateApplicationCommandOption, CreateApplicationCommand}};
+use serenity::{
+    model::application::command::CommandOptionType, 
+    builder::{CreateApplicationCommands, CreateApplicationCommandOption, CreateApplicationCommand}
+};
 use crate::message::{self, ToMessage};
 
 /// The component declaration trait.
@@ -70,7 +73,7 @@ impl From<&ChildNode> for CreateApplicationCommandOption {
     fn from(group: &ChildNode) -> Self {
         let mut app_cmd = CreateApplicationCommandOption::default();
         app_cmd
-            .kind(ApplicationCommandOptionType::SubCommandGroup)
+            .kind(CommandOptionType::SubCommandGroup)
             .name(group.name)
             .description(group.description);
         for grp in group.node.children {
@@ -150,7 +153,7 @@ impl From<&Command> for CreateApplicationCommandOption {
     fn from(command: &Command) -> Self {
         let mut app_cmd = CreateApplicationCommandOption::default();
         app_cmd
-            .kind(ApplicationCommandOptionType::SubCommand)
+            .kind(CommandOptionType::SubCommand)
             .name(command.name)
             .description(command.description);
         for arg in command.args {
@@ -202,8 +205,8 @@ impl message::ToMessage for Command {
 pub struct Argument {
     /// The name of the argument.
     pub name: &'static str,
-    /// The argument type. Restricted to [`ApplicationCommandOptionType`].
-    pub type_: serenity::model::interactions::application_command::ApplicationCommandOptionType,
+    /// The argument type. Restricted to [`CommandOptionType`].
+    pub type_: CommandOptionType,
     /// The argument description.
     pub description: &'static str,
     /// Whether the argument is optional to the command.

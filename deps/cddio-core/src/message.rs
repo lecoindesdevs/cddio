@@ -75,11 +75,11 @@ impl From<Message> for CreateMessage<'static> {
 }
 impl From<Message> for CreateInteractionResponse<'_> {
     fn from(message: Message) -> Self {
-        use serenity::model::interactions::{InteractionResponseType, InteractionApplicationCommandCallbackDataFlags};
+        use serenity::model::application::interaction::{InteractionResponseType, MessageFlags};
         let mut response = CreateInteractionResponse::default();
         response.interaction_response_data(|data|{
             if message.ephemeral {
-                data.flags(InteractionApplicationCommandCallbackDataFlags::EPHEMERAL);
+                data.flags(MessageFlags::EPHEMERAL);
             }
             data.content(message.message);
             data.set_embeds(message.embeds.into_iter());
