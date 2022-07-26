@@ -46,5 +46,5 @@ static LOGGER: SimpleLogger = SimpleLogger;
 
 pub fn init() -> Result<(), SetLoggerError> {
     log::set_logger(&LOGGER)
-        .map(|_| log::set_max_level( if cfg!(debug_assertions) {LevelFilter::Trace} else {LevelFilter::Info} ))
+        .map(|_| log::set_max_level( if cfg!(debug_assertions) {LevelFilter::Trace} else {LevelFilter::Warn} ))
 }
