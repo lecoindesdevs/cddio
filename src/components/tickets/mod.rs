@@ -291,12 +291,12 @@ impl Tickets {
                 Ok(false) => break message::error("Ce salon n'est pas un ticket"),
                 Err(e) => break message::error(e),
             }
-            let is_staff = match Self::is_staff(ctx, guild_id, personne).await {
+            let is_staff = match Self::is_staff(ctx, guild_id, app_cmd.0.user.id).await {
                 Ok(true) => true,
                 Ok(false) => false,
                 Err(e) => break message::error(e),
             };
-            let is_owner = match Self::is_ticket_owner(ctx, channel_id, personne).await {
+            let is_owner = match Self::is_ticket_owner(ctx, channel_id, app_cmd.0.user.id).await {
                 Ok(true) => true,
                 Ok(false) => false,
                 Err(e) => break message::error(e),
