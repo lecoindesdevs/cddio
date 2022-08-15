@@ -58,6 +58,8 @@ struct CategoryTicket {
     desc: Option<String>,
     /// Tickets créés dans cette catégorie
     tickets: Vec<String>,
+    #[serde(default)]
+    hidden: bool,
 }
 
 impl From<CategoryTicket> for CreateSelectMenuOption {
@@ -191,6 +193,8 @@ impl Tickets {
         category_id: ChannelId,
         #[argument(description="Préfixe des tickets", name="prefix")]
         prefix: String,
+        #[argument(description="Cacher la catégorie du menu de ticket ?")]
+        hidden: bool,
         #[argument(description="Description de la catégorie", name="description")]
         desc: Option<String>
     ) {
@@ -212,7 +216,8 @@ impl Tickets {
                 prefix,
                 id: category_id.0,
                 desc,
-                tickets: vec![]
+                tickets: vec![],
+                hidden
             });
         }
         {
@@ -395,7 +400,7 @@ impl Tickets {
 
 impl Tickets {
     async fn update_menu(&self, ctx: &Context, msg: &mut Message) -> serenity::Result<()>{
-        let options = self.data.read().await.read().categories.iter().map(|cat| cat.into()).collect::<Vec<_>>();
+        let options = self.data.read().await.read().categories.iter().filter(|cat| !cat.hidden).map(|cat| cat.into()).collect::<Vec<_>>();
         msg.edit(ctx, |msg|{
             msg.components(|comp| {
                 comp.create_action_row(|action| {
