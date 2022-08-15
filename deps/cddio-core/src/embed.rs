@@ -1,7 +1,13 @@
 use serenity::{
     model::{
         id::{GuildId, UserId, RoleId}, 
-        interactions::application_command::{ApplicationCommandInteraction, ApplicationCommandInteractionDataOption, ApplicationCommandOptionType, ApplicationCommandInteractionData}
+        application::{
+            interaction::{
+                InteractionResponseType,
+                application_command::{ApplicationCommandInteraction, CommandDataOption, CommandData}
+            },
+            command::CommandOptionType
+        }
     }, 
     client::Context, 
     builder::EditInteractionResponse
@@ -11,12 +17,12 @@ use crate::message::Message;
 /// Helper to parse an application command.
 #[derive(Clone)]
 enum CommandType<'b> {
-    Command(&'b ApplicationCommandInteractionData),
-    Option(&'b ApplicationCommandInteractionDataOption)
+    Command(&'b CommandData),
+    Option(&'b CommandDataOption)
 }
 
 impl<'a> CommandType<'a> {
-    pub fn get_argument(&'a self, name: &str) -> Option<&'a ApplicationCommandInteractionDataOption> {
+    pub fn get_argument(&'a self, name: &str) -> Option<&'a CommandDataOption> {
         match self {
             CommandType::Command(command) => {
                 command.options.iter().find(|option| option.name == name)
@@ -87,7 +93,6 @@ impl<'a> DelayedResponse<'a> {
         self.app_cmd.0.edit_original_interaction_response(self.ctx, f).await.and(Ok(()))
     }
     async fn send_new_response(ctx: &Context, app_cmd: &ApplicationCommandInteraction, ephemeral: bool) -> serenity::Result<()> {
-        use serenity::model::interactions::InteractionResponseType;
         app_cmd.create_interaction_response(ctx, |resp|{
             resp
                 .kind(InteractionResponseType::DeferredChannelMessageWithSource)
@@ -140,7 +145,7 @@ impl<'a> ApplicationCommandEmbed<'a> {
             if options.len() == 0 {
                 break;
             }
-            if let Some(cmd) = options.iter().find(|option| option.kind == ApplicationCommandOptionType::SubCommand || option.kind == ApplicationCommandOptionType::SubCommandGroup) {
+            if let Some(cmd) = options.iter().find(|option| option.kind == CommandOptionType::SubCommand || option.kind == CommandOptionType::SubCommandGroup) {
                 command = CommandType::Option(cmd);
             } else {
                 break;
@@ -152,7 +157,7 @@ impl<'a> ApplicationCommandEmbed<'a> {
         let mut names = vec![self.0.data.name.as_str()];
         let mut cmd = self.0.data.options.first();
         // s'inspirer de la fonction get_command pour produire le nom
-        while let Some(&ApplicationCommandInteractionDataOption{ref name, ref options, kind: ApplicationCommandOptionType::SubCommandGroup | ApplicationCommandOptionType::SubCommand, ..}) = cmd {
+        while let Some(&CommandDataOption{ref name, ref options, kind: CommandOptionType::SubCommandGroup | CommandOptionType::SubCommand, ..}) = cmd {
             names.push(name.as_str());
             cmd = options.first();
         }
@@ -169,7 +174,7 @@ impl<'a> ApplicationCommandEmbed<'a> {
         self.0.guild_id
     }
     /// Cherche et retourne l'argument `name`.
-    pub fn get_argument(&'a self, name: &str) -> Option<&'a ApplicationCommandInteractionDataOption> {
+    pub fn get_argument(&'a self, name: &str) -> Option<&'a CommandDataOption> {
         self.1.get_argument(name)
     }
 
@@ -179,7 +184,7 @@ impl<'a> ApplicationCommandEmbed<'a> {
 
     pub async fn direct_response(&self, ctx: &Context, msg: Message) -> serenity::Result<()> {
         self.0.create_interaction_response(ctx, |resp|{
-            use serenity::model::interactions::InteractionResponseType;
+
             resp.kind(InteractionResponseType::ChannelMessageWithSource);
             *resp = msg.into();
             resp

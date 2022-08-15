@@ -11,7 +11,7 @@ use serde::{Serialize, Deserialize};
 use serenity::{
     client::Context,
     model::{id::*, channel::Message, event::ReadyEvent},
-    model::interactions:: {
+    model::application::interaction:: {
         message_component::MessageComponentInteraction
     }, builder::CreateSelectMenuOption
 };
@@ -58,6 +58,8 @@ struct CategoryTicket {
     desc: Option<String>,
     /// Tickets créés dans cette catégorie
     tickets: Vec<String>,
+    #[serde(default)]
+    hidden: bool,
 }
 
 impl From<CategoryTicket> for CreateSelectMenuOption {
@@ -191,6 +193,8 @@ impl Tickets {
         category_id: ChannelId,
         #[argument(description="Préfixe des tickets", name="prefix")]
         prefix: String,
+        #[argument(description="Cacher la catégorie du menu de ticket ?")]
+        hidden: bool,
         #[argument(description="Description de la catégorie", name="description")]
         desc: Option<String>
     ) {
@@ -212,7 +216,8 @@ impl Tickets {
                 prefix,
                 id: category_id.0,
                 desc,
-                tickets: vec![]
+                tickets: vec![],
+                hidden
             });
         }
         {
@@ -321,7 +326,7 @@ impl Tickets {
     }
     #[message_component(custom_id="menu_ticket_create")]
     async fn on_menu_ticket_create(&self, ctx: &Context, msg: &MessageComponentInteraction) {
-        use serenity::model::interactions::InteractionResponseType;
+        use serenity::model::application::interaction::InteractionResponseType;
         let ok = match msg.create_interaction_response(ctx, |resp| {
             resp.kind(InteractionResponseType::DeferredChannelMessageWithSource)
                 .interaction_response_data(|data| {
@@ -395,7 +400,7 @@ impl Tickets {
 
 impl Tickets {
     async fn update_menu(&self, ctx: &Context, msg: &mut Message) -> serenity::Result<()>{
-        let options = self.data.read().await.read().categories.iter().map(|cat| cat.into()).collect::<Vec<_>>();
+        let options = self.data.read().await.read().categories.iter().filter(|cat| !cat.hidden).map(|cat| cat.into()).collect::<Vec<_>>();
         msg.edit(ctx, |msg|{
             msg.components(|comp| {
                 comp.create_action_row(|action| {
@@ -486,7 +491,7 @@ impl Tickets {
     async fn ticket_create(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, category_id: u64) -> Result<ChannelId, String> {
         use serenity::model::channel::{PermissionOverwrite, PermissionOverwriteType, ChannelType};
         use serenity::model::permissions::Permissions;
-        use serenity::model::interactions::message_component::ButtonStyle;
+        use serenity::model::application::component::ButtonStyle;
         let category = {
             let data = self.data.read().await;
             let data = data.read();

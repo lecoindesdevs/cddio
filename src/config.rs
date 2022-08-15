@@ -15,7 +15,6 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     pub token: String,
     pub app_id: u64,
-    pub prefix: char,
     pub permissions: u64,
     pub owners: Vec<String>,
     #[serde(skip)]

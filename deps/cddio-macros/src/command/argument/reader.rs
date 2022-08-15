@@ -10,7 +10,7 @@ pub struct Reader {
 macro_rules! to_decl {
     ($enum_name:ident) => {
         quote!{
-            serenity::model::interactions::application_command::ApplicationCommandOptionType::$enum_name
+            serenity::model::application::command::CommandOptionType::$enum_name
         }
     };
 }
@@ -76,16 +76,11 @@ impl Reader {
     fn new(expr: pm2::TokenStream,declarative: pm2::TokenStream) -> Reader {
         Reader { read_expr: expr, option_type: declarative }
     }
-    fn decl_helper(enum_name: pm2::TokenStream) -> pm2::TokenStream {
-        quote!{
-            serenity::model::interactions::application_command::ApplicationCommandOptionType::#enum_name
-        }
-    }
     fn custom_reader(name: &str, ty: pm2::TokenStream, expr: pm2::TokenStream) -> pm2::TokenStream {
         quote! {
             match app_command.get_argument(#name) {
-                Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
-                    resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::#ty),
+                Some(serenity::model::application::interaction::application_command::CommandDataOption{
+                    resolved: Some(serenity::model::application::interaction::application_command::CommandDataOptionValue::#ty),
                     ..
                 }) => {#expr},
                 _ => None
@@ -95,12 +90,12 @@ impl Reader {
     fn mentionable_reader(name: &str) -> pm2::TokenStream {
         quote! {
             match app_command.get_argument(#name) {
-                Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
-                    resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::User(s, _)),
+                Some(serenity::model::application::interaction::application_command::CommandDataOption{
+                    resolved: Some(serenity::model::application::interaction::application_command::CommandDataOptionValue::User(s, _)),
                     ..
                 }) => {Some(cddio_core::embed::Mentionable::User(s.id))},
-                Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOption{
-                    resolved: Some(serenity::model::interactions::application_command::ApplicationCommandInteractionDataOptionValue::Role(s)),
+                Some(serenity::model::application::interaction::application_command::CommandDataOption{
+                    resolved: Some(serenity::model::application::interaction::application_command::CommandDataOptionValue::Role(s)),
                     ..
                 }) => {Some(cddio_core::embed::Mentionable::Role(s.id))},
                 _ => None

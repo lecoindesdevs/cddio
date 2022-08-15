@@ -321,7 +321,7 @@ fn expand_commands(input: proc_macro2::TokenStream) -> syn::Result<proc_macro2::
         impl cddio_core::ComponentEvent for #struct_name {
             async fn event(&self, ctx: &serenity::client::Context, event: &serenity::model::event::Event) {
                 match event {
-                    serenity::model::event::Event::InteractionCreate(serenity::model::event::InteractionCreateEvent{interaction: serenity::model::interactions::Interaction::ApplicationCommand(orig_app_command), ..}) => {
+                    serenity::model::event::Event::InteractionCreate(serenity::model::event::InteractionCreateEvent{interaction: serenity::model::application::interaction::Interaction::ApplicationCommand(orig_app_command), ..}) => {
                         let app_command = cddio_core::ApplicationCommandEmbed::new(orig_app_command);
                         let command_name = app_command.fullname();
                         match command_name.as_str() {

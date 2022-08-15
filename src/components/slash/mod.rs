@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use cddio_macros::component;
 use cddio_core::{self as core, message, ApplicationCommandEmbed, declarative::Node};
 use serenity::model::event::ReadyEvent;
-use serenity::model::interactions::application_command::ApplicationCommandPermissionType;
+use serenity::model::application::command::CommandPermissionType;
 use serenity::prelude::*;
 use serenity::model::id::{UserId, ApplicationId, CommandId, GuildId};
 
@@ -109,8 +109,8 @@ impl SlashCommand {
                         .into_iter()
                         .map(|perm| {
                             let user = match perm.kind {
-                                ApplicationCommandPermissionType::User => format!("<@{}>", perm.id),
-                                ApplicationCommandPermissionType::Role => format!("<@&{}>", perm.id),
+                                CommandPermissionType::User => format!("<@{}>", perm.id),
+                                CommandPermissionType::Role => format!("<@&{}>", perm.id),
                                 _ => "*unknown*".to_string(),
                             };
                             let permission = match perm.permission {
