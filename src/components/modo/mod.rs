@@ -357,9 +357,31 @@ impl Moderation {
             None => ()
         };
     }
+    async fn check_roles(ctx: &Context, guild_id: GuildId, user_to: UserId, user_by: UserId) -> serenity::Result<bool> {
+        let member_to = guild_id.member(ctx, user_to).await?;
+        let member_by = guild_id.member(ctx, user_by).await?;
+        let find_top_role = |member: &serenity::model::guild::Member| member
+            .roles(&ctx)
+            .and_then(|roles| {
+                roles.into_iter().map(|r| r.position).max()
+            })
+            .unwrap_or(0);
+        let top_role_to = find_top_role(&member_to);
+        let top_role_by = find_top_role(&member_by);
+        
+        Ok(top_role_by > top_role_to)
+    }
     async fn do_sanction(&self, ctx: &Context, sanction: Sanction) -> Result<message::Message, String> {
         let user_id = sanction.user_id();
         let guild_id = sanction.guild_id();
+        let user_by = sanction.user_by;
+        if user_by != ctx.cache.current_user_id() {
+            match Self::check_roles(ctx, guild_id, user_id, user_by).await {
+                Ok(true) => (),
+                Ok(false) => return Err("Vous avez un rôle plus faible que celui que vous tentez de santionner".to_string()),
+                Err(e) => return Err(format!("Impossible de vérifier les roles des membres: {}", e.to_string())),
+            }
+        }
         self.abort_last_sanction(user_id, guild_id).await;
 
         match sanction.data() {
