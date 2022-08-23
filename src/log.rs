@@ -5,14 +5,20 @@ pub mod macros {
     #[macro_export]
     macro_rules! log_error {
         ($($arg:tt)*) => {
-            log::error!(target:"cddio", $($arg)*)
+            {
+                log::error!(target:"cddio", "{}:{}", file!(), line!());
+                log::error!(target:"cddio", $($arg)*);
+            }
         };
     }
     #[doc(alias = "log::warn")]
     #[macro_export]
     macro_rules! log_warn {
         ($($arg:tt)*) => {
-            log::warn!(target:"cddio", $($arg)*)
+            {
+                log::warn!(target:"cddio", "{}:{}", file!(), line!());
+                log::warn!(target:"cddio", $($arg)*);
+            }
         };
     }
     #[doc(alias = "log::info")]
