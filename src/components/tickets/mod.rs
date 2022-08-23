@@ -116,7 +116,7 @@ impl Tickets {
             let mut msg = match ChannelId(chan_id).message(ctx, msg_id).await {
                 Ok(msg) => msg,
                 Err(err) => {
-                    log_warn!("Erreur lors de la récupération du message du menu: {}", err);
+                    log_warn!("Erreur lors de la récupération du message du menu: {:?}", err);
                     self.reset_message_choose(None).await;
                     return;
                 }
@@ -162,12 +162,12 @@ impl Tickets {
         let mut msg = match channel.send_message(ctx, |msg| msg.content("Sélectionnez le type de ticket que vous souhaitez créer :")).await {
             Ok(msg) => msg,
             Err(err) => {
-                log_error!("Erreur lors de l'envoi du message: {}", err);
+                log_error!("Erreur lors de l'envoi du message: {:?}", err);
                 return;
             }
         };
         self.update_menu(ctx, &mut msg).await.unwrap_or_else(|e| {
-            log_error!("Erreur lors de l'envoi du message: {}", e);
+            log_error!("Erreur lors de la mise a jour du menu: {:?}", e);
         });
         {
             let mut data = self.data.write().await;
@@ -176,7 +176,7 @@ impl Tickets {
             data.msg_choose = Some((channel.0, msg.id.0));
         }
         if let Err(err) = resp.send_message(message::success("Salon de création de tickets configuré")).await {
-            log_error!("Erreur lors de l'envoi de la réponse: {}", err);
+            log_error!("Erreur lors de l'envoi de la réponse: {:?}", err);
         }
     }
     #[command(group="ticket", name="close", description="Ferme le ticket actuel")]
