@@ -347,7 +347,7 @@ impl Tickets {
             }
         };
         let user_id = msg.user.id;
-        let category_id = {
+        let category = {
             let category_name = match msg.data.values.iter().next() {
                 Some(value) => value.clone(),
                 None => {
@@ -357,15 +357,15 @@ impl Tickets {
             };
             let data = self.data.read().await;
             let data = data.read();
-            let id = data.categories.iter().find(|category| category.name == category_name).map(|category| category.id);
-            if let Some(id) = id {
-                id
-            } else {
-                log_error!("La catégorie n'existe pas");
-                return;
+            match data.categories.iter().find(|category| category.name == category_name) {
+                Some(category) => category.clone(),
+                None => {
+                    log_error!("La catégorie {} n'existe pas", category_name);
+                    return;
+                }
             }
         };
-        let result = match self.ticket_create(ctx, guild_id, user_id, category_id).await {
+        let result = match self.ticket_create(ctx, guild_id, user_id, category).await {
             Ok(result) => message::success(format!("Ticket créé: <#{}>", result)),
             Err(e) => {
                 log_error!("Erreur lors de la création du ticket: {}", e);
@@ -488,19 +488,10 @@ impl Tickets {
     async fn reset_message_choose(&self, new_ids: Option<(u64, u64)>) {
         self.data.write().await.write().msg_choose = new_ids;
     }
-    async fn ticket_create(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, category_id: u64) -> Result<ChannelId, String> {
+    async fn ticket_create(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, category: CategoryTicket) -> Result<ChannelId, String> {
         use serenity::model::channel::{PermissionOverwrite, PermissionOverwriteType, ChannelType};
         use serenity::model::permissions::Permissions;
         use serenity::model::application::component::ButtonStyle;
-        let category = {
-            let data = self.data.read().await;
-            let data = data.read();
-            let category = data.categories.iter().find(|category| category.id == category_id);
-            match category {
-                Some(category) => category.clone(),
-                None => return Err("La catégorie n'existe pas. Ca ne devrait pas non plus... Putain vous faites quoi avec mon bot là!".to_string())
-            }
-        };
         let role_staff = match guild_id.roles(ctx).await {
             Ok(roles) => {
                 let role = roles.iter().find(|(_, role)| role.name == "staff");
