@@ -58,7 +58,7 @@ const UNITS: &[Unit] = &[
     },
     Unit {
         long_name: "mois",
-        short_name: "mois",
+        short_name: "m",
         value: MONTHS,
     },
     Unit {
