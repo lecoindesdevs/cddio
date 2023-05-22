@@ -11,11 +11,11 @@ mod intern {
 
     use futures::StreamExt;
     use serde::Serialize;
-    use serenity::client::Context;
+    use serenity::{client::Context};
     mod ser {
         pub use serenity::{
             model::{
-                channel::{GuildChannel, Message},
+                channel::{GuildChannel, Message, MessageReaction, ReactionType},
                 user::User,
                 prelude::Member,
             },
@@ -52,6 +52,36 @@ mod intern {
             }
         }
     }
+    #[derive(Serialize, PartialEq, Eq, Hash)]
+    pub enum ArchiveReactionType {
+        Custom {
+            animated: bool,
+            id: u64,
+            name: Option<String>,
+        },
+        Unicode(String),
+    }
+    #[derive(Serialize, PartialEq, Eq, Hash)]
+    pub struct ArchiveReaction {
+        count: u64,
+        emoji: ArchiveReactionType
+    }
+    impl From<&ser::MessageReaction> for ArchiveReaction {
+        fn from(reac: &ser::MessageReaction) -> Self {
+            Self {
+                count: reac.count,
+                emoji: match &reac.reaction_type {
+                    ser::ReactionType::Custom { animated, id, name } => ArchiveReactionType::Custom {
+                        animated: *animated,
+                        id: id.0,
+                        name: name.clone(),
+                    },
+                    ser::ReactionType::Unicode(name) => ArchiveReactionType::Unicode(name.clone()),
+                    _ => todo!()
+                }
+            }
+        }
+    }
     #[derive(Serialize)]
     pub struct ArchiveMessage {
         pub id: u64,
@@ -60,6 +90,8 @@ mod intern {
         pub attachments: Vec<String>,
         pub in_reply_to: Option<u64>,
         pub timestamp: i64,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        pub reactions: Vec<ArchiveReaction>,
     }
     impl From<ser::Message> for ArchiveMessage {
         fn from(message: ser::Message) -> Self {
@@ -70,6 +102,7 @@ mod intern {
                 attachments: message.attachments.iter().map(|a| a.url.clone()).collect(),
                 in_reply_to: message.referenced_message.map(|m| m.id.0),
                 timestamp: message.timestamp.unix_timestamp(),
+                reactions: message.reactions.iter().map(|r| ArchiveReaction::from(r)).collect(),
             }
         }
     }
