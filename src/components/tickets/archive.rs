@@ -2,7 +2,7 @@ use serenity::{
     client::Context, 
     model::{
         id::ChannelId,
-        channel::Channel,
+        channel::Channel, prelude::Member,
     }
 };
 mod intern {
@@ -17,6 +17,7 @@ mod intern {
             model::{
                 channel::{GuildChannel, Message},
                 user::User,
+                prelude::Member,
             },
         };
     }
@@ -24,8 +25,8 @@ mod intern {
     #[derive(Serialize, PartialEq, Eq, Hash)]
     pub struct ArchiveUser {
         pub id: u64,
-        pub avatar: String,
         pub name: String,
+        pub avatar: String,
     }
     impl From<&ser::User> for ArchiveUser {
         fn from(user: &ser::User) -> Self {
@@ -33,6 +34,21 @@ mod intern {
                 id: user.id.0,
                 avatar: user.avatar_url().unwrap_or("".to_string()),
                 name: format!("{}#{}", user.name, user.discriminator),
+            }
+        }
+    }
+    #[derive(Serialize, PartialEq, Eq, Hash)]
+    pub struct ArchiveMember {
+        pub user: ArchiveUser,
+        pub guild_pseudo: String,
+        pub avatar: String,
+    }
+    impl From<&ser::Member> for ArchiveMember {
+        fn from(member: &ser::Member) -> Self {
+            Self {
+                user: ArchiveUser::from(&member.user),
+                guild_pseudo: member.display_name().to_string(),
+                avatar: member.user.avatar_url().unwrap_or("".to_string()),
             }
         }
     }
@@ -63,9 +79,11 @@ mod intern {
         pub name: String,
         pub users: Vec<ArchiveUser>,
         pub messages: Vec<ArchiveMessage>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub closed_by: Option<ArchiveMember>,
     }
     impl ArchiveChannel {
-        pub async fn from_channel(ctx: &Context, channel: ser::GuildChannel) -> Self {
+        pub async fn from_channel(ctx: &Context, channel: ser::GuildChannel, member: Option<&ser::Member>) -> Self {
             let mut users = HashSet::new();
             let mut messages = Vec::new();
             let mut msg_discord = channel.id.messages_iter(ctx).boxed();
@@ -83,12 +101,13 @@ mod intern {
                 name: channel.name.clone(),
                 users: users.into_iter().collect(),
                 messages: messages,
+                closed_by: member.map(|m| ArchiveMember::from(m)),
             }
         }
     }
 }
 
-pub async fn archive_ticket(ctx: &Context, channel: ChannelId) -> serenity::Result<()> {
+pub async fn archive_ticket(ctx: &Context, channel: ChannelId, member: Option<&Member>) -> serenity::Result<()> {
     const ARCHIVE_PATH: &str = "./data/tickets/archives";
 
     let channel = match channel.to_channel(ctx).await? {
@@ -97,7 +116,7 @@ pub async fn archive_ticket(ctx: &Context, channel: ChannelId) -> serenity::Resu
     };
     let name = channel.name.clone();
     let id = channel.id.0;
-    let archive = serde_json::to_string(&intern::ArchiveChannel::from_channel(ctx, channel).await).unwrap();
+    let archive = serde_json::to_string(&intern::ArchiveChannel::from_channel(ctx, channel, member).await).unwrap();
     let path = format!("{}/{}-{}.json", ARCHIVE_PATH, id, name);
     async_std::fs::write(path, archive).await?;
 

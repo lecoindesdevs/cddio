@@ -10,7 +10,7 @@ use cddio_macros::component;
 use serde::{Serialize, Deserialize};
 use serenity::{
     client::Context,
-    model::{id::*, channel::Message, event::ReadyEvent},
+    model::{id::*, channel::Message, event::ReadyEvent, prelude::Member},
     model::application::interaction:: {
         message_component::MessageComponentInteraction
     }, builder::CreateSelectMenuOption
@@ -181,7 +181,7 @@ impl Tickets {
     }
     #[command(group="ticket", name="close", description="Ferme le ticket actuel")]
     async fn ticket_close(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>) {
-        if let Err(e) = self.ticket_close_channel(ctx, app_cmd.0.channel_id).await {
+        if let Err(e) = self.ticket_close_channel(ctx, app_cmd.0.channel_id, app_cmd.0.member.as_ref()).await {
             Self::send_error(ctx, app_cmd, e).await;
         }
     }
@@ -387,7 +387,7 @@ impl Tickets {
     }
     #[message_component(custom_id="button_ticket_close")]
     async fn on_button_ticket_close(&self, ctx: &Context, msg: &MessageComponentInteraction) {
-        if let Err(e) = self.ticket_close_channel(ctx, msg.channel_id).await {
+        if let Err(e) = self.ticket_close_channel(ctx, msg.channel_id, msg.member.as_ref()).await {
             log_error!("{}", e);
             msg.create_interaction_response(ctx, |resp|{
                 resp.interaction_response_data(|inter| inter.content(e))
@@ -425,13 +425,13 @@ impl Tickets {
             log_error!("Erreur lors de l'envoi du message: {}", e);
         });
     }
-    async fn ticket_close_channel(&self, ctx: &Context, channel_id: ChannelId) -> Result<(), String> {
+    async fn ticket_close_channel(&self, ctx: &Context, channel_id: ChannelId, member: Option<&Member>) -> Result<(), String> {
         match self.is_a_ticket(ctx, channel_id).await {
             Ok(true) => (),
             Ok(false) => return Err("Ce n'est pas un ticket".to_string()),
             Err(e) => return Err(e),
         }
-        if let Err(err) = archive::archive_ticket(ctx, channel_id).await {
+        if let Err(err) = archive::archive_ticket(ctx, channel_id, member).await {
             return Err(format!("Erreur lors de l'archivage du ticket: {}", err));
         }
         if let Err(err) = channel_id.delete(ctx).await {
