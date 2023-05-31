@@ -1,7 +1,6 @@
 //! Core de l'application. 
 //! L'initialisation du bot et la gestion des composants se fait dans ce module.
 
-use futures_locks::RwLock;
 use serenity::{Client, model::id::{ApplicationId, UserId}, prelude::GatewayIntents};
 use crate::{components as cmp, config::Config};
 use cddio_core as core;
@@ -23,7 +22,7 @@ pub struct Bot {
     client: Client,
     /// Handler des composants.
     /// Actuellement un vecteur mais prochainement un gestionnaire est prévu.
-    _cmp_container: RwLock<core::ComponentContainer>
+    _cmp_container: core::container::RefContainer
 }
 
 impl Bot {
@@ -36,7 +35,7 @@ impl Bot {
             .collect::<Vec<_>>();
         let app_id = ApplicationId(config.app_id);
         let perms = config.permissions;
-        let ref_container = RwLock::new(core::ComponentContainer::new());
+        let ref_container = core::container::RefContainer::new(core::ComponentContainer::new());
         {
             let mut container = ref_container.write().await;
             container.add_component(cmp::Help::new(ref_container.clone()));
