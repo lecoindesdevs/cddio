@@ -24,13 +24,12 @@ lazy_static = "1.4"
 regex = "1.5"
 hashers = "1.0"
 serde_with = { version = "3", features = ["chrono"] }
-# sea-orm = "0.8.0"
 cddio-macros = { path = "deps/cddio-macros" }
 cddio-core = { path = "deps/cddio-core" }
 image = "0.24"
 reqwest = "0.11"
 base64 = "^0.21.2"
-# sea-orm = { version = "0.11.3", features = ["sqlx-sqlite", "runtime-tokio-native-tls", "macros"] }
+sea-orm = { version = "0.11.3", features = ["sqlx-sqlite", "runtime-tokio-native-tls", "macros"] }
 
 [dependencies.serenity]
 version = "0.11.5"
