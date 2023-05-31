@@ -26,6 +26,7 @@ pub mod bot;
 pub mod components;
 pub mod config;
 pub mod log;
+pub mod db;
 
 /// Trait à implémenter pour logger les erreurs dans la console.
 trait ResultLog {
