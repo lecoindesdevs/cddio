@@ -7,3 +7,5 @@ config.json
 
 .DS_Store
 mod_old.rs
+
+/data.db

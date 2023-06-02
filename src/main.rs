@@ -48,6 +48,13 @@ impl<T, S: AsRef<str>> ResultLog for Result<T, S> {
 
 #[tokio::main]
 async fn main() {
+    if let Err(e) = db::start_db("sqlite:./data.db?mode=rwc").await {
+        panic!("Unable to start the database: {}", e);
+    }
+}
+
+// #[tokio::main]
+async fn _main() {
     if let Err(e) =  log::init() {
         panic!("Unable to set logger: {}", e);
     }
