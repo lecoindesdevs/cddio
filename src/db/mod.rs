@@ -2,6 +2,8 @@ pub mod discord;
 pub mod archive;
 use crate::{log_info};
 
+pub type IDType = i64;
+
 use sea_orm::{Database, DbConn, DbErr, Schema, ConnectionTrait, TransactionTrait};
 
 pub async fn start_db(url: &str) -> Result<DbConn, DbErr> {

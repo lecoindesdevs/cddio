@@ -1,12 +1,13 @@
 use sea_orm::entity::prelude::*;
 use super::message;
+use crate::db::IDType;
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "discord_attachment")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    pub id: u64,
-    pub message_id: u64,
+    pub id: IDType,
+    pub message_id: IDType,
     pub url: String,
 }
 

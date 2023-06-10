@@ -29,7 +29,7 @@ pub enum Error {
 
 pub async fn save_ticket(ctx: &serenity::client::Context, channel_id: serenity::model::id::ChannelId, db: &sea_orm::DbConn) -> Result<(), Error> {
     
-    use crate::db;
+    use crate::db::{self, IDType};
     use sea_orm::{entity::*, prelude::*, TransactionTrait};
     use serenity::futures::StreamExt;
     
@@ -43,7 +43,7 @@ pub async fn save_ticket(ctx: &serenity::client::Context, channel_id: serenity::
 
     let db_chan = {
         let active_model = db::discord::channel::ActiveModel {
-            id: sea_orm::ActiveValue::Set(channel.id.0),
+            id: sea_orm::ActiveValue::Set(channel.id.0 as IDType),
             name: sea_orm::ActiveValue::Set(channel.name),
         };
         let res = db::discord::Channel::insert(active_model).exec(&txn).await.map_err(Error::SeaORM)?;
@@ -61,10 +61,10 @@ pub async fn save_ticket(ctx: &serenity::client::Context, channel_id: serenity::
             } 
         };
         let user_id = msg.author.id.0;
-        if let None = db::discord::User::find_by_id(user_id).one(&txn).await.map_err(Error::SeaORM)? {
+        if let None = db::discord::User::find_by_id(user_id as IDType).one(&txn).await.map_err(Error::SeaORM)? {
             let user = msg.author;
             let active_model = db::discord::user::ActiveModel {
-                id: sea_orm::ActiveValue::Set(user.id.0),
+                id: sea_orm::ActiveValue::Set(user.id.0 as IDType),
                 name: sea_orm::ActiveValue::Set(format!("{}#{}", user.name, user.discriminator)),
                 avatar: sea_orm::ActiveValue::Set(user.avatar_url().unwrap_or_default()),
             };
@@ -73,9 +73,9 @@ pub async fn save_ticket(ctx: &serenity::client::Context, channel_id: serenity::
         }
         let db_msg = {
             let active_model = db::discord::message::ActiveModel {
-                id: sea_orm::ActiveValue::Set(msg.id.0),
+                id: sea_orm::ActiveValue::Set(msg.id.0 as IDType),
                 channel_id: sea_orm::ActiveValue::Set(db_chan),
-                user_id: sea_orm::ActiveValue::Set(user_id),
+                user_id: sea_orm::ActiveValue::Set(user_id as IDType),
                 content: sea_orm::ActiveValue::Set(msg.content),
                 timestamp: sea_orm::ActiveValue::Set(msg.timestamp.unix_timestamp()),
                 in_reply_to: sea_orm::ActiveValue::NotSet,
