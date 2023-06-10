@@ -46,14 +46,43 @@ impl<T, S: AsRef<str>> ResultLog for Result<T, S> {
     }
 }
 
+struct Handler {
+    db: sea_orm::DbConn
+}
+
+#[serenity::async_trait]
+impl serenity::prelude::EventHandler for Handler {
+    async fn ready(&self, ctx: serenity::prelude::Context, ready: serenity::model::prelude::Ready) {
+        println!("{} is connected!", ready.user.name);
+        if let Err(e) = components::save_ticket(&ctx, serenity::model::id::ChannelId(920707775313621033), &self.db).await {
+            println!("Error while saving ticket: {:?}", e);
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
+    use serenity::prelude::*;
     if let Err(e) =  log::init() {
         panic!("Unable to set logger: {}", e);
     }
-    if let Err(e) = db::start_db("sqlite:./data.db?mode=rwc").await {
-        panic!("Unable to start the database: {}", e);
-    }
+    let db = match db::start_db("sqlite:./data.db?mode=rwc").await {
+        Err(e) => panic!("Unable to start the database: {}", e),
+        Ok(v) => v
+    };
+
+    let config = config::Config::load("./config.json").expect_log("Could not load the configuration file");
+    
+    let client = Client::builder(&config.token, GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT)
+        .application_id(config.app_id)
+        .event_handler(Handler{db})
+        .await
+        .expect("Could not create the client")
+        .start()
+        .await
+        .expect("Could not start the client");
+
+    
 }
 
 // #[tokio::main]
