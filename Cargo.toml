@@ -43,5 +43,8 @@ show_markdown = []
 [target.aarch64-unknown-linux-gnu.dependencies]
 openssl = { version = '0.10', features = ["vendored"] }
 
+[target.aarch64-unknown-linux-musl.dependencies]
+openssl = { version = '0.10', features = ["vendored"] }
+
 [target.stable-aarch64-apple-darwin]
 rustflags = ["-C", "link-arg=-fuse-ld=lld"]
