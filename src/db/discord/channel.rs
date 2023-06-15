@@ -1,5 +1,8 @@
-use sea_orm::entity::prelude::*;
-use super::{user, message};
+use sea_orm::{
+    entity::prelude::*,
+    Select
+};
+use super::message;
 use crate::db::IDType;
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
@@ -24,3 +27,12 @@ impl Related<message::Entity> for Entity {
 
 impl ActiveModelBehavior for ActiveModel 
 {}
+
+impl Model {
+    pub fn messages(&self) -> Select<message::Entity> {
+        use sea_orm::QueryOrder;
+        self
+            .find_related(message::Entity)
+            .order_by_asc(message::Column::Id)
+    }
+}

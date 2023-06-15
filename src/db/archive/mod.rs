@@ -1,9 +1,14 @@
 use sea_orm::entity::prelude::*;
-use super::discord::user;
-use crate::db::IDType;
+use crate::db::{
+    IDType,
+    discord::{
+        user,
+        channel
+    },
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
-#[sea_orm(table_name = "discord_user")]
+#[sea_orm(table_name = "cdd_archive")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: IDType,
@@ -25,8 +30,37 @@ pub enum Relation {
         from = "Column::ClosedBy",
         to = "user::Column::Id"
     )]
-    ClosedBy
+    ClosedBy,
+    #[sea_orm(
+        belongs_to = "channel::Entity",
+        from = "Column::ChannelId",
+        to = "channel::Column::Id"
+    )]
+    Channel
 }
+
+macro_rules! def_channels_from_user {
+    ($name:ident, $relation:expr) => {
+        #[derive(Debug)]
+        pub struct $name;
+
+        impl Linked for $name {
+            type FromEntity = user::Entity;
+
+            type ToEntity = channel::Entity;
+
+            fn link(&self) -> Vec<RelationDef> {
+                vec![
+                    $relation.def().rev(),
+                    Relation::Channel.def(),
+                ]
+            }
+        }
+    };
+}
+
+def_channels_from_user!(ChannelOpenedByUser, Relation::OpenedBy);
+def_channels_from_user!(ChannelClosedByUser, Relation::ClosedBy);
 
 impl ActiveModelBehavior for ActiveModel 
 {}

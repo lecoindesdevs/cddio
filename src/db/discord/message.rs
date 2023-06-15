@@ -46,3 +46,9 @@ impl Related<channel::Entity> for Entity {
 
 impl ActiveModelBehavior for ActiveModel 
 {}
+
+impl Model {
+    pub fn attachments(&self) -> Select<attachment::Entity> {
+        self.find_related(attachment::Entity)
+    }
+}
