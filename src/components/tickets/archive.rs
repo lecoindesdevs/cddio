@@ -9,7 +9,7 @@ mod intern {
     use crate::log_warn;
     use std::collections::HashSet;
 
-    use futures::StreamExt;
+    use serenity::futures::StreamExt;
     use serde::Serialize;
     use serenity::{client::Context};
     mod ser {

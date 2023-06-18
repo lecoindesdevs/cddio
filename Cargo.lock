@@ -451,7 +451,6 @@ dependencies = [
  "cddio-core",
  "cddio-macros",
  "chrono",
- "futures",
  "hashers",
  "image",
  "lazy_static",
