@@ -12,7 +12,7 @@ members = ["deps/*"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1.19", features = ["full"] }
+tokio = { version = "1.28", features = ["full"] }
 serde = { version = "1.0", features = ["rc"] }
 async-std = { version = "1.11", features = ["tokio1"] }
 log = "0.4.17"
