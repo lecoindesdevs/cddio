@@ -416,7 +416,7 @@ impl Moderation {
             Sanction { data: SanctionType::Ban { until: Some(until), .. } | SanctionType::Mute { until: Some(until), .. }, .. } => {
                 let mut tasks = self.tasks.write().await;
                 let tasks = tasks.as_mut().unwrap();
-                if let Err(e) = tasks.add(sanction, until).await {
+                if let Err(e) = tasks.add(sanction, until.timestamp()).await {
                     return Err(format!("Impossible d'ajouter la sanction à la liste: {}", e.to_string()))
                 }
             },

@@ -69,27 +69,27 @@ impl<D, R, P> TaskManager<D, R, P> where
         log_info!("Initializing {} tasks", tasks.len());
         for (task_id, task) in tasks {
             log_info!("Initializing task {}. Data: {:?}", task_id, task);
-            let handle = self.spawn_task(task_id, task.data, Utc.timestamp(task.until, 0));
+            let handle = self.spawn_task(task_id, task.data, task.until);
             log_info!("Task {} initialized", task_id);
             self.task_handles.insert(task_id, handle);
         }
     }
-    pub async fn add(&mut self, data: D, until: DateTime<Utc>) -> Result<TaskID, String> {
+    pub async fn add(&mut self, data: D, timestamp_until: i64) -> Result<TaskID, String> {
         let mut tasks = self.tasks.lock().await;
         let id = tasks.register(Task {
-            until: until.timestamp(),
+            until: timestamp_until,
             data: data.clone()
         }).await?;
-        let handle = self.spawn_task(id, data, until);
+        let handle = self.spawn_task(id, data, timestamp_until);
         self.task_handles.insert(id, handle);
         Ok(id)
     }
-    fn spawn_task(&self, id: TaskID, data: D, until: DateTime<Utc>) -> tokio::task::JoinHandle<()> {
+    fn spawn_task(&self, id: TaskID, data: D, timestamp_until: i64) -> tokio::task::JoinHandle<()> {
         let tasks = Arc::clone(&self.tasks);
         let persistent = Arc::clone(&self.persistent);
         tokio::spawn(async move {
             log_info!("Task {}: Spawning", id);
-            let seconds = until.timestamp() - Utc::now().timestamp();
+            let seconds = timestamp_until - Utc::now().timestamp();
             if seconds > 0 {
                 let duration = Duration::from_secs(seconds as _ );
                 log_info!("Task {}: Sleeping for {} seconds", id, seconds);
