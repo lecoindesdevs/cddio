@@ -9,6 +9,7 @@ use lazy_static::lazy_static;
 use serde::{Serialize, Deserialize};
 use serenity::{client::Context, model::channel::AttachmentType};
 use image::{RgbaImage, GenericImage};
+use base64::Engine;
 
 use crate::{log_warn, log_error};
 
@@ -121,7 +122,7 @@ impl DalleMini {
     async fn parse(resp: DalleResponse) -> Vec<RgbaImage> {
         resp.images.into_iter().map(|b64img| {
             let b64img  =b64img.chars().into_iter().filter(|c| c.is_ascii_alphanumeric() || *c == '+' || *c == '/' || *c == '=').collect::<String>();
-            let raw_data = match base64::decode(&b64img){
+            let raw_data = match base64::engine::general_purpose::STANDARD.decode(&b64img){
                 Ok(data) => data,
                 Err(e) => {
                     log_warn!("dalle_mini: Error decoding base64 image: {}", e);
