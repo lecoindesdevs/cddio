@@ -6,7 +6,7 @@ mod log_audit;
 
 use chrono::{Duration, Utc, DateTime};
 use crate::{log_error, log_warn, log_info};
-use futures_locks::{RwLock, Mutex};
+use tokio::sync::{RwLock, Mutex};
 use cddio_core::{ApplicationCommandEmbed, message};
 use cddio_macros::component;
 use serenity::{
@@ -335,12 +335,13 @@ impl Moderation {
         match 
         {
             let tasks = self.tasks.read().await;
-            let reg = tasks
+            let registry = tasks
                 .as_ref()
                 .unwrap()
-                .registry()
+                .registry();
+            let registry = registry
                 .lock().await;
-            reg
+            registry
                 .find_one(|v| v.data.user_id == user_id && v.data.guild_id == guild_id).await
                 .map(|(id, _)| id)
         } 

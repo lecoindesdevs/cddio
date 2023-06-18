@@ -35,7 +35,7 @@ impl Bot {
             .collect::<Vec<_>>();
         let app_id = ApplicationId(config.app_id);
         let perms = config.permissions;
-        let ref_container = core::container::RefContainer::new(core::ComponentContainer::new());
+        let ref_container = std::sync::Arc::new(tokio::sync::RwLock::new(core::ComponentContainer::new()));
         {
             let mut container = ref_container.write().await;
             container.add_component(cmp::Help::new(ref_container.clone()));

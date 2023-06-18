@@ -1,5 +1,6 @@
 use std::sync::Arc;
-use futures_locks::RwLock;
+use tokio::sync::RwLock;
+
 use crate::{Components, event::ComponentEventDispatcher, Component};
 
 /// # The component container
@@ -7,7 +8,7 @@ use crate::{Components, event::ComponentEventDispatcher, Component};
 /// The component container stores components to dispatch them into the client or other components.
 #[derive(Clone)]
 pub struct ComponentContainer(Components);
-pub type RefContainer = RwLock<ComponentContainer>;
+pub type RefContainer = Arc<RwLock<ComponentContainer>>;
 
 impl ComponentContainer {
     pub fn new() -> ComponentContainer {

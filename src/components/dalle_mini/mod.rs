@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use cddio_core::{ApplicationCommandEmbed, message};
 use cddio_macros::component;
-use futures_locks::RwLock;
+use tokio::sync::RwLock;
 use lazy_static::lazy_static;
 use serde::{Serialize, Deserialize};
 use serenity::{client::Context, model::channel::AttachmentType};

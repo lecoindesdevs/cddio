@@ -6,7 +6,7 @@
 use std::{time::Duration, collections::HashMap, sync::Arc};
 
 use chrono::Utc;
-use futures_locks::Mutex;
+use tokio::sync::Mutex;
 use crate::{log_error, log_info};
 use serde::{Deserialize, Serialize};
 use serenity::async_trait;

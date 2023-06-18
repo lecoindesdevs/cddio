@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use crate::log_error;
 
 use async_std::io::WriteExt;
-use futures_locks::RwLock;
+use tokio::sync::RwLock;
 
 use serenity::{
     async_trait

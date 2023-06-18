@@ -4,7 +4,7 @@ use crate::{log_error, log_warn, log_info};
 use std::sync::Arc;
 use std::collections::HashMap;
 use chrono::Utc;
-use futures_locks::RwLock;
+use tokio::sync::RwLock;
 use cddio_macros::component;
 use serenity::{model::{*, prelude::*}, client::Context};
 use std::hash::Hash;
