@@ -39,7 +39,7 @@ async fn check_tables(db: &DbConn) -> Result<(), DbErr> {
         archive::Archive
     );
     match transaction.commit().await {
-        Ok(v) => {
+        Ok(_) => {
             log_info!("Tables created");
             Ok(())
         },

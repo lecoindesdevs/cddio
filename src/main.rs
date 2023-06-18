@@ -64,7 +64,6 @@ impl serenity::prelude::EventHandler for Handler {
 
 #[tokio::main]
 async fn main() {
-    use serenity::prelude::*;
     if let Err(e) =  log::init() {
         panic!("Unable to set logger: {}", e);
     }
@@ -83,7 +82,7 @@ async fn main() {
     //     let res = db::archive::Entity::insert(active_model).exec(&db).await.expect("Unable to create the archive");
     // }
 
-    let config = config::Config::load("./config.json").expect_log("Could not load the configuration file");
+    let _config = config::Config::load("./config.json").expect_log("Could not load the configuration file");
 
     let user = db::discord::User::find_by_id(381478305540341761 as db::IDType).one(&db).await.expect("Unable to find the user").expect("no user found with id 381478305540341761");
     let tickets = user.opened_tickets().all(&db).await.expect("Unable to get ticket opened by user");

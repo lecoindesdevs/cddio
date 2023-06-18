@@ -30,10 +30,9 @@ pub enum Error {
 pub async fn save_ticket(ctx: &serenity::client::Context, channel_id: serenity::model::id::ChannelId, db: &sea_orm::DbConn) -> Result<(), Error> {
     
     use crate::db::{self, IDType};
-    use sea_orm::{entity::*, prelude::*, TransactionTrait};
+    use sea_orm::{entity::*, TransactionTrait};
     use serenity::futures::StreamExt;
     
-    use crate::{log_error};
     let channel = match channel_id.to_channel(ctx).await.map_err(Error::Serenity)? {
         serenity::model::channel::Channel::Guild(channel) => channel,
         _ => return Err(Error::Custom("Invalid channel".to_string()))
