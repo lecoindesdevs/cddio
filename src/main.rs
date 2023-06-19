@@ -85,7 +85,7 @@ async fn main() {
     let _config = config::Config::load("./config.json").expect_log("Could not load the configuration file");
 
     let user = db::discord::User::find_by_id(381478305540341761 as db::IDType).one(&db).await.expect("Unable to find the user").expect("no user found with id 381478305540341761");
-    let tickets = user.opened_tickets().all(&db).await.expect("Unable to get ticket opened by user");
+    let tickets = user.opened_archives().all(&db).await.expect("Unable to get ticket opened by user");
     println!("List odf tickets open by {}", user.id);
     for ticket in tickets {
         println!("    - {}", ticket.name);

@@ -22,10 +22,10 @@ impl ActiveModelBehavior for ActiveModel
 {}
 
 impl Model {
-    pub fn opened_tickets(&self) -> Select<channel::Entity> {
+    pub fn opened_archives(&self) -> Select<channel::Entity> {
         self.find_linked(archive::ChannelOpenedByUser)
     }
-    pub fn closed_tickets(&self) -> Select<channel::Entity> {
+    pub fn closed_archives(&self) -> Select<channel::Entity> {
         self.find_linked(archive::ChannelClosedByUser)
     }
 }
