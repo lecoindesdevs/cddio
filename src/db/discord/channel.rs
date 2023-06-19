@@ -3,7 +3,10 @@ use sea_orm::{
     Select
 };
 use super::message;
-use crate::db::IDType;
+use crate::db::{
+    IDType,
+    ticket
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "discord_channel")]
@@ -17,6 +20,8 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(has_many = "message::Entity")]
     Messages,
+    #[sea_orm(has_one = "ticket::Entity")]
+    Ticket,
 }
 
 impl Related<message::Entity> for Entity {

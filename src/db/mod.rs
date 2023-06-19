@@ -1,5 +1,6 @@
 pub mod discord;
 pub mod archive;
+pub mod ticket;
 use crate::{log_info};
 
 pub type IDType = i64;
@@ -13,7 +14,7 @@ pub async fn start_db(url: &str) -> Result<DbConn, DbErr> {
 }
 
 macro_rules! create_tables_if_not_exists {
-    ($transaction:ident, $schema:ident, $builder:ident, $($name:path),*) => {
+    ($transaction:ident, $schema:ident, $builder:ident $(, $name:path)*) => {
         $(
             log_info!("Creating table {}", stringify!($name));
             let res = $transaction.execute(
@@ -32,11 +33,13 @@ async fn check_tables(db: &DbConn) -> Result<(), DbErr> {
     log_info!("Creating tables");
 
     create_tables_if_not_exists!(transaction, schema, builder, 
-        discord::User, 
+        archive::Archive,
+        discord::Attachment,
         discord::Channel, 
         discord::Message, 
-        discord::Attachment,
-        archive::Archive
+        discord::User, 
+        ticket::Category,
+        ticket::Ticket
     );
     match transaction.commit().await {
         Ok(_) => {
