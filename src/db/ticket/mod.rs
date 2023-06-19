@@ -7,7 +7,7 @@ pub use Entity as Ticket;
 use sea_orm::entity::prelude::*;
 use crate::db::{
     IDType,
-    discord::channel as discord_channel,
+    discord
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
@@ -30,15 +30,14 @@ pub enum Relation {
     )]
     Category,
     #[sea_orm(
-        belongs_to = "discord_channel::Entity",
+        belongs_to = "discord::channel::Entity",
         from = "Column::ChannelId",
-        to = "discord_channel::Column::Id"
+        to = "discord::channel::Column::Id"
     )]
-    #[sea_orm(has_many = "discord_channel::Entity")]
     Channels,
 }
 
-impl Related<discord_channel::Entity> for Entity {
+impl Related<discord::channel::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Channels.def()
     }
