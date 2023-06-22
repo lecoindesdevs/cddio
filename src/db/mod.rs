@@ -1,6 +1,6 @@
-pub mod discord;
-pub mod archive;
-pub mod ticket;
+pub mod model;
+pub mod controller;
+
 use crate::{log_info};
 
 pub type IDType = i64;
@@ -26,6 +26,7 @@ macro_rules! create_tables_if_not_exists {
 }
 
 async fn check_tables(db: &DbConn) -> Result<(), DbErr> {
+    use model::*;
     let builder = db.get_database_backend();
     let schema = Schema::new(builder);
     let transaction = db.begin().await?;
