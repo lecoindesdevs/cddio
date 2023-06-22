@@ -1,4 +1,5 @@
 pub mod ticket;
+pub mod discord;
 
 #[derive(Debug)]
 pub enum Error {
