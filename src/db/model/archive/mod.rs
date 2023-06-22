@@ -1,10 +1,10 @@
 use sea_orm::entity::prelude::*;
 use crate::db::{
     IDType,
-    discord::{
-        user,
-        channel
-    },
+    model::{
+        discord::user,
+        ticket
+    }
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
@@ -12,8 +12,7 @@ use crate::db::{
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: IDType,
-    pub channel_id: IDType,
-    pub opened_by: IDType,
+    pub ticket_id: IDType,
     pub closed_by: IDType,
 }
 
@@ -21,46 +20,33 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(
         belongs_to = "user::Entity",
-        from = "Column::OpenedBy",
-        to = "user::Column::Id"
-    )]
-    OpenedBy,
-    #[sea_orm(
-        belongs_to = "user::Entity",
         from = "Column::ClosedBy",
         to = "user::Column::Id"
     )]
     ClosedBy,
     #[sea_orm(
-        belongs_to = "channel::Entity",
-        from = "Column::ChannelId",
-        to = "channel::Column::Id"
+        belongs_to = "ticket::Entity",
+        from = "Column::TicketId",
+        to = "ticket::Column::ChannelId"
     )]
-    Channel
+    Ticket
 }
 
-macro_rules! def_channels_from_user {
-    ($name:ident, $relation:expr) => {
-        #[derive(Debug)]
-        pub struct $name;
+#[derive(Debug)]
+pub struct ClosedByUser;
 
-        impl Linked for $name {
-            type FromEntity = user::Entity;
+impl Linked for ClosedByUser {
+    type FromEntity = user::Entity;
 
-            type ToEntity = channel::Entity;
+    type ToEntity = ticket::Entity;
 
-            fn link(&self) -> Vec<RelationDef> {
-                vec![
-                    $relation.def().rev(),
-                    Relation::Channel.def(),
-                ]
-            }
-        }
-    };
+    fn link(&self) -> Vec<RelationDef> {
+        vec![
+            Relation::ClosedBy.def().rev(),
+            Relation::Ticket.def(),
+        ]
+    }
 }
-
-def_channels_from_user!(ChannelOpenedByUser, Relation::OpenedBy);
-def_channels_from_user!(ChannelClosedByUser, Relation::ClosedBy);
 
 impl ActiveModelBehavior for ActiveModel 
 {}
