@@ -1,6 +1,6 @@
 //! Miscellaneous commands and events.
 
-use crate::{log_error, log_warn};
+use crate::{log_error, log_warn, log_info};
 use cddio_core::{self as core, ApplicationCommandEmbed, message};
 use cddio_macros::component;
 use serenity::{
@@ -27,20 +27,20 @@ impl Misc {
     async fn on_ready(&self, ctx: &Context, ready: &ReadyEvent) {
         let perms = Permissions::from_bits(self.bot_permissions)
             .map(|v| {
-                println!("Permission(s) demandé par le bot: {}", v);
+                log_info!("Permission(s) demandé par le bot: {}", v);
                 v
             })
             .unwrap_or_else(|| {
-                println!("Configuration des permissions invalide. Utilisation des permissions par défaut.");
+                log_info!("Configuration des permissions invalide. Utilisation des permissions par défaut.");
                 Permissions::default()
             });
 
         
         match ready.ready.user.invite_url(&ctx.http, perms).await {
-            Ok(v) => println!("Invitation: {}", v),
+            Ok(v) => log_info!("Invitation: {}", v),
             Err(e) => log_warn!("Lien d'invitation impossible à créer: {}", e.to_string()),
         }
-        println!("Bot ready! ID: {}", ready.ready.user.id);
+        log_info!("Bot ready! ID: {}", ready.ready.user.id);
     }
     #[command(description="Pong!")]
     async fn ping(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>) {
