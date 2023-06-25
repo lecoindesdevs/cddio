@@ -40,6 +40,7 @@ impl Misc {
             Ok(v) => println!("Invitation: {}", v),
             Err(e) => log_warn!("Lien d'invitation impossible à créer: {}", e.to_string()),
         }
+        println!("Bot ready! ID: {}", ready.ready.user.id);
     }
     #[command(description="Pong!")]
     async fn ping(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>) {
