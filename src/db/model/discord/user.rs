@@ -2,8 +2,10 @@ use sea_orm::entity::prelude::*;
 
 use crate::db::{
     IDType,
-    discord::channel,
-    archive
+    model::{
+        archive,
+        ticket
+    }
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]

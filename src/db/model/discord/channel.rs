@@ -5,7 +5,7 @@ use sea_orm::{
 use super::message;
 use crate::db::{
     IDType,
-    ticket
+    model::ticket
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
