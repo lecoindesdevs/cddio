@@ -33,7 +33,7 @@ pub enum Relation {
         from = "Column::ChannelId",
         to = "discord::channel::Column::Id"
     )]
-    Channels,
+    Channel,
     #[sea_orm(
         belongs_to = "discord::user::Entity",
         from = "Column::OpenedBy",
@@ -44,7 +44,7 @@ pub enum Relation {
 
 impl Related<discord::channel::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Channels.def()
+        Relation::Channel.def()
     }
 }
 impl Related<category::Entity> for Entity {
