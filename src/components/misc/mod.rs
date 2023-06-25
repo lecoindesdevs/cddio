@@ -31,14 +31,14 @@ impl Misc {
                 v
             })
             .unwrap_or_else(|| {
-                println!("Permission du bot dans la configuration invalide. Utilisation des permissions par défaut.");
+                println!("Configuration des permissions invalide. Utilisation des permissions par défaut.");
                 Permissions::default()
             });
 
         
         match ready.ready.user.invite_url(&ctx.http, perms).await {
             Ok(v) => println!("Invitation: {}", v),
-            Err(e) => log_warn!("Lien d'invitation impossiblre à créer: {}", e.to_string()),
+            Err(e) => log_warn!("Lien d'invitation impossible à créer: {}", e.to_string()),
         }
     }
     #[command(description="Pong!")]
