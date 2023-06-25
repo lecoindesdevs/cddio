@@ -18,16 +18,25 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(has_many = "ticket::Entity")]
+    OpenedTickets,
+}
+
+impl Related<ticket::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::OpenedTickets.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel 
 {}
 
 impl Model {
-    pub fn opened_archives(&self) -> Select<channel::Entity> {
-        self.find_linked(archive::ChannelOpenedByUser)
+    pub fn opened_archives(&self) -> Select<ticket::Entity> {
+        self.find_related(ticket::Entity)
     }
-    pub fn closed_archives(&self) -> Select<channel::Entity> {
-        self.find_linked(archive::ChannelClosedByUser)
+    pub fn closed_archives(&self) -> Select<ticket::Entity> {
+        self.find_linked(archive::ClosedByUser)
     }
 }
