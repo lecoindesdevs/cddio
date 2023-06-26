@@ -37,14 +37,23 @@ pub async fn archive_ticket(
     let txn = db.begin().await.map_err(Error::SeaORM)?;
     // Create ticket if it doesn't exist. It happens if the ticket is not created by this bot.
     if let None = model::ticket::Ticket::find_by_id(channel_id.0 as IDType).one(&txn).await.map_err(Error::SeaORM)? {
+        let category = match default_category {
+            Some(c) => Category::find_by_id(c)
+                .one(db).await
+                .map_err(Error::SeaORM)?
+                .map_or_else(
+                    || Err(Error::Custom("Default category not found".to_string())), 
+                    |c| Ok(c)
+                )?,
+            None => Category::find()
+                .one(db).await
+                .map_err(Error::SeaORM)?
+                .map_or_else(
+                    || Err(Error::Custom("No categories".to_string())), 
+                    |c| Ok(c)
+                )?
+        };
         let bot_id = ctx.cache.current_user().id;
-        let category = Category::find()
-            .one(db).await
-            .map_err(Error::SeaORM)?
-            .map_or_else(
-                || Err(Error::Custom("No categories".to_string())), 
-                |c| Ok(c)
-            )?;
         create_ticket(db, category, channel_id, bot_id).await?;
     }
     super::discord::save_channel(db, ctx, channel_id).await?;
