@@ -60,7 +60,7 @@ pub async fn save_channel(db: &sea_orm::DbConn, ctx: &serenity::client::Context,
                 in_reply_to: sea_orm::ActiveValue::NotSet,
             };
             let res = model::discord::Message::insert(active_model).exec(&txn).await.map_err(Error::SeaORM)?;
-            log_info!("Message {} saved", res.last_insert_id);
+            // log_info!("Message {} saved", res.last_insert_id);
             res.last_insert_id
         };
         if !msg.attachments.is_empty() {
