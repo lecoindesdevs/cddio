@@ -23,6 +23,7 @@ Ce projet est licencié sous **GPLv3**.
 Je vous invite à aller [sur cette page](https://choosealicense.com/licenses/gpl-3.0/) pour plus de renseignement.
 */
 
+use async_std::channel;
 use sea_orm::EntityTrait;
 pub mod bot;
 pub mod components;
@@ -52,18 +53,9 @@ struct Handler {
     db: sea_orm::DbConn
 }
 
-#[serenity::async_trait]
-impl serenity::prelude::EventHandler for Handler {
-    async fn ready(&self, ctx: serenity::prelude::Context, ready: serenity::model::prelude::Ready) {
-        println!("{} is connected!", ready.user.name);
-        if let Err(e) = components::save_ticket(&ctx, serenity::model::id::ChannelId(920707775313621033), &self.db).await {
-            println!("Error while saving ticket: {:?}", e);
-        }
-    }
-}
 
-#[tokio::main]
-async fn main() {
+// #[tokio::main]
+async fn _main() {
     if let Err(e) =  log::init() {
         panic!("Unable to set logger: {}", e);
     }
@@ -84,10 +76,10 @@ async fn main() {
 
     let _config = config::Config::load("./config.json").expect_log("Could not load the configuration file");
 
-    let user = db::discord::User::find_by_id(381478305540341761 as db::IDType).one(&db).await.expect("Unable to find the user").expect("no user found with id 381478305540341761");
-    let tickets = user.opened_archives().all(&db).await.expect("Unable to get ticket opened by user");
+    let user = db::model::discord::User::find_by_id(381478305540341761 as db::IDType).one(&db).await.expect("Unable to find the user").expect("no user found with id 381478305540341761");
+    let tickets = user.opened_archives().find_also_related(db::model::discord::Channel).all(&db).await.expect("Unable to get ticket opened by user");
     println!("List odf tickets open by {}", user.id);
-    for ticket in tickets {
+    for ticket in tickets.into_iter().filter_map(|(_ticket, chan)| chan) {
         println!("    - {}", ticket.name);
         println!("    Messages:");
         for msg in ticket.messages().all(&db).await.expect("Unable to get messages") {
@@ -108,8 +100,8 @@ async fn main() {
     
 }
 
-// #[tokio::main]
-async fn _main() {
+#[tokio::main]
+async fn main() {
     if let Err(e) =  log::init() {
         panic!("Unable to set logger: {}", e);
     }
