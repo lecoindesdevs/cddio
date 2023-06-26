@@ -1,6 +1,8 @@
 //! Core de l'application. 
 //! L'initialisation du bot et la gestion des composants se fait dans ce module.
 
+use std::sync::Arc;
+
 use serenity::{Client, model::id::{ApplicationId, UserId}, prelude::GatewayIntents};
 use crate::{components as cmp, config::Config};
 use cddio_core as core;
@@ -27,7 +29,7 @@ pub struct Bot {
 
 impl Bot {
     /// Crée un nouveau bot et l'initialise.
-    pub async fn new(config: &Config) -> Result<Bot> {
+    pub async fn new(config: &Config, database: sea_orm::DatabaseConnection) -> Result<Bot> {
         let owners_id = config.owners
             .iter()
             .map(|id| id.parse::<u64>().unwrap())
@@ -35,12 +37,13 @@ impl Bot {
             .collect::<Vec<_>>();
         let app_id = ApplicationId(config.app_id);
         let perms = config.permissions;
+        let database = Arc::new(database);
         let ref_container = std::sync::Arc::new(tokio::sync::RwLock::new(core::ComponentContainer::new()));
         {
             let mut container = ref_container.write().await;
             container.add_component(cmp::Help::new(ref_container.clone()));
             let modo = container.add_component(cmp::Moderation::new());
-            container.add_component(cmp::Tickets::new());
+            container.add_component(cmp::Tickets::new(Arc::clone(&database)));
             container.add_component(cmp::SlashCommand::new(app_id, ref_container.clone(), owners_id));
             container.add_component(cmp::Misc::new(app_id, perms, ref_container.clone()));
             container.add_component(cmp::DalleMini);

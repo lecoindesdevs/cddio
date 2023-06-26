@@ -2,7 +2,7 @@
 
 mod archive;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 use crate::{log_error, log_warn};
 use tokio::sync::RwLock;
 use cddio_core::{message, ApplicationCommandEmbed};
@@ -25,7 +25,9 @@ pub struct Tickets {
     /// Dossier de sauvegarde des tickets
     /// 
     /// Dès que les tickets sont supprimés, ils sont enregistrés dans ce dossier.
-    archives_folder: PathBuf
+    archives_folder: PathBuf,
+    /// Connexion a la base de données
+    database: Arc<sea_orm::DatabaseConnection>,
 }
 
 /// Données persistantes du composant
@@ -92,10 +94,11 @@ impl CategoryTicket {
 
 impl Tickets {
     /// Créer un nouveau composant de gestion des tickets
-    pub fn new() -> Self {
+    pub fn new(database: Arc<sea_orm::DatabaseConnection>) -> Self {
         Self {
             data: RwLock::new(Data::from_file("tickets").unwrap()),
-            archives_folder: PathBuf::from("data/archives/tickets")
+            archives_folder: PathBuf::from("data/archives/tickets"),
+            database,
         }
     }
 }

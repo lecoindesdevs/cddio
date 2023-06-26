@@ -106,7 +106,8 @@ async fn main() {
         panic!("Unable to set logger: {}", e);
     }
     let config = config::Config::load("./config.json").expect_log("Could not load the configuration file");
-    let mut bot = bot::Bot::new(&config).await
+    let database = db::start_db("sqlite:./data.db?mode=rwc").await.or_else(|e| Err(e.to_string())).expect_log("Unable to start the database");
+    let mut bot = bot::Bot::new(&config, database).await
         .or_else(|e|Err(e.to_string()))
         .expect_log("");
     bot
