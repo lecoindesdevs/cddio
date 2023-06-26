@@ -5,6 +5,7 @@ use crate::db::{
 };
 use crate::{log_info, log_error};
 use sea_orm::{entity::*, TransactionTrait};
+use std::collections::HashSet;
 
 pub async fn save_channel(db: &sea_orm::DbConn, ctx: &serenity::client::Context, channel_id: serenity::model::id::ChannelId) -> Result<IDType, Error> {
     use serenity::futures::StreamExt;
@@ -25,7 +26,7 @@ pub async fn save_channel(db: &sea_orm::DbConn, ctx: &serenity::client::Context,
         
         res.last_insert_id
     };
-
+    let mut registered_users = HashSet::new();
     let mut messages = channel_id.messages_iter(ctx).boxed();
     while let Some(message_result) = messages.next().await {
         let msg = match message_result {
@@ -36,15 +37,18 @@ pub async fn save_channel(db: &sea_orm::DbConn, ctx: &serenity::client::Context,
             } 
         };
         let user_id = msg.author.id.0;
-        if let None = model::discord::User::find_by_id(user_id as IDType).one(&txn).await.map_err(Error::SeaORM)? {
-            let user = msg.author;
-            let active_model = model::discord::user::ActiveModel {
-                id: sea_orm::ActiveValue::Set(user.id.0 as IDType),
-                name: sea_orm::ActiveValue::Set(format!("{}#{}", user.name, user.discriminator)),
-                avatar: sea_orm::ActiveValue::Set(user.avatar_url().unwrap_or_default()),
-            };
-            let res = model::discord::User::insert(active_model).exec(&txn).await.map_err(Error::SeaORM)?;
-            log_info!("User {} added", res.last_insert_id);
+        if !registered_users.contains(&user_id) {
+            if let None = model::discord::User::find_by_id(user_id as IDType).one(&txn).await.map_err(Error::SeaORM)? {
+                let user = msg.author;
+                let active_model = model::discord::user::ActiveModel {
+                    id: sea_orm::ActiveValue::Set(user.id.0 as IDType),
+                    name: sea_orm::ActiveValue::Set(format!("{}#{}", user.name, user.discriminator)),
+                    avatar: sea_orm::ActiveValue::Set(user.avatar_url().unwrap_or_default()),
+                };
+                let res = model::discord::User::insert(active_model).exec(&txn).await.map_err(Error::SeaORM)?;
+                log_info!("User {} added", res.last_insert_id);
+            }
+            registered_users.insert(user_id);
         }
         let db_msg = {
             let active_model = model::discord::message::ActiveModel {
