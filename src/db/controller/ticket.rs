@@ -6,7 +6,12 @@ use crate::db::{
 use crate::log_info;
 use sea_orm::{entity::*, TransactionTrait};
 
-pub async fn create_ticket(db: &sea_orm::DbConn, category: model::ticket::category::Model, channel_id: serenity::model::id::ChannelId, opened_by: serenity::model::id::UserId) -> Result<IDType, Error> {
+pub async fn create_ticket(
+    db: &sea_orm::DbConn, 
+    category: model::ticket::category::Model, 
+    channel_id: serenity::model::id::ChannelId, 
+    opened_by: serenity::model::id::UserId
+) -> Result<IDType, Error> {
     log_info!("Creating ticket");
     let txn = db.begin().await.map_err(Error::SeaORM)?;
     let active_model = model::ticket::ActiveModel {
@@ -20,7 +25,13 @@ pub async fn create_ticket(db: &sea_orm::DbConn, category: model::ticket::catego
     Ok(res.last_insert_id)
 }
 
-pub async fn archive_ticket(db: &sea_orm::DbConn, ctx: &serenity::client::Context, channel_id: serenity::model::id::ChannelId, closed_by_by: serenity::model::id::UserId) -> Result<IDType, Error> {
+pub async fn archive_ticket(
+    db: &sea_orm::DbConn, 
+    ctx: &serenity::client::Context, 
+    channel_id: serenity::model::id::ChannelId, 
+    closed_by_by: serenity::model::id::UserId, 
+    default_category: Option<IDType>
+) -> Result<IDType, Error> {
     use model::ticket::category::Entity as Category;
     log_info!("Archiving ticket");
     let txn = db.begin().await.map_err(Error::SeaORM)?;
@@ -47,7 +58,13 @@ pub async fn archive_ticket(db: &sea_orm::DbConn, ctx: &serenity::client::Contex
     Ok(res.last_insert_id)
 }
 
-pub async fn add_category(db: &sea_orm::DbConn, name: String, prefix: String, description: Option<String>, hidden: Option<bool>) -> Result<IDType, Error> {
+pub async fn add_category(
+    db: &sea_orm::DbConn, 
+    name: String, 
+    prefix: String, 
+    description: Option<String>, 
+    hidden: Option<bool>
+) -> Result<IDType, Error> {
     log_info!("Adding category");
     let txn = db.begin().await.map_err(Error::SeaORM)?;
     let active_model = model::ticket::category::ActiveModel {
