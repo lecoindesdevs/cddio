@@ -21,8 +21,21 @@ pub async fn create_ticket(db: &sea_orm::DbConn, category: model::ticket::catego
 }
 
 pub async fn archive_ticket(db: &sea_orm::DbConn, ctx: &serenity::client::Context, channel_id: serenity::model::id::ChannelId, closed_by_by: serenity::model::id::UserId) -> Result<IDType, Error> {
+    use model::ticket::category::Entity as Category;
     log_info!("Archiving ticket");
     let txn = db.begin().await.map_err(Error::SeaORM)?;
+    // Create ticket if it doesn't exist. It happens if the ticket is not created by this bot.
+    if let None = model::ticket::Ticket::find_by_id(channel_id.0 as IDType).one(&txn).await.map_err(Error::SeaORM)? {
+        let bot_id = ctx.cache.current_user().id;
+        let category = Category::find()
+            .one(db).await
+            .map_err(Error::SeaORM)?
+            .map_or_else(
+                || Err(Error::Custom("No categories".to_string())), 
+                |c| Ok(c)
+            )?;
+        create_ticket(db, category, channel_id, bot_id).await?;
+    }
     super::discord::save_channel(db, ctx, channel_id).await?;
     let active_model = model::archive::ActiveModel {
         ticket_id: sea_orm::ActiveValue::Set(channel_id.0 as IDType),
