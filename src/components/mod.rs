@@ -15,7 +15,5 @@ pub use autobahn::*;
 pub mod dalle_mini;
 pub use dalle_mini::*;
 
-use crate::{log_error, log_info};
-
 // Fonctions utiles pour les composants
 mod utils;
