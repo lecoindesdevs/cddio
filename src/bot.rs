@@ -30,13 +30,14 @@ pub struct Bot {
 impl Bot {
     /// Crée un nouveau bot et l'initialise.
     pub async fn new(config: &Config, database: sea_orm::DatabaseConnection) -> Result<Bot> {
-        let owners_id = config.owners
+        let config_bot = &config.bot;
+        let owners_id = config_bot.owners
             .iter()
             .map(|id| id.parse::<u64>().unwrap())
             .map(|id| UserId(id))
             .collect::<Vec<_>>();
-        let app_id = ApplicationId(config.app_id);
-        let perms = config.permissions;
+        let app_id = ApplicationId(config_bot.app_id);
+        let perms = config_bot.permissions;
         let database = Arc::new(database);
         let ref_container = std::sync::Arc::new(tokio::sync::RwLock::new(core::ComponentContainer::new()));
         {
@@ -49,9 +50,9 @@ impl Bot {
             container.add_component(cmp::DalleMini);
             container.add_component(cmp::Autobahn::new(modo));
         }
-        let client = Client::builder(&config.token, GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT)
+        let client = Client::builder(&config_bot.token, GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT)
             .raw_event_handler(ref_container.read().await.get_event_dispatcher())
-            .application_id(config.app_id)
+            .application_id(config_bot.app_id)
             .await?;
         Ok(Bot{
             client,

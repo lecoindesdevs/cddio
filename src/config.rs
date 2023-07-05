@@ -8,22 +8,40 @@ use serde::{Deserialize, Serialize};
 
 /// Configuration de l'application
 /// 
-/// Actuellement, contient l'intégralité des données de l'application.
+/// Les données de l'application sont stockées dans un fichier config.yaml
 /// 
-/// Le format choisi pour le fichier de configuration est le [json] pour l'interopérabilité. 
+/// Le format choisi pour le fichier de configuration est le [json] pour 
+/// l'interopérabilité et la praticité. 
+
 #[derive(Serialize, Deserialize)]
 pub struct Config {
+    pub bot: Bot,
+    pub tickets: Tickets,
+    #[serde(skip)]
+    filepath: PathBuf,
+}
+#[derive(Serialize, Deserialize)]
+pub struct Bot {
     pub token: String,
     pub app_id: u64,
     pub permissions: u64,
     pub owners: Vec<String>,
-    #[serde(skip)]
-    filepath: PathBuf,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Tickets {
+    pub selector_placement: Placement
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Placement {
+    pub guild_id: u64,
+    pub channel_id: u64,
 }
 
 impl Config {
     pub fn load<P: AsRef<std::path::Path>>(filepath: P) -> Result<Self, String> {
-        let str_config = match std::fs::read_to_string(filepath.as_ref()) {
+        let str_config = match std::fs::read_to_string(&filepath) {
             Ok(v) => v,
             Err(e) => return Err(format!("Unable to read file {}: {}", filepath.as_ref().to_string_lossy(), e.to_string())),
         };
