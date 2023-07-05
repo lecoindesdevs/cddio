@@ -4,6 +4,7 @@ mod archive;
 
 use std::{path::PathBuf, sync::Arc};
 use crate::{log_error, log_warn};
+use sea_orm::EntityTrait;
 use tokio::sync::RwLock;
 use cddio_core::{message, ApplicationCommandEmbed};
 use cddio_macros::component;
@@ -15,6 +16,7 @@ use serenity::{
         message_component::MessageComponentInteraction
     }, builder::CreateSelectMenuOption
 };
+use sea_orm::{entity::*, query::*};
 
 use super::utils::data::Data;
 
@@ -358,12 +360,14 @@ impl Tickets {
                     return;
                 }
             };
-            let data = self.data.read().await;
-            let data = data.read();
-            match data.categories.iter().find(|category| category.name == category_name) {
-                Some(category) => category.clone(),
-                None => {
+            match crate::db::model::ticket::category::Entity::find().filter(crate::db::model::ticket::category::Column::Name.eq(&category_name)).one(self.database.as_ref()).await {
+                Ok(Some(category)) => category,
+                Ok(None) => {
                     log_error!("La catégorie {} n'existe pas", category_name);
+                    return;
+                }
+                Err(e) => {
+                    log_error!("Erreur lors de la récupération de la catégorie dans la base de données: {}", e);
                     return;
                 }
             }
@@ -434,12 +438,22 @@ impl Tickets {
             Ok(false) => return Err("Ce n'est pas un ticket".to_string()),
             Err(e) => return Err(e),
         }
-        if let Err(err) = archive::archive_ticket(ctx, channel_id, member).await {
-            return Err(format!("Erreur lors de l'archivage du ticket: {}", err));
-        }
-        if let Err(err) = channel_id.delete(ctx).await {
-            return Err(format!("Erreur lors de la suppression du ticket: {}", err));
-        }
+        //TODO: vérifier si le ticket existe
+        let closed_by = match member {
+            Some(member) => member.user.id,
+            None => ctx.cache.current_user().id,
+        };
+        //TODO: ajouter la catégorie dans les parametres de la fonction. utiliser la catégorie par défaut si aucune
+        let default_category = crate::db::model::ticket::category::Entity::find()
+            .filter(crate::db::model::ticket::category::Column::Name.eq("Tickets"))
+            .one(self.database.as_ref())
+            .await
+            .map_err(|e| format!("Erreur lors de la récupération des catégories: {}", e))?
+            .map(|cat| cat.id);
+        crate::db::controller::ticket::archive_ticket(self.database.as_ref(), ctx, channel_id, closed_by, default_category).await
+            .map_err(|e| format!("Erreur lors de l'archivage du ticket: {}", e))?;
+        channel_id.delete(ctx).await
+            .map_err(|e| format!("Erreur lors de la suppression du salon discord lié au ticket: {}", e))?;
         Ok(())
     }
     async fn is_a_ticket(&self, ctx: &Context, channel_id: ChannelId) -> Result<bool, String> {
@@ -491,7 +505,7 @@ impl Tickets {
     async fn reset_message_choose(&self, new_ids: Option<(u64, u64)>) {
         self.data.write().await.write().msg_choose = new_ids;
     }
-    async fn ticket_create(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, category: CategoryTicket) -> Result<ChannelId, String> {
+    async fn ticket_create(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, category: crate::db::model::ticket::category::Model) -> Result<ChannelId, String> {
         use serenity::model::channel::{PermissionOverwrite, PermissionOverwriteType, ChannelType};
         use serenity::model::permissions::Permissions;
         use serenity::model::application::component::ButtonStyle;
@@ -535,7 +549,7 @@ impl Tickets {
             chan
                 .name(format!("{}-{}", category.prefix, username))
                 .kind(ChannelType::Text)
-                .category(category.id)
+                .category(category.discord_category_id)
                 .permissions(permissions)
         }).await {
             Ok(chan) => chan,
@@ -559,9 +573,12 @@ impl Tickets {
         }).await.unwrap_or_else(|e| {
             log_warn!("Erreur lors de la mise en place du bouton du message de présentation: {}", e);
         });
+        
         msg_prez.pin(ctx).await.unwrap_or_else(|e| {
             log_warn!("Erreur lors du pin du message de présentation: {}", e);
         });
+        crate::db::controller::ticket::create_ticket(&self.database, category, new_channel.id, user_id).await
+            .map_err(|e| format!("Erreur lors de la création du ticket: {}", e))?;
 
         Ok(new_channel.id)
     }
