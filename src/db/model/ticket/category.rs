@@ -8,16 +8,18 @@ pub struct Model {
     /// Identifiant dans la base de données
     #[sea_orm(primary_key)]
     pub id: IDType,
+    /// Identifiant de la catégorie Discord
+    pub discord_category_id: u64,
     /// Nom de la catégorie
-    name: String, 
+    pub name: String, 
     /// Préfix de ticket
     /// 
     /// Le préfix est utilisé pour créer le titre d'un ticket tel que 
     /// `<prefix>_<username>`
-    prefix: String,
+    pub prefix: String,
     /// Description de la catégorie
-    description: Option<String>,
-    hidden: bool,
+    pub description: Option<String>,
+    pub hidden: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
