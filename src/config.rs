@@ -16,7 +16,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
 pub struct Config {
     pub bot: Bot,
-    pub tickets: Tickets,
     #[serde(skip)]
     filepath: PathBuf,
 }
@@ -26,11 +25,6 @@ pub struct Bot {
     pub app_id: u64,
     pub permissions: u64,
     pub owners: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Tickets {
-    pub selector_placement: Placement
 }
 
 #[derive(Serialize, Deserialize)]
