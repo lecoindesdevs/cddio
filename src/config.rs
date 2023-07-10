@@ -33,7 +33,7 @@ impl Config {
             Ok(v) => v,
             Err(e) => return Err(format!("Unable to read file {}: {}", filepath.as_ref().to_string_lossy(), e.to_string())),
         };
-        let mut config: Config = match serde_json::from_str(&str_config) {
+        let mut config: Config = match serde_yaml::from_str(&str_config) {
             Ok(v) => v,
             Err(e) => return Err(format!("Unable to parse {}: {}", filepath.as_ref().to_string_lossy(), e.to_string())),
         };

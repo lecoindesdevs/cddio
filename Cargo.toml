@@ -28,6 +28,7 @@ image = "0.24"
 reqwest = "0.11"
 base64 = "^0.21.2"
 sea-orm = { version = "0.11.3", features = ["sqlx-sqlite", "runtime-tokio-native-tls", "macros"] }
+serde_yaml = "0.9"
 
 [dependencies.serenity]
 version = "0.11.5"
