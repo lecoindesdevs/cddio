@@ -49,8 +49,9 @@ struct DataTickets {
 impl From<&category::Model> for CreateSelectMenuOption {
     fn from(ticket: &category::Model) -> Self {
         let mut menu_option = CreateSelectMenuOption::new(&ticket.name, &ticket.name);
-        menu_option
-            .description(ticket.description.unwrap_or_default());
+        if let Some(v) = &ticket.description {
+            menu_option.description(v.as_str());
+        }
         menu_option
     }
 }
@@ -59,7 +60,7 @@ fn category_to_message(model: &crate::db::model::ticket::category::Model, title:
     let mut embed = message::Embed::default();
     embed.color(message::COLOR_INFO);
     embed.title(title);
-    embed.field(model.name, model.description.as_ref().map(|v| v.as_str()).unwrap_or("*Aucune description*"), false);
+    embed.field(&model.name, model.description.as_ref().map(|v| v.as_str()).unwrap_or("*Aucune description*"), false);
     msg.add_embed(|e| {*e=embed; e});
     msg
 }
@@ -536,7 +537,7 @@ impl Tickets {
             chan
                 .name(format!("{}-{}", category.prefix, username))
                 .kind(ChannelType::Text)
-                .category(category.discord_category_id)
+                .category(category.discord_category_id as u64)
                 .permissions(permissions)
         }).await {
             Ok(chan) => chan,
