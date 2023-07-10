@@ -76,16 +76,18 @@ pub async fn add_category(
     hidden: Option<bool>
 ) -> Result<IDType, Error> {
     log_info!("Adding category");
-    let txn = db.begin().await.map_err(Error::SeaORM)?;
+    let discord_category_id = discord_category_id.0
+        .try_into()
+        .map_err(|e| Error::Custom(format!("Unable to convert ID from u64 to i64: {:?}", e)))?;
     let active_model = model::ticket::category::ActiveModel {
         name: sea_orm::ActiveValue::Set(name),
         prefix: sea_orm::ActiveValue::Set(prefix),
-        discord_category_id: sea_orm::ActiveValue::Set(discord_category_id.0.into()),
+        discord_category_id: sea_orm::ActiveValue::Set(discord_category_id),
         description: sea_orm::ActiveValue::Set(description),
         hidden: sea_orm::ActiveValue::Set(hidden.unwrap_or(false)),
         .. Default::default()
     };
-    let res = model::ticket::Category::insert(active_model).exec(&txn).await.map_err(Error::SeaORM)?;
+    let res = model::ticket::Category::insert(active_model).exec(db).await.map_err(Error::SeaORM)?;
     log_info!("Category {} saved", res.last_insert_id);
     Ok(res.last_insert_id)
 }

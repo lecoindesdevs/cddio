@@ -9,7 +9,7 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: IDType,
     /// Identifiant de la catégorie Discord
-    pub discord_category_id: u64,
+    pub discord_category_id: i64,
     /// Nom de la catégorie
     pub name: String, 
     /// Préfix de ticket
