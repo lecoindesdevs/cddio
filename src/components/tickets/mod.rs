@@ -2,10 +2,12 @@
 
 mod archive;
 
-use std::{path::PathBuf, sync::Arc};
-use crate::{log_error, log_warn};
+use std::sync::Arc;
+use crate::{
+    log_error, log_warn, 
+    db::model::ticket::category
+};
 use sea_orm::EntityTrait;
-use tokio::sync::RwLock;
 use cddio_core::{message, ApplicationCommandEmbed};
 use cddio_macros::component;
 use serde::{Serialize, Deserialize};
@@ -18,18 +20,20 @@ use serenity::{
 };
 use sea_orm::{entity::*, query::*};
 
-use super::utils::data::Data;
+use super::utils::data2::Data;
 
 /// Le composant de gestion des tickets
 pub struct Tickets {
-    /// Données persistantes
-    data: RwLock<Data<DataTickets>>,
-    /// Dossier de sauvegarde des tickets
-    /// 
-    /// Dès que les tickets sont supprimés, ils sont enregistrés dans ce dossier.
-    archives_folder: PathBuf,
+    /// Données persistantes du composant
+    data: Data<DataTickets>,
     /// Connexion a la base de données
     database: Arc<sea_orm::DatabaseConnection>,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Copy)]
+struct MessageChoice {
+    message_id: u64,
+    channel_id: u64
 }
 
 /// Données persistantes du composant
@@ -39,67 +43,33 @@ pub struct Tickets {
 struct DataTickets {
     /// Identifiants du channel et du message pour choisir le type de ticket
     /// Ces identifiants est enregistré pour pouvoir le remplacer si nécessaire
-    msg_choose: Option<(u64, u64)>,
-    /// [Catégories] de tickets
-    /// 
-    /// [Catégories]: CategoryTicket
-    categories: Vec<CategoryTicket>,
+    message_choice: Option<MessageChoice>,
 }
 
-/// Catégorie de tickets
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-struct CategoryTicket {
-    /// Nom de la catégorie
-    name: String, 
-    /// Préfix de ticket
-    /// 
-    /// Le préfix est utilisé pour créer le titre d'un ticket tel que 
-    /// `<prefix>_<username>`
-    prefix: String,
-    /// Identifiant de la catégorie Discord
-    id: u64,
-    /// Description de la catégorie
-    desc: Option<String>,
-    /// Tickets créés dans cette catégorie
-    tickets: Vec<String>,
-    #[serde(default)]
-    hidden: bool,
-}
-
-impl From<CategoryTicket> for CreateSelectMenuOption {
-    fn from(ticket: CategoryTicket) -> Self {
+impl From<&category::Model> for CreateSelectMenuOption {
+    fn from(ticket: &category::Model) -> Self {
         let mut menu_option = CreateSelectMenuOption::new(&ticket.name, &ticket.name);
         menu_option
-            .description(ticket.desc.unwrap_or_default());
-        menu_option
-    }
-} 
-impl From<&CategoryTicket> for CreateSelectMenuOption {
-    fn from(ticket: &CategoryTicket) -> Self {
-        let mut menu_option = CreateSelectMenuOption::new(&ticket.name, &ticket.name);
-        menu_option
-            .description(ticket.desc.clone().unwrap_or_default());
+            .description(ticket.description.unwrap_or_default());
         menu_option
     }
 }
-impl CategoryTicket {
-    fn to_message(&self, title: &str) -> message::Message {
-        let mut msg = message::Message::new();
-        let mut embed = message::Embed::default();
-        embed.color(message::COLOR_INFO);
-        embed.title(title);
-        embed.field(&self.name, self.desc.as_ref().map(|v| v.as_str()).unwrap_or("*Aucune description*"), false);
-        msg.add_embed(|e| {*e=embed; e});
-        msg
-    }
+fn category_to_message(model: &crate::db::model::ticket::category::Model, title: &str) -> message::Message {
+    let mut msg = message::Message::new();
+    let mut embed = message::Embed::default();
+    embed.color(message::COLOR_INFO);
+    embed.title(title);
+    embed.field(model.name, model.description.as_ref().map(|v| v.as_str()).unwrap_or("*Aucune description*"), false);
+    msg.add_embed(|e| {*e=embed; e});
+    msg
 }
 
 impl Tickets {
     /// Créer un nouveau composant de gestion des tickets
     pub fn new(database: Arc<sea_orm::DatabaseConnection>) -> Self {
+        let data = Data::from_file_or_default("tickets").expect("Impossible d'importer le fichier de données");
         Self {
-            data: RwLock::new(Data::from_file("tickets").unwrap()),
-            archives_folder: PathBuf::from("data/archives/tickets"),
+            data,
             database,
         }
     }
@@ -112,13 +82,9 @@ impl Tickets {
 impl Tickets {
     #[event(Ready)]
     async fn on_ready(&self, ctx: &Context, _:&ReadyEvent) {
-        let msg_choose = {
-            let data = self.data.read().await;
-            let data = data.read();
-            data.msg_choose.clone()
-        };
-        if let Some((chan_id, msg_id)) = msg_choose {
-            let mut msg = match ChannelId(chan_id).message(ctx, msg_id).await {
+        let message_choice = self.data.read().await.message_choice;
+        if let Some(MessageChoice { channel_id, message_id }) = message_choice {
+            let mut msg = match ChannelId(channel_id).message(ctx, message_id).await {
                 Ok(msg) => msg,
                 Err(err) => {
                     log_warn!("Erreur lors de la récupération du message du menu: {:?}", err);
@@ -145,10 +111,9 @@ impl Tickets {
             }
         };
         loop {
-            let data = self.data.read().await;
-            let data = data.read();
-            if let Some((chan_id, msg_id)) = data.msg_choose {
-                let msg = match ChannelId(chan_id).message(ctx, msg_id).await {
+            let message_choice = self.data.read().await.message_choice;
+            if let Some(MessageChoice { channel_id, message_id }) = message_choice {
+                let msg = match ChannelId(channel_id).message(ctx, message_id).await {
                     Ok(msg) => msg,
                     Err(err) => {
                         log_warn!("Erreur lors de la récupération du menu: {}", err);
@@ -174,12 +139,7 @@ impl Tickets {
         self.update_menu(ctx, &mut msg).await.unwrap_or_else(|e| {
             log_error!("Erreur lors de la mise a jour du menu: {:?}", e);
         });
-        {
-            let mut data = self.data.write().await;
-            let mut data = data.write();
-
-            data.msg_choose = Some((channel.0, msg.id.0));
-        }
+        self.data.write().await.message_choice = Some(MessageChoice{channel_id: channel.0, message_id: msg.id.0});
         if let Err(err) = resp.send_message(message::success("Salon de création de tickets configuré")).await {
             log_error!("Erreur lors de l'envoi de la réponse: {:?}", err);
         }
@@ -203,75 +163,97 @@ impl Tickets {
         #[argument(description="Description de la catégorie", name="description")]
         desc: Option<String>
     ) {
+        use crate::db::model::ticket::category;
         {
-            let data = self.data.read().await;
-            let data = data.read();
-            for category in &data.categories {
-                if category.name == name {
-                    Self::send_error(ctx, app_cmd, "Cette catégorie existe déjà").await;
-                    return;
-                }
+            let nb_categories = category::Entity::find()
+                .filter(category::Column::Name.eq(&name))
+                .count(&*self.database).await;
+            if let Some(display) = match nb_categories {
+                Ok(nb) if nb > 0 => Some("Cette catégorie existe déjà".to_string()),
+                Err(err) => Some(format!("Erreur lors de la récupération du nombre de catégories: {}", err)),
+                _ => None
+            } {
+                Self::send_error(ctx, app_cmd, display).await;
+                return;
             }
         }
-        {
-            let mut data = self.data.write().await;
-            let mut data = data.write();
-            data.categories.push(CategoryTicket {
-                name,
-                prefix,
-                id: category_id.0,
-                desc,
-                tickets: vec![],
-                hidden
-            });
-        }
-        {
-            let data = self.data.read().await;
-            let data = data.read();
-            let msg = data.categories.last().unwrap().to_message("Catégorie créée");
-            app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
-                log_error!("Erreur lors de l'envoi du message: {}", e);
-            });
-        }
+        let category_id = match crate::db::controller::ticket::add_category(&*self.database, name, prefix, category_id, desc, Some(hidden)).await {
+            Ok(id) => id,
+            Err(err) => {
+                Self::send_error(ctx, app_cmd, err).await;
+                return;
+            }
+        };
+        let category_model = match category::Entity::find_by_id(category_id).one(&*self.database).await {
+            Ok(Some(model)) => model,
+            Ok(None) => {
+                Self::send_error(ctx, app_cmd, "L'insertion de la catégorie dans la base de données a échoué").await;
+                return;
+            }
+            Err(err) => {
+                Self::send_error(ctx, app_cmd, format!("Erreur lors de la récupération de la catégorie dans la base de données: {:#?}", err)).await;
+                return;
+            }
+        };
+        let msg = category_to_message(&category_model, "Catégorie créée");
+        app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
+            log_error!("Erreur lors de l'envoi du message: {}", e);
+        });
     }
     #[command(group="categories", name="remove", description="Supprime une catégorie de ticket")]
     async fn remove_categorie(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(name="nom", description="Nom de la catégorie")]
         name: String
     ) {
-        let mut data = self.data.write().await;
-        let mut data = data.write();
-        let pos = match data.categories.iter().position(|category| category.name == name) {
-            Some(pos) => pos,
-            None => {
-                app_cmd.direct_response(ctx, message::error("Cette catégorie n'existe pas")).await.unwrap_or_else(|e| {
+        let res = 'error: {
+            let cat = category::Entity::find()
+                .filter(category::Column::Name.eq(name))
+                .columns([category::Column::Id, category::Column::Name, category::Column::Description].into_iter())
+                .one(&*self.database).await;
+            let cat = match cat {
+                Ok(Some(cat)) => cat,
+                Ok(None) => break 'error Err("Cette catégorie n'existe pas".to_string()),
+                Err(err) => break 'error Err(format!("Erreur lors de la récupération de la catégorie dans la base de données: {:#?}", err))
+            };
+            if let Err(e) = crate::db::controller::ticket::remove_category(&*self.database, cat.id).await {
+                break 'error Err(format!("Erreur lors de la suppression de la catégorie dans la base de données: {:#?}", e));
+            }
+            
+            Ok(cat)
+        };
+        match res {
+            Ok(cat) => {
+                let msg = category_to_message(&cat, "Catégorie supprimée");
+                app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
                     log_error!("Erreur lors de l'envoi du message: {}", e);
                 });
-                return;
             }
-        };
-        let msg = data.categories[pos].to_message("Catégorie supprimée");
-        data.categories.remove(pos);
-
-        app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
-            log_error!("Erreur lors de l'envoi du message: {}", e);
-        });
+            Err(e) => Self::send_error(ctx, app_cmd, e).await
+        }
     }
     #[command(group="categories", name="list", description="Liste les catégories de ticket")]
     async fn list_categories(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>) {
-        let data = self.data.read().await;
-        let data = data.read();
-        let mut msg = message::Message::new();
-        let mut embed = message::Embed::default();
-        embed.title("Liste des catégories");
-        embed.color(message::COLOR_INFO);
-        for category in &data.categories {
-            embed.field(&category.name, category.desc.clone().unwrap_or_else(|| "*Aucune desscription*".into()), false);
+        let res = 'error: {
+            let categories = match category::Entity::find().all(&*self.database).await {
+                Ok(categories) => categories,
+                Err(err) => break 'error Err(format!("Erreur lors de la récupération des catégories dans la base de données: {:#?}", err))
+            };
+            let mut msg = message::Message::new();
+            let mut embed = message::Embed::default();
+            embed.title("Liste des catégories");
+            embed.color(message::COLOR_INFO);
+            for cat in categories {
+                embed.field(&cat.name, cat.description.clone().unwrap_or_else(|| "*Aucune desscription*".into()), false);
+            }
+            msg.add_embed(|e| {*e=embed; e});
+            app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
+                log_error!("Erreur lors de l'envoi du message: {}", e);
+            });
+            Ok(())
+        };
+        if let Err(e) = res {
+            Self::send_error(ctx, app_cmd, e).await
         }
-        msg.add_embed(|e| {*e=embed; e});
-        app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
-            log_error!("Erreur lors de l'envoi du message: {}", e);
-        });
     }
     #[command(group="ticket", description="Ajoute une personne au ticket")]
     async fn add_member(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
@@ -407,7 +389,13 @@ impl Tickets {
 
 impl Tickets {
     async fn update_menu(&self, ctx: &Context, msg: &mut Message) -> serenity::Result<()>{
-        let options = self.data.read().await.read().categories.iter().filter(|cat| !cat.hidden).map(|cat| cat.into()).collect::<Vec<_>>();
+        let categories = match category::Entity::find().all(&*self.database).await {
+            Ok(categories) => categories,
+            Err(_e) => {
+                todo!()
+            }
+        };
+        let options = categories.iter().filter(|cat| !cat.hidden).map(|cat| cat.into()).collect::<Vec<_>>();
         msg.edit(ctx, |msg|{
             msg.components(|comp| {
                 comp.create_action_row(|action| {
@@ -467,14 +455,13 @@ impl Tickets {
             Some(id) => id,
             None => return Ok(false),
         };
-        {
-            let data = self.data.read().await;
-            let data = data.read();
-            if let None = data.categories.iter().find(|cat| cat.id == parent_channel.0) {
-                return Ok(false);
-            }
+        let res = category::Entity::find()
+            .filter(category::Column::Id.eq(parent_channel.0))
+            .count(&*self.database).await;
+        match res {
+            Ok(count) => Ok(count > 0),
+            Err(e) => Err(format!("{}", e))
         }
-        Ok(true)
     }
     async fn is_ticket_owner(ctx: &Context, channel: ChannelId, user_by: UserId) -> Result<bool, String> {
         let pins = match channel.pins(ctx).await {
@@ -502,8 +489,8 @@ impl Tickets {
         };
         Ok(member.roles.into_iter().find(|role| role == &staff_role.0).is_some())
     }
-    async fn reset_message_choose(&self, new_ids: Option<(u64, u64)>) {
-        self.data.write().await.write().msg_choose = new_ids;
+    async fn reset_message_choose(&self, new_ids: Option<MessageChoice>) {
+        self.data.write().await.message_choice = new_ids;
     }
     async fn ticket_create(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, category: crate::db::model::ticket::category::Model) -> Result<ChannelId, String> {
         use serenity::model::channel::{PermissionOverwrite, PermissionOverwriteType, ChannelType};
