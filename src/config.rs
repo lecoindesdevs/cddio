@@ -27,12 +27,6 @@ pub struct Bot {
     pub owners: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct Placement {
-    pub guild_id: u64,
-    pub channel_id: u64,
-}
-
 impl Config {
     pub fn load<P: AsRef<std::path::Path>>(filepath: P) -> Result<Self, String> {
         let str_config = match std::fs::read_to_string(&filepath) {
