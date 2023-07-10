@@ -29,7 +29,7 @@ pub struct Bot {
 
 impl Bot {
     /// Crée un nouveau bot et l'initialise.
-    pub async fn new(config: &Config, database: sea_orm::DatabaseConnection) -> Result<Bot> {
+    pub async fn new(config: Config, database: sea_orm::DatabaseConnection) -> Result<Bot> {
         let config_bot = &config.bot;
         let owners_id = config_bot.owners
             .iter()
