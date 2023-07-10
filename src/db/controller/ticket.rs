@@ -71,6 +71,7 @@ pub async fn add_category(
     db: &sea_orm::DbConn, 
     name: String, 
     prefix: String, 
+    discord_category_id: serenity::model::id::ChannelId,
     description: Option<String>, 
     hidden: Option<bool>
 ) -> Result<IDType, Error> {
@@ -79,6 +80,7 @@ pub async fn add_category(
     let active_model = model::ticket::category::ActiveModel {
         name: sea_orm::ActiveValue::Set(name),
         prefix: sea_orm::ActiveValue::Set(prefix),
+        discord_category_id: sea_orm::ActiveValue::Set(discord_category_id.0.into()),
         description: sea_orm::ActiveValue::Set(description),
         hidden: sea_orm::ActiveValue::Set(hidden.unwrap_or(false)),
         .. Default::default()
