@@ -84,7 +84,7 @@ impl<'a, T: Serialize> Drop for DataGuard<'a, T>
 {
     fn drop(&mut self) {
         if let DataGuard::Write(data, path) = self {
-            let value = data.downgrade().deref();
+            let value = RwLockWriteGuard::deref(data);
             let value = serde_json::to_string(value).expect("Unable to serialize data");
             std::fs::write(path, value).expect("Unable to write data");
         }
