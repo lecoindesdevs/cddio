@@ -285,13 +285,11 @@ impl Tickets {
                 Err(e) => break message::error(e),
             }
             let is_staff = match Self::is_staff(ctx, guild_id, app_cmd.0.user.id).await {
-                Ok(true) => true,
-                Ok(false) => false,
+                Ok(v) => v,
                 Err(e) => break message::error(e),
             };
             let is_owner = match Self::is_ticket_owner(ctx, channel_id, app_cmd.0.user.id).await {
-                Ok(true) => true,
-                Ok(false) => false,
+                Ok(v) => v,
                 Err(e) => break message::error(e),
             };
             if !is_staff && !is_owner {
