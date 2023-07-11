@@ -426,6 +426,56 @@ impl Tickets {
             log_error!("Erreur lors de l'envoi du message: {}", e);
         });
     }
+    async fn category_from_ticket(&self, ctx: &Context, channel_id: ChannelId) -> Result<category::Model, String> {
+        use crate::db::model::ticket;
+        let channel_id_db: IDType = match channel_id.0.try_into() {
+            Ok(v) => v,
+            Err(e) => return Err(format!("Erreur de conversion de l'ID du salon: {}", e)),
+        };
+        let category_id = 'result: {
+            // If ticket found, get the category from it
+            let ticket = ticket::Entity::find_by_id(channel_id_db).one(&*self.database).await;
+            match ticket {
+                Ok(Some(t)) => break 'result t.category_id,
+                Err(e) => return Err(format!("Erreur lors de la récupération d'une catégorie: {}", e)),
+                _ => (),
+            }
+            // Otherwise, try to deduce the category from the channel prefix
+            'skip_prefix: {
+                let channel_name = match channel_id.name(ctx).await {
+                    Some(v) => v,
+                    None => break 'skip_prefix,
+                };
+                if let Some(pos_underscore) = channel_name.find('_') {
+                    let prefix = &channel_name[..pos_underscore];
+                    match category::Entity::find().filter(category::Column::Prefix.eq(prefix)).one(&*self.database).await {
+                        Ok(Some(cat)) => break 'result cat.id,
+                        Err(e) => return Err(format!("Erreur lors de la récupération d'une catégorie: {}", e)),
+                        _ => (),
+                    }
+                }
+            }
+            // Otherwise, try to get the the default category from the configuration
+            if let Some(ConfigTicket { default_category: Some(category_name) }) = &self.config {
+                match category::Entity::find().filter(category::Column::Name.eq(category_name)).one(&*self.database).await {
+                    Ok(Some(cat)) => break 'result cat.id,
+                    Err(e) => return Err(format!("Erreur lors de la récupération d'une catégorie: {}", e)),
+                    _ => (),
+                }
+            }
+            // Finally, if none found, get the first category from the database
+            match category::Entity::find().one(&*self.database).await {
+                Ok(Some(cat)) => break 'result cat.id,
+                Ok(None) => return Err("Aucune catégorie dans la base de données".to_string()),
+                Err(e) => return Err(format!("Erreur lors de la récupération d'une catégorie: {}", e)),
+            }
+        };
+        match category::Entity::find_by_id(category_id).one(&*self.database).await {
+            Ok(Some(cat)) => Ok(cat),
+            Ok(None) => unreachable!("already checked"),
+            Err(e) => Err(format!("Erreur lors de la récupération d'une catégorie: {}", e))
+        }
+    }
     async fn ticket_close_channel(&self, ctx: &Context, channel_id: ChannelId, member: Option<&Member>) -> Result<(), String> {
         match self.is_a_ticket(ctx, channel_id).await {
             Ok(true) => (),
@@ -437,14 +487,12 @@ impl Tickets {
             Some(member) => member.user.id,
             None => ctx.cache.current_user().id,
         };
-        //TODO: ajouter la catégorie dans les parametres de la fonction. utiliser la catégorie par défaut si aucune
-        let default_category = category::Entity::find()
-            .filter(category::Column::Name.eq("Tickets"))
-            .one(self.database.as_ref())
-            .await
-            .map_err(|e| format!("Erreur lors de la récupération des catégories: {}", e))?
-            .map(|cat| cat.id);
-        crate::db::controller::ticket::archive_ticket(self.database.as_ref(), ctx, channel_id, closed_by, default_category).await
+        if !db_ctrl::ticket::is_ticket_exists(&*self.database, channel_id).await.map_err(|e| format!("Erreur de la base de données: {}", e))? {
+            let category = self.category_from_ticket(ctx, channel_id).await?;
+            db_ctrl::ticket::create_ticket(ctx, &*self.database, category, channel_id, ctx.cache.current_user_id()).await
+                .map_err(|e| format!("Erreur lors de la création du ticket: {}", e))?;
+        }
+        db_ctrl::ticket::archive_ticket(&*self.database, ctx, channel_id, closed_by).await
             .map_err(|e| format!("Erreur lors de l'archivage du ticket: {}", e))?;
         channel_id.delete(ctx).await
             .map_err(|e| format!("Erreur lors de la suppression du salon discord lié au ticket: {}", e))?;
