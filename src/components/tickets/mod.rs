@@ -5,7 +5,11 @@ mod archive;
 use std::sync::Arc;
 use crate::{
     log_error, log_warn, 
-    db::{model::ticket::category, IDType},
+    db::{
+        model::ticket::category, 
+        controller as db_ctrl,
+        IDType
+    },
     config::Tickets as ConfigTicket
 };
 use sea_orm::EntityTrait;
@@ -28,7 +32,7 @@ pub struct Tickets {
     /// Données persistantes du composant
     data: Data<DataTickets>,
     /// Configutation
-    config: ConfigTicket,
+    config: Option<ConfigTicket>,
     /// Connexion a la base de données
     database: Arc<sea_orm::DatabaseConnection>,
 }
@@ -79,7 +83,7 @@ fn category_to_message(model: &category::Model, title: &str) -> message::Message
 
 impl Tickets {
     /// Créer un nouveau composant de gestion des tickets
-    pub fn new(config: ConfigTicket, database: Arc<sea_orm::DatabaseConnection>) -> Self {
+    pub fn new(config: Option<ConfigTicket>, database: Arc<sea_orm::DatabaseConnection>) -> Self {
         let data = Data::from_file_or_default("tickets").expect("Impossible d'importer le fichier de données");
         Self {
             data,
@@ -186,7 +190,7 @@ impl Tickets {
                 Err(err) => break 'error Err(format!("Erreur lors de la récupération du nombre de catégories: {}", err)),
                 _ => ()
             }
-            let category_id = match crate::db::controller::ticket::add_category(&*self.database, name, prefix, category_id, desc, Some(hidden)).await {
+            let category_id = match db_ctrl::ticket::add_category(&*self.database, name, prefix, category_id, desc, Some(hidden)).await {
                 Ok(id) => id,
                 Err(err) => break 'error Err(format!("Erreur lors de la création de la catégorie dans la base de données: {}", err))
             };
@@ -220,7 +224,7 @@ impl Tickets {
                 Ok(None) => break 'error Err("Cette catégorie n'existe pas".to_string()),
                 Err(err) => break 'error Err(format!("Erreur lors de la récupération de la catégorie dans la base de données: {:#?}", err))
             };
-            if let Err(e) = crate::db::controller::ticket::remove_category(&*self.database, cat.id).await {
+            if let Err(e) = db_ctrl::ticket::remove_category(&*self.database, cat.id).await {
                 break 'error Err(format!("Erreur lors de la suppression de la catégorie dans la base de données: {:#?}", e));
             }
             
@@ -618,7 +622,7 @@ impl Tickets {
         msg_prez.pin(ctx).await.unwrap_or_else(|e| {
             log_warn!("Erreur lors du pin du message de présentation: {}", e);
         });
-        crate::db::controller::ticket::create_ticket(&self.database, category, new_channel.id, user_id).await
+        db_ctrl::ticket::create_ticket(ctx, &self.database, category, new_channel.id, user_id).await
             .map_err(|e| format!("Erreur lors de la création du ticket: {}", e))?;
 
         Ok(new_channel.id)
