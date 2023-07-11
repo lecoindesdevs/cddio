@@ -46,6 +46,15 @@ struct DataTickets {
     message_choice: Option<MessageChoice>,
 }
 
+impl From<category::Model> for CreateSelectMenuOption {
+    fn from(ticket: category::Model) -> Self {
+        let mut menu_option = CreateSelectMenuOption::new(&ticket.name, &ticket.name);
+        if let Some(v) = &ticket.description {
+            menu_option.description(v.as_str());
+        }
+        menu_option
+    }
+}
 impl From<&category::Model> for CreateSelectMenuOption {
     fn from(ticket: &category::Model) -> Self {
         let mut menu_option = CreateSelectMenuOption::new(&ticket.name, &ticket.name);
@@ -55,7 +64,7 @@ impl From<&category::Model> for CreateSelectMenuOption {
         menu_option
     }
 }
-fn category_to_message(model: &crate::db::model::ticket::category::Model, title: &str) -> message::Message {
+fn category_to_message(model: &category::Model, title: &str) -> message::Message {
     let mut msg = message::Message::new();
     let mut embed = message::Embed::default();
     embed.color(message::COLOR_INFO);
@@ -164,42 +173,33 @@ impl Tickets {
         #[argument(description="Description de la catégorie", name="description")]
         desc: Option<String>
     ) {
-        use crate::db::model::ticket::category;
-        {
+        let res = 'error: {
             let nb_categories = category::Entity::find()
                 .filter(category::Column::Name.eq(&name))
                 .count(&*self.database).await;
-            if let Some(display) = match nb_categories {
-                Ok(nb) if nb > 0 => Some("Cette catégorie existe déjà".to_string()),
-                Err(err) => Some(format!("Erreur lors de la récupération du nombre de catégories: {}", err)),
-                _ => None
-            } {
-                Self::send_error(ctx, app_cmd, display).await;
-                return;
+            match nb_categories {
+                Ok(nb) if nb > 0 => break 'error Err("Cette catégorie existe déjà".to_string()),
+                Err(err) => break 'error Err(format!("Erreur lors de la récupération du nombre de catégories: {}", err)),
+                _ => ()
             }
+            let category_id = match crate::db::controller::ticket::add_category(&*self.database, name, prefix, category_id, desc, Some(hidden)).await {
+                Ok(id) => id,
+                Err(err) => break 'error Err(format!("Erreur lors de la création de la catégorie dans la base de données: {}", err))
+            };
+            let category_model = match category::Entity::find_by_id(category_id).one(&*self.database).await {
+                Ok(Some(model)) => model,
+                Ok(None) => break 'error Err("L'insertion de la catégorie dans la base de données a échoué".to_string()),
+                Err(err) => break 'error Err(format!("Erreur lors de la récupération de la catégorie dans la base de données: {}", err))
+            };
+            let msg = category_to_message(&category_model, "Catégorie créée");
+            app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
+                log_error!("Erreur lors de l'envoi du message: {}", e);
+            });
+            Ok(())
+        };
+        if let Err(e) = res {
+            Self::send_error(ctx, app_cmd, e).await;
         }
-        let category_id = match crate::db::controller::ticket::add_category(&*self.database, name, prefix, category_id, desc, Some(hidden)).await {
-            Ok(id) => id,
-            Err(err) => {
-                Self::send_error(ctx, app_cmd, err).await;
-                return;
-            }
-        };
-        let category_model = match category::Entity::find_by_id(category_id).one(&*self.database).await {
-            Ok(Some(model)) => model,
-            Ok(None) => {
-                Self::send_error(ctx, app_cmd, "L'insertion de la catégorie dans la base de données a échoué").await;
-                return;
-            }
-            Err(err) => {
-                Self::send_error(ctx, app_cmd, format!("Erreur lors de la récupération de la catégorie dans la base de données: {:#?}", err)).await;
-                return;
-            }
-        };
-        let msg = category_to_message(&category_model, "Catégorie créée");
-        app_cmd.direct_response(ctx, msg).await.unwrap_or_else(|e| {
-            log_error!("Erreur lors de l'envoi du message: {}", e);
-        });
     }
     #[command(group="categories", name="remove", description="Supprime une catégorie de ticket")]
     async fn remove_categorie(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
@@ -343,7 +343,7 @@ impl Tickets {
                     return;
                 }
             };
-            match crate::db::model::ticket::category::Entity::find().filter(crate::db::model::ticket::category::Column::Name.eq(&category_name)).one(self.database.as_ref()).await {
+            match category::Entity::find().filter(category::Column::Name.eq(&category_name)).one(self.database.as_ref()).await {
                 Ok(Some(category)) => category,
                 Ok(None) => {
                     log_error!("La catégorie {} n'existe pas", category_name);
@@ -390,13 +390,16 @@ impl Tickets {
 
 impl Tickets {
     async fn update_menu(&self, ctx: &Context, msg: &mut Message) -> serenity::Result<()>{
-        let categories = match category::Entity::find().all(&*self.database).await {
+        let categories = match category::Entity::find()
+            .filter(category::Column::Hidden.eq(false))
+            .all(&*self.database).await 
+        {
             Ok(categories) => categories,
             Err(_e) => {
                 todo!()
             }
         };
-        let options = categories.iter().filter(|cat| !cat.hidden).map(|cat| cat.into()).collect::<Vec<_>>();
+        let options = categories.into_iter().map(|cat| cat.into()).collect::<Vec<_>>();
         msg.edit(ctx, |msg|{
             msg.components(|comp| {
                 comp.create_action_row(|action| {
@@ -433,8 +436,8 @@ impl Tickets {
             None => ctx.cache.current_user().id,
         };
         //TODO: ajouter la catégorie dans les parametres de la fonction. utiliser la catégorie par défaut si aucune
-        let default_category = crate::db::model::ticket::category::Entity::find()
-            .filter(crate::db::model::ticket::category::Column::Name.eq("Tickets"))
+        let default_category = category::Entity::find()
+            .filter(category::Column::Name.eq("Tickets"))
             .one(self.database.as_ref())
             .await
             .map_err(|e| format!("Erreur lors de la récupération des catégories: {}", e))?
@@ -457,7 +460,7 @@ impl Tickets {
             None => return Ok(false),
         };
         let res = category::Entity::find()
-            .filter(category::Column::Id.eq(parent_channel.0))
+            .filter(category::Column::DiscordCategoryId.eq(parent_channel.0))
             .count(&*self.database).await;
         match res {
             Ok(count) => Ok(count > 0),
@@ -493,7 +496,7 @@ impl Tickets {
     async fn reset_message_choose(&self, new_ids: Option<MessageChoice>) {
         self.data.write().await.message_choice = new_ids;
     }
-    async fn ticket_create(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, category: crate::db::model::ticket::category::Model) -> Result<ChannelId, String> {
+    async fn ticket_create(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, category: category::Model) -> Result<ChannelId, String> {
         use serenity::model::channel::{PermissionOverwrite, PermissionOverwriteType, ChannelType};
         use serenity::model::permissions::Permissions;
         use serenity::model::application::component::ButtonStyle;
