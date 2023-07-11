@@ -4,7 +4,7 @@
 //! Celui ci contient des informations pour le client.
 
 use std::path::PathBuf;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 /// Configuration de l'application
 /// 
@@ -13,13 +13,13 @@ use serde::{Deserialize, Serialize};
 /// Le format choisi pour le fichier de configuration est le [json] pour 
 /// l'interopérabilité et la praticité. 
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct Config {
     pub bot: Bot,
     #[serde(skip)]
     filepath: PathBuf,
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct Bot {
     pub token: String,
     pub app_id: u64,
