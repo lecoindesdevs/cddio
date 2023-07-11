@@ -1,68 +1,71 @@
+use crate::db::controller::discord;
 use crate::db::{
     model, 
     controller::Error, 
     IDType
 };
 use crate::log_info;
-use sea_orm::{entity::*, TransactionTrait};
+use sea_orm::{entity::*, prelude::*};
+
 
 pub async fn create_ticket(
+    ctx: &serenity::client::Context,
     db: &sea_orm::DbConn, 
     category: model::ticket::category::Model, 
     channel_id: serenity::model::id::ChannelId, 
     opened_by: serenity::model::id::UserId
 ) -> Result<IDType, Error> {
     log_info!("Creating ticket");
-    let txn = db.begin().await.map_err(Error::SeaORM)?;
+    discord::create_channel_if_not_exists(db, ctx, channel_id).await?;
+    discord::create_user_if_not_exists(db, ctx, opened_by).await?;
+    
     let active_model = model::ticket::ActiveModel {
         category_id: sea_orm::ActiveValue::Set(category.id),
         channel_id: sea_orm::ActiveValue::Set(channel_id.0 as IDType),
         opened_by: sea_orm::ActiveValue::Set(opened_by.0 as IDType),
     };
-    let res = model::ticket::Ticket::insert(active_model).exec(&txn).await.map_err(Error::SeaORM)?;
+    let res = model::ticket::Ticket::insert(active_model).exec(db).await.map_err(Error::SeaORM)?;
     log_info!("Channel {} saved", res.last_insert_id);
 
     Ok(res.last_insert_id)
+}
+pub async fn is_ticket_exists(db: &sea_orm::DbConn, channel_id: serenity::model::id::ChannelId) -> Result<bool, Error> {
+    Ok(model::ticket::Ticket::find_by_id(channel_id.0 as IDType).count(db).await.map_err(Error::SeaORM)? > 0)
+}
+
+pub async fn create_ticket_if_not_exist(
+    ctx: &serenity::client::Context,
+    db: &sea_orm::DbConn, 
+    category: model::ticket::category::Model, 
+    channel_id: serenity::model::id::ChannelId, 
+    opened_by: serenity::model::id::UserId
+) -> Result<IDType, Error> {
+    if let None = model::ticket::Ticket::find_by_id(channel_id.0 as IDType).one(db).await.map_err(Error::SeaORM)? {
+        create_ticket(ctx, db, category, channel_id, opened_by).await?;
+    }
+    Ok(channel_id.0 as IDType)
 }
 
 pub async fn archive_ticket(
     db: &sea_orm::DbConn, 
     ctx: &serenity::client::Context, 
     channel_id: serenity::model::id::ChannelId, 
-    closed_by_by: serenity::model::id::UserId, 
-    default_category: Option<IDType>
+    closed_by_by: serenity::model::id::UserId
 ) -> Result<IDType, Error> {
-    use model::ticket::category::Entity as Category;
     log_info!("Archiving ticket");
-    let txn = db.begin().await.map_err(Error::SeaORM)?;
-    // Create ticket if it doesn't exist. It happens if the ticket is not created by this bot.
-    if let None = model::ticket::Ticket::find_by_id(channel_id.0 as IDType).one(&txn).await.map_err(Error::SeaORM)? {
-        let category = match default_category {
-            Some(c) => Category::find_by_id(c)
-                .one(db).await
-                .map_err(Error::SeaORM)?
-                .map_or_else(
-                    || Err(Error::Custom("Default category not found".to_string())), 
-                    |c| Ok(c)
-                )?,
-            None => Category::find()
-                .one(db).await
-                .map_err(Error::SeaORM)?
-                .map_or_else(
-                    || Err(Error::Custom("No categories".to_string())), 
-                    |c| Ok(c)
-                )?
-        };
-        let bot_id = ctx.cache.current_user().id;
-        create_ticket(db, category, channel_id, bot_id).await?;
+    match model::ticket::Ticket::find_by_id(channel_id.0 as IDType).one(db).await {
+        Ok(None) => Err(Error::Custom("Ticket not found".to_string()))?,
+        Err(e) => Err(Error::SeaORM(e))?,
+        _ => ()
     }
+    discord::create_user_if_not_exists(db, ctx, closed_by_by).await?;
     super::discord::save_channel(db, ctx, channel_id).await?;
     let active_model = model::archive::ActiveModel {
         ticket_id: sea_orm::ActiveValue::Set(channel_id.0 as IDType),
         closed_by: sea_orm::ActiveValue::Set(closed_by_by.0 as IDType),
         ..Default::default()
     };
-    let res = model::archive::Archive::insert(active_model).exec(&txn).await.map_err(Error::SeaORM)?;
+    let res = model::archive::Archive::insert(active_model).exec(db).await.map_err(Error::SeaORM)?;
     log_info!("Ticket {} archived", res.last_insert_id);
     Ok(res.last_insert_id)
 }
