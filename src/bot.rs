@@ -44,7 +44,7 @@ impl Bot {
             let mut container = ref_container.write().await;
             container.add_component(cmp::Help::new(ref_container.clone()));
             let modo = container.add_component(cmp::Moderation::new());
-            container.add_component(cmp::Tickets::new(Arc::clone(&database)));
+            container.add_component(cmp::Tickets::new(config.tickets, Arc::clone(&database)));
             container.add_component(cmp::SlashCommand::new(app_id, ref_container.clone(), owners_id));
             container.add_component(cmp::Misc::new(app_id, perms, ref_container.clone()));
             container.add_component(cmp::DalleMini);

@@ -5,7 +5,8 @@ mod archive;
 use std::sync::Arc;
 use crate::{
     log_error, log_warn, 
-    db::model::ticket::category
+    db::{model::ticket::category, IDType},
+    config::Tickets as ConfigTicket
 };
 use sea_orm::EntityTrait;
 use cddio_core::{message, ApplicationCommandEmbed};
@@ -26,6 +27,8 @@ use super::utils::data2::Data;
 pub struct Tickets {
     /// Données persistantes du composant
     data: Data<DataTickets>,
+    /// Configutation
+    config: ConfigTicket,
     /// Connexion a la base de données
     database: Arc<sea_orm::DatabaseConnection>,
 }
@@ -76,10 +79,11 @@ fn category_to_message(model: &category::Model, title: &str) -> message::Message
 
 impl Tickets {
     /// Créer un nouveau composant de gestion des tickets
-    pub fn new(database: Arc<sea_orm::DatabaseConnection>) -> Self {
+    pub fn new(config: ConfigTicket, database: Arc<sea_orm::DatabaseConnection>) -> Self {
         let data = Data::from_file_or_default("tickets").expect("Impossible d'importer le fichier de données");
         Self {
             data,
+            config,
             database,
         }
     }

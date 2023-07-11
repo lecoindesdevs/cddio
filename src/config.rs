@@ -16,9 +16,15 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 pub struct Config {
     pub bot: Bot,
+    pub tickets: Option<Tickets>,
     #[serde(skip)]
     filepath: PathBuf,
 }
+#[derive(Deserialize)]
+pub struct Tickets {
+    pub default_category: Option<String>
+}
+
 #[derive(Deserialize)]
 pub struct Bot {
     pub token: String,
