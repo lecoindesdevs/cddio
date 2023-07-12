@@ -1,6 +1,6 @@
 //! Ticket manager
 
-mod archive;
+mod json_to_db;
 
 use std::sync::Arc;
 use crate::{
