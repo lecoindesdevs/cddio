@@ -432,25 +432,25 @@ impl Tickets {
     }
     async fn category_from_ticket(&self, ctx: &Context, channel_id: ChannelId) -> Result<category::Model, String> {
         use crate::db::model::ticket;
-        let channel_id_db: IDType = match channel_id.0.try_into() {
+        let db_channel_id: IDType = match channel_id.0.try_into() {
             Ok(v) => v,
             Err(e) => return Err(format!("Erreur de conversion de l'ID du salon: {}", e)),
         };
         let category_id = 'result: {
-            // If ticket found, get the category from it
-            let ticket = ticket::Entity::find_by_id(channel_id_db).one(&*self.database).await;
+            // #1: If ticket found, get the category from it
+            let ticket = ticket::Entity::find_by_id(db_channel_id).column(ticket::Column::CategoryId).one(&*self.database).await;
             match ticket {
                 Ok(Some(t)) => break 'result t.category_id,
                 Err(e) => return Err(format!("Erreur lors de la récupération d'une catégorie: {}", e)),
                 _ => (),
             }
-            // Otherwise, try to deduce the category from the channel prefix
+            // #2: Deduce the category from the channel prefix
             'skip_prefix: {
                 let channel_name = match channel_id.name(ctx).await {
                     Some(v) => v,
                     None => break 'skip_prefix,
                 };
-                if let Some(pos_underscore) = channel_name.find('_') {
+                if let Some(pos_underscore) = channel_name.find(&['_', '-']) {
                     let prefix = &channel_name[..pos_underscore];
                     match category::Entity::find().filter(category::Column::Prefix.eq(prefix)).one(&*self.database).await {
                         Ok(Some(cat)) => break 'result cat.id,
@@ -459,16 +459,16 @@ impl Tickets {
                     }
                 }
             }
-            // Otherwise, try to get the the default category from the configuration
+            // #3: Get the the default category from the configuration
             if let Some(ConfigTicket { default_category: Some(category_name) }) = &self.config {
-                match category::Entity::find().filter(category::Column::Name.eq(category_name)).one(&*self.database).await {
+                match category::Entity::find().filter(category::Column::Name.eq(category_name)).column(category::Column::Id).one(&*self.database).await {
                     Ok(Some(cat)) => break 'result cat.id,
                     Err(e) => return Err(format!("Erreur lors de la récupération d'une catégorie: {}", e)),
                     _ => (),
                 }
             }
-            // Finally, if none found, get the first category from the database
-            match category::Entity::find().one(&*self.database).await {
+            // #4: Finally, if none found, get the first category from the database
+            match category::Entity::find().column(category::Column::Id).one(&*self.database).await {
                 Ok(Some(cat)) => break 'result cat.id,
                 Ok(None) => return Err("Aucune catégorie dans la base de données".to_string()),
                 Err(e) => return Err(format!("Erreur lors de la récupération d'une catégorie: {}", e)),
@@ -486,7 +486,6 @@ impl Tickets {
             Ok(false) => return Err("Ce n'est pas un ticket".to_string()),
             Err(e) => return Err(e),
         }
-        //TODO: vérifier si le ticket existe
         let closed_by = match member {
             Some(member) => member.user.id,
             None => ctx.cache.current_user().id,
