@@ -47,3 +47,14 @@ pub struct ArchiveChannel {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub closed_by: Option<ArchiveMember>,
 }
+
+#[derive(Deserialize, Debug)]
+struct DataTickets {
+    /// Identifiants du channel et du message pour choisir le type de ticket
+    /// Ces identifiants est enregistré pour pouvoir le remplacer si nécessaire
+    msg_choose: Option<(u64, u64)>,
+    /// [Catégories] de tickets
+    /// 
+    /// [Catégories]: CategoryTicket
+    categories: Vec<Category>,
+}
