@@ -21,16 +21,6 @@ use crate::{
     log_warn, log_error, log_info
 };
 
-#[derive(Deserialize, Debug)]
-struct Category {
-    name: String,
-    prefix: String,
-    id: u64,
-    desc: Option<String>,
-    tickets: Vec<String>,
-    #[serde(default)]
-    hidden: bool,
-}
 
 pub enum Error {
     SeaORM(sea_orm::DbErr),
@@ -56,7 +46,7 @@ struct Migration;
 const TICKET_PATH: &str = "./data/tickets";
 const ARCHIVE_PATH: &str = "./data/tickets/archives";
 
-async fn from_category(db: &DatabaseConnection, category: Category) -> bool {
+async fn from_category(db: &DatabaseConnection, category: archive::Category) -> bool {
     let discord_category_id: IDType = match category.id.try_into() {
         Ok(v) => v,
         Err(e) => {
@@ -86,7 +76,7 @@ async fn from_category(db: &DatabaseConnection, category: Category) -> bool {
 }
 
 
-async fn from_categories(db: &DatabaseConnection, categories: Vec<Category>) -> bool {
+async fn from_categories(db: &DatabaseConnection, categories: Vec<archive::Category>) -> bool {
     let mut ok = true;
     for category in categories {
         ok &= from_category(db, category).await;

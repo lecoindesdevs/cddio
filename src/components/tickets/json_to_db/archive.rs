@@ -1,6 +1,5 @@
 use serde::Deserialize;
 
-
 #[derive(Deserialize, PartialEq, Eq, Hash)]
 pub struct ArchiveUser {
     pub id: u64,
@@ -48,13 +47,25 @@ pub struct ArchiveChannel {
     pub closed_by: Option<ArchiveMember>,
 }
 
+
 #[derive(Deserialize, Debug)]
-struct DataTickets {
+pub struct Category {
+    pub name: String,
+    pub prefix: String,
+    pub id: u64,
+    pub desc: Option<String>,
+    pub tickets: Vec<String>,
+    #[serde(default)]
+    pub hidden: bool,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct DataTickets {
     /// Identifiants du channel et du message pour choisir le type de ticket
     /// Ces identifiants est enregistré pour pouvoir le remplacer si nécessaire
-    msg_choose: Option<(u64, u64)>,
+    pub msg_choose: Option<(u64, u64)>,
     /// [Catégories] de tickets
     /// 
     /// [Catégories]: CategoryTicket
-    categories: Vec<Category>,
+    pub categories: Vec<Category>,
 }
