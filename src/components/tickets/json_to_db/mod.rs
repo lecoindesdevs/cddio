@@ -1,4 +1,5 @@
 mod archive;
+mod error;
 use std::{
     fs::{
         File,
@@ -11,49 +12,21 @@ use sea_orm::{
     prelude::*,
     ActiveValue
 };
-use serde::Deserialize;
 use crate::{
     db::{
         model,
-        controller as ctrl, 
         IDType,
     },
-    log_warn, log_error, log_info
 };
 
-
-pub enum Error {
-    SeaORM(sea_orm::DbErr),
-    Io(std::io::Error),
-    JSON(serde_json::Error),
-    Custom(String)
-}
-
-impl From<ctrl::Error> for Error {
-    fn from(e: ctrl::Error) -> Self {
-        match e {
-            ctrl::Error::SeaORM(e) => Error::SeaORM(e),
-            ctrl::Error::Custom(e) => Error::Custom(e),
-            ctrl::Error::Serenity(e) => unreachable!("Serenity error: {}", e),
-        }
-    }
-}
-
-type Result<T> = std::result::Result<T, Error>;
 
 struct Migration;
 
 const TICKET_PATH: &str = "./data/tickets";
 const ARCHIVE_PATH: &str = "./data/tickets/archives";
 
-async fn from_category(db: &DatabaseConnection, category: archive::Category) -> bool {
-    let discord_category_id: IDType = match category.id.try_into() {
-        Ok(v) => v,
-        Err(e) => {
-            log_error!("Erreur de conversion de l'ID de la catégorie: {}", e);
-            return false;
-        },
-    };
+async fn from_category(db: &DatabaseConnection, category: archive::Category) -> error::CategoryResult<IDType> {
+    let discord_category_id: IDType = category.id.try_into().map_err(error::CategoryError::BadID)?;
     let active_model = model::ticket::category::ActiveModel {
         name: sea_orm::ActiveValue::Set(category.name),
         prefix: sea_orm::ActiveValue::Set(category.prefix),
@@ -64,40 +37,25 @@ async fn from_category(db: &DatabaseConnection, category: archive::Category) -> 
     };
     let res = model::ticket::Category::insert(active_model).exec(db).await;
     match res {
-        Ok(v) => {
-            log_info!("Catégorie {} ajouté", v.last_insert_id);
-            true
-        },
-        Err(e) => {
-            log_error!("Erreur lors de l'ajout de la catégorie: {}", e);
-            false
-        }
+        Ok(v) => Ok(v.last_insert_id),
+        Err(e) => Err(error::CategoryError::SeaORM(e)),
     }
 }
 
 
-async fn from_categories(db: &DatabaseConnection, categories: Vec<archive::Category>) -> bool {
-    let mut ok = true;
+async fn from_categories(db: &DatabaseConnection, categories: Vec<archive::Category>) -> error::CategoriesResult<IDType> {
+    let mut results = error::MultiResult::new();
     for category in categories {
-        ok &= from_category(db, category).await;
+        results.push(from_category(db, category).await);
     }
-    ok
+    results
 }
 
-async fn from_user(db: &DatabaseConnection, user: archive::ArchiveUser) -> bool {
-    let db_user_id: IDType = match user.id.try_into() {
-        Ok(v) => v,
-        Err(e) => {
-            log_error!("Erreur de conversion de l'ID de l'utilisateur: {}", e);
-            return false;
-        }
-    };
+async fn from_user(db: &DatabaseConnection, user: archive::ArchiveUser) -> error::UserResult<Option<IDType>> {
+    let db_user_id: IDType = user.id.try_into().map_err(error::UserError::BadID)?;
     match model::discord::User::find_by_id(db_user_id).one(db).await {
-        Ok(None) => return true,
-        Err(e) => {
-            log_error!("Erreur lors de l'ajout de l'utilisateur: {}", e);
-            return false;
-        },
+        Ok(None) => return Ok(None),
+        Err(e) => return Err(error::UserError::SeaORM(e)),
         _ => ()
     }
     let res = model::discord::User::insert(
@@ -108,87 +66,46 @@ async fn from_user(db: &DatabaseConnection, user: archive::ArchiveUser) -> bool 
         }
     ).exec(db).await;
     match res {
-        Ok(v) => {
-            log_info!("Utilisateur {} ajouté", v.last_insert_id);
-            true
-        },
-        Err(e) => {
-            log_error!("Erreur lors de l'ajout de l'utilisateur: {}", e);
-            false
-        }
+        Ok(v) => Ok(Some(v.last_insert_id)),
+        Err(e) => Err(error::UserError::SeaORM(e)),
     }
 }
-async fn from_users(db: &DatabaseConnection, users: Vec<archive::ArchiveUser>) -> bool {
-    let mut ok = true;
+async fn from_users(db: &DatabaseConnection, users: Vec<archive::ArchiveUser>) -> error::UsersResult<Option<IDType>> {
+    let mut results = error::MultiResult::new();
     for user in users {
-        ok &= from_user(db, user).await;
+        results.push(from_user(db, user).await);
     }
-    ok
+    results
 }
 
-async fn from_attachment(db: &DatabaseConnection, attachment: String, message_id: IDType) -> bool {
-    let res = model::discord::Attachment::insert(
+async fn from_attachment(db: &DatabaseConnection, attachment: String, message_id: IDType) -> Result<IDType, DbErr> {
+    model::discord::Attachment::insert(
         model::discord::attachment::ActiveModel {
             message_id: sea_orm::ActiveValue::Set(message_id),
             url: sea_orm::ActiveValue::Set(attachment),
             ..Default::default()
         }
-    ).exec(db).await;
-    match res {
-        Ok(v) => {
-            log_info!("Pièce jointe \"{}\" ajouté", v.last_insert_id);
-            true
-        },
-        Err(e) => {
-            log_error!("Erreur lors de l'ajout de la pièce jointe: {}", e);
-            false
-        }
-    }
+    )
+        .exec(db).await
+        .map(|v| v.last_insert_id)
 }
 
-async fn from_attachments(db: &DatabaseConnection, attachments: Vec<String>, message_id: IDType) -> bool {
-    let mut ok = true;
+async fn from_attachments(db: &DatabaseConnection, attachments: Vec<String>, message_id: IDType) -> error::MultiResult<IDType, DbErr> {
+    let mut results = error::MultiResult::new();
     for attachment in attachments {
-        ok &= from_attachment(db, attachment, message_id).await;
+        results.push(from_attachment(db, attachment, message_id).await);
     }
-    ok
+    results
 }
 
-async fn from_message(db: &DatabaseConnection, message: archive::ArchiveMessage, channel: &model::discord::channel::Model) -> bool {
-    let db_message_id: IDType = match message.id.try_into() {
-        Ok(v) => v,
-        Err(e) => {
-            log_error!("Dans le salon {} (ID: {}) : Erreur de conversion de l'ID du message {}: {}", channel.name, channel.id, message.id, e);
-            return false;
-        }
+async fn from_message(db: &DatabaseConnection, message: archive::ArchiveMessage, channel: &model::discord::channel::Model) -> error::MessageResult<Option<IDType>> {
+    let db_message_id: IDType = message.id.try_into().map_err(|_| error::MessageError::BadID(message.id))?;
+    if let Some(_) = model::discord::Message::find_by_id(db_message_id).one(db).await.map_err(error::MessageError::SeaORM)? {
+        return Ok(None)
     };
-    let db_user_id: IDType = match message.user_id.try_into() {
-        Ok(v) => v,
-        Err(e) => {
-            log_error!("Dans le salon {} (ID: {}) : Dans le message {} : Erreur de conversion de l'ID de l'utilisateur {}: {}", channel.name, channel.id, db_message_id, message.user_id, e);
-            return false;
-        }
-    };
-    let db_in_reply_to: Option<IDType> = match message.in_reply_to.map(TryInto::try_into) {
-        None => None,
-        Some(Ok(v)) => Some(v),
-        Some(Err(e)) => {
-            log_error!("Dans le salon {} (ID: {}) : Dans le message {} : Erreur de conversion de l'ID de l'utilisateur de réponse {}: {}", channel.name, channel.id, message.id, message.in_reply_to.unwrap(), e);
-            return false;
-        }
-    };
-    match model::discord::Message::find_by_id(db_message_id).one(db).await {
-        Ok(Some(v)) => {
-            log_warn!("Dans le salon {} (ID: {}) : Message {} déjà existant", channel.name, channel.id, v.id);
-            return true;
-        },
-        Err(e) => {
-            log_error!("Erreur lors de l'ajout du message: {}", e);
-            return false;
-        },
-        _ => ()
-    }
-    let res = model::discord::Message::insert(
+    let db_user_id: IDType = message.user_id.try_into().map_err(|_| error::MessageError::BadUserID(message.user_id))?;
+    let db_in_reply_to: Option<IDType> = message.in_reply_to.map(TryInto::try_into).transpose().map_err(|_| error::MessageError::BadReplyID(message.in_reply_to.unwrap()))?;
+    model::discord::Message::insert(
         model::discord::message::ActiveModel {
             id: ActiveValue::Set(db_message_id),
             channel_id: ActiveValue::Set(channel.id),
@@ -197,44 +114,31 @@ async fn from_message(db: &DatabaseConnection, message: archive::ArchiveMessage,
             in_reply_to: ActiveValue::Set(db_in_reply_to),
             last_modified: ActiveValue::Set(message.timestamp),
         }
-    ).exec(db).await;
-    match res {
-        Ok(v) => {
-            log_info!("Message {} ajouté", v.last_insert_id);
-            true
-        },
-        Err(e) => {
-            log_error!("Erreur lors de l'ajout du message: {}", e);
-            false
-        }
-    }
+    )
+        .exec(db).await
+        .map(|v| v.last_insert_id)
+        .map_err(error::MessageError::SeaORM)
 }
 
-async fn from_messages(db: &DatabaseConnection, messages: Vec<archive::ArchiveMessage>, channel: &model::discord::channel::Model) -> bool {
-    let mut ok = true;
+async fn from_messages(db: &DatabaseConnection, messages: Vec<archive::ArchiveMessage>, channel: &model::discord::channel::Model) -> error::MessagesResult<IDType> {
+    let mut results = error::MultiResult::new();
     for message in messages {
-        ok &= from_message(db, message, channel).await;
+        results.push(from_message(db, message, channel).await);
     }
-    ok
+    results
+}
+#[derive(Debug, Clone)]
+pub struct ChannelInfo {
+    pub id: IDType,
+    pub users: error::UsersResult<Option<IDType>>,
+    pub messages: error::MessagesResult<Option<IDType>>,
 }
 
-async fn from_channel(db: &DatabaseConnection, channel: archive::ArchiveChannel) -> bool {
-    let db_channel_id: IDType = match channel.id.try_into() {
-        Ok(v) => v,
-        Err(e) => {
-            log_error!("Erreur de conversion de l'ID du channel: {}", e);
-            return false;
-        }
-    };
+async fn from_channel(db: &DatabaseConnection, channel: archive::ArchiveChannel) -> error::ChannelResult<Option<ChannelInfo>> {
+    let db_channel_id: IDType = channel.id.try_into().map_err(error::ChannelError::BadID)?;
     match model::discord::Channel::find_by_id(db_channel_id).one(db).await {
-        Ok(Some(v)) => {
-            log_warn!("Le channel \"{}\" (ID: {}) existe déjà", v.name, db_channel_id);
-            return true
-        },
-        Err(e) => {
-            log_error!("Erreur lors de la recherche du salon {}: {}", db_channel_id, e);
-            return false;
-        }
+        Ok(Some(v)) => return Ok(None),
+        Err(e) => return Err(error::ChannelError::SeaORM(e)),
         _ => ()
     }
     let res = model::discord::Channel::insert(
@@ -242,29 +146,21 @@ async fn from_channel(db: &DatabaseConnection, channel: archive::ArchiveChannel)
             id: sea_orm::ActiveValue::Set(db_channel_id),
             name: sea_orm::ActiveValue::Set(channel.name),
         }
-    ).exec(db).await;
-    match res {
-        Ok(v) => {
-            log_info!("Channel {} ajouté", v.last_insert_id);
-        }
-        Err(e) => {
-            log_error!("Erreur lors de l'ajout du channel: {}", e);
-            return false;
-        }
-    }
-    let db_channel = match model::discord::Channel::find_by_id(db_channel_id).one(db).await {
-        Ok(Some(v)) => v,
-        Ok(None) => {
-            log_error!("(NE DEVRAIT PAS ARRIVER)Le channel (ID: {}) n'existe pas", db_channel_id);
-            return false;
-        }
-        Err(e) => {
-            log_error!("(NE DEVRAIT PAS ARRIVER)Erreur lors de la recherche du salon {}: {}", db_channel_id, e);
-            return false;
-        }
-    };
-    from_users(db, channel.users).await;
-    from_messages(db, channel.messages, &db_channel).await;
-    true
-}
+    )
+        .exec(db).await
+        .map(|v| v.last_insert_id)
+        .map_err(error::ChannelError::SeaORM)?;
+    let db_channel = model::discord::Channel::find_by_id(db_channel_id)
+        .one(db).await
+        .map_err(error::ChannelError::SeaORM)?
+        .ok_or(error::ChannelError::NotFoundAfterInsert)?;
+    Ok(
+        Some(
+            ChannelInfo{
+                id: db_channel.id,
+                users: from_users(db, channel.users).await,
+                messages: from_messages(db, channel.messages, &db_channel).await,
+            }
+        )
+    )
 }
