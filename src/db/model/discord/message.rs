@@ -11,7 +11,7 @@ pub struct Model {
     pub user_id: IDType,
     pub content: String,
     pub in_reply_to: Option<IDType>,
-    pub timestamp: i64,
+    pub last_modified: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
