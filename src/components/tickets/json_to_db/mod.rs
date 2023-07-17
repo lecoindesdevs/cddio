@@ -164,3 +164,33 @@ async fn from_channel(db: &DatabaseConnection, channel: archive::ArchiveChannel)
         )
     )
 }
+
+async fn from_archive_path(db: &DatabaseConnection, path: PathBuf) -> Result<Option<ChannelInfo>, error::FileError> {
+    if !path.is_file() {
+        return Err(error::FileError::NotFound(path));
+    }
+    let file = File::open(path).map_err(error::FileError::Io)?;
+    let reader = BufReader::new(file);
+    let archive_channel: archive::ArchiveChannel = serde_json::from_reader(reader).map_err(error::FileError::Serde)?;
+    Ok(from_channel(db, archive_channel).await)
+}
+
+async fn migration_archive(db: &DatabaseConnection) -> Result<error::MultiResult<Option<ChannelInfo>, error::FileError>, error::FileError> {
+    let archive_files = read_dir(ARCHIVE_PATH)
+        .map_err(error::FileError::Io)?
+        .filter_map(std::result::Result::ok)
+        .filter(|item| item.file_type()
+            .ok()
+            .as_ref()
+            .map(std::fs::FileType::is_file)
+            .unwrap_or(false)
+        )
+        .filter(|item| item.path().extension() == Some(OsStr::new("json")))
+        .map(|item| item.path());
+    let mut results = error::MultiResult::new();
+    for archive in archive_files {
+        results.push(from_archive_path(db, archive).await);
+    }
+    Ok(results)
+}
+
