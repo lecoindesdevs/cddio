@@ -194,3 +194,6 @@ async fn migration_archive(db: &DatabaseConnection) -> Result<error::MultiResult
     Ok(results)
 }
 
+async fn ticket_data(db: &DatabaseConnection) -> Result<()> {
+    todo!("add ticket data");
+}
