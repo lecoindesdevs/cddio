@@ -10,7 +10,7 @@ use crate::{
         controller as db_ctrl,
         IDType
     },
-    config::Tickets as ConfigTicket
+    config::Tickets as ConfigTicket, log_info
 };
 use sea_orm::EntityTrait;
 use cddio_core::{message, ApplicationCommandEmbed};
@@ -103,6 +103,11 @@ impl Tickets {
 impl Tickets {
     #[event(Ready)]
     async fn on_ready(&self, ctx: &Context, _:&ReadyEvent) {
+        log_info!("Migration des données de tickets...");
+        let res_migration = json_to_db::do_migration(&self.database, ctx.cache.current_user().id.0 as IDType).await;
+        std::fs::write("migration.log", format!("{:#?}", res_migration)).unwrap();
+        log_info!("Migration des données de tickets terminée");
+
         let message_choice = self.data.read().await.message_choice;
         if let Some(MessageChoice { channel_id, message_id }) = message_choice {
             let mut msg = match ChannelId(channel_id).message(ctx, message_id).await {
