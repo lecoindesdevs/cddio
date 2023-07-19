@@ -164,6 +164,7 @@ async fn from_channel(db: &DatabaseConnection, channel: archive::ArchiveChannel)
     )
 }
 
+#[derive(Debug)]
 pub struct ArchiveInfo {
     archive: IDType,
     channel: ChannelInfo,

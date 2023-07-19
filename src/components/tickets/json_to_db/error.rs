@@ -113,6 +113,7 @@ pub enum ChannelError {
 pub type ChannelResult<T> = Result<T, ChannelError>;
 pub type ChannelsResult<T> = MultiResult<T, ChannelError>;
 
+#[derive(Debug)]
 pub enum FileError {
     Io(std::io::Error),
     Serde(serde_json::Error),
@@ -121,6 +122,7 @@ pub enum FileError {
 
 pub type FileResult<T> = Result<T, FileError>;
 
+#[derive(Debug)]
 pub enum ArchiveError {
     File(FileError),
     Channel(ChannelError),
@@ -131,6 +133,7 @@ pub enum ArchiveError {
 pub type ArchiveResult<T> = Result<T, ArchiveError>;
 pub type ArchivesResult<T> = MultiResult<T, ArchiveError>;
 
+#[derive(Debug)]
 pub enum MigrationError {
     DataTickets(FileError),
     Archives(FileError)
