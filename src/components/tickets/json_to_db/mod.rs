@@ -83,7 +83,7 @@ async fn from_users(db: &DatabaseConnection, users: Vec<archive::ArchiveUser>) -
     results
 }
 
-async fn from_attachment(db: &DatabaseConnection, attachment: String, message_id: IDType) -> Result<IDType, DbErr> {
+async fn from_attachment<C: ConnectionTrait>(db: &C, attachment: String, message_id: IDType) -> Result<IDType, DbErr> {
     model::discord::Attachment::insert(
         model::discord::attachment::ActiveModel {
             message_id: sea_orm::ActiveValue::Set(message_id),
@@ -95,7 +95,7 @@ async fn from_attachment(db: &DatabaseConnection, attachment: String, message_id
         .map(|v| v.last_insert_id)
 }
 
-async fn from_attachments(db: &DatabaseConnection, attachments: Vec<String>, message_id: IDType) -> error::MultiResult<IDType, DbErr> {
+async fn from_attachments<C: ConnectionTrait>(db: &C, attachments: Vec<String>, message_id: IDType) -> error::MultiResult<IDType, DbErr> {
     let mut results = error::MultiResult::new();
     for attachment in attachments {
         results.push(from_attachment(db, attachment, message_id).await);
@@ -108,14 +108,14 @@ pub struct MessageInfo{
     pub attachments: error::MultiResult<IDType, DbErr>,
 }
 
-async fn from_message(db: &DatabaseConnection, message: archive::ArchiveMessage, channel: &model::discord::channel::Model) -> error::MessageResult<Option<MessageInfo>> {
+async fn from_message<C: ConnectionTrait>(db: &C, message: archive::ArchiveMessage, channel: &model::discord::channel::Model) -> error::MessageResult<Option<MessageInfo>> {
     let db_message_id: IDType = message.id.try_into().map_err(|_| error::MessageError::BadID(message.id))?;
     if let Some(_) = model::discord::Message::find_by_id(db_message_id).one(db).await.map_err(error::MessageError::SeaORM)? {
         return Ok(None)
     };
     let db_user_id: IDType = message.user_id.try_into().map_err(|_| error::MessageError::BadUserID(message.user_id))?;
     let db_in_reply_to: Option<IDType> = message.in_reply_to.map(TryInto::try_into).transpose().map_err(|_| error::MessageError::BadReplyID(message.in_reply_to.unwrap()))?;
-    let res = model::discord::Message::insert(
+    model::discord::Message::insert(
         model::discord::message::ActiveModel {
             id: ActiveValue::Set(db_message_id),
             channel_id: ActiveValue::Set(channel.id),
@@ -135,10 +135,13 @@ async fn from_message(db: &DatabaseConnection, message: archive::ArchiveMessage,
 }
 
 async fn from_messages(db: &DatabaseConnection, messages: Vec<archive::ArchiveMessage>, channel: &model::discord::channel::Model) -> error::MessagesResult<Option<MessageInfo>> {
+    use sea_orm::TransactionTrait;
     let mut results = error::MultiResult::new();
+    let txn = db.begin().await.expect("Failed to begin transaction");
     for message in messages.into_iter().rev() {
-        results.push(from_message(db, message, channel).await);
+        results.push(from_message(&txn, message, channel).await);
     }
+    txn.commit().await.expect("Failed to commit transaction");
     results
 }
 #[derive(Debug)]
