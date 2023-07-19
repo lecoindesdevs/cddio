@@ -78,7 +78,7 @@ pub async fn save_channel(db: &sea_orm::DbConn, ctx: &serenity::client::Context,
                 channel_id: sea_orm::ActiveValue::Set(db_chan),
                 user_id: sea_orm::ActiveValue::Set(user_id as IDType),
                 content: sea_orm::ActiveValue::Set(msg.content),
-                timestamp: sea_orm::ActiveValue::Set(msg.timestamp.unix_timestamp()),
+                last_modified: sea_orm::ActiveValue::Set(msg.timestamp.unix_timestamp()),
                 in_reply_to: sea_orm::ActiveValue::NotSet,
             };
             let res = model::discord::Message::insert(active_model).exec(&txn).await.map_err(Error::SeaORM)?;
