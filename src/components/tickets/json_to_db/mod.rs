@@ -247,7 +247,7 @@ async fn migration_data_tickets() -> Result<(), error::FileError> {
     Ok(())
 }
 
-async fn do_migration(db: &DatabaseConnection, default_user_id: IDType) -> error::MigrationResult<error::ArchivesResult<Option<ArchiveInfo>>> {
+pub async fn do_migration(db: &DatabaseConnection, default_user_id: IDType) -> error::MigrationResult<error::ArchivesResult<Option<ArchiveInfo>>> {
     migration_data_tickets().await.map_err(error::MigrationError::DataTickets)?;
     Ok(migration_archives(db, default_user_id).await.map_err(error::MigrationError::Archives)?)
 }
