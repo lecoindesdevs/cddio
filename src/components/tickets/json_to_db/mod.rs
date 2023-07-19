@@ -287,10 +287,10 @@ async fn migration_archives(db: &DatabaseConnection, default_user_id: IDType) ->
     for archive in archive_files {
         results.push(from_archive_path(db, archive, default_user_id).await);
     }
-    // let new_path = std::path::Path::new(ARCHIVE_PATH).parent().unwrap().join("_archives");
-    // if !cfg!(debug_assertions) {
-    //     std::fs::rename(ARCHIVE_PATH, new_path);
-    // }
+    let new_path = std::path::Path::new(ARCHIVE_PATH).parent().unwrap().join("_archives");
+    if !cfg!(debug_assertions) {
+        std::fs::rename(ARCHIVE_PATH, new_path);
+    }
     Ok(results)
 }
 
