@@ -52,7 +52,7 @@ async fn from_categories(db: &DatabaseConnection, categories: Vec<archive::Categ
 async fn from_user(db: &DatabaseConnection, user: archive::ArchiveUser) -> error::UserResult<Option<IDType>> {
     let db_user_id: IDType = user.id.try_into().map_err(|_| error::UserError::BadID(user.id))?;
     match model::discord::User::find_by_id(db_user_id).one(db).await {
-        Ok(None) => return Ok(None),
+        Ok(Some(_)) => return Ok(None),
         Err(e) => return Err(error::UserError::SeaORM(e)),
         _ => ()
     }
@@ -95,8 +95,13 @@ async fn from_attachments(db: &DatabaseConnection, attachments: Vec<String>, mes
     }
     results
 }
+#[derive(Debug)]
+pub struct MessageInfo{
+    pub id: IDType,
+    pub attachments: error::MultiResult<IDType, DbErr>,
+}
 
-async fn from_message(db: &DatabaseConnection, message: archive::ArchiveMessage, channel: &model::discord::channel::Model) -> error::MessageResult<Option<IDType>> {
+async fn from_message(db: &DatabaseConnection, message: archive::ArchiveMessage, channel: &model::discord::channel::Model) -> error::MessageResult<Option<MessageInfo>> {
     let db_message_id: IDType = message.id.try_into().map_err(|_| error::MessageError::BadID(message.id))?;
     if let Some(_) = model::discord::Message::find_by_id(db_message_id).one(db).await.map_err(error::MessageError::SeaORM)? {
         return Ok(None)
@@ -116,12 +121,15 @@ async fn from_message(db: &DatabaseConnection, message: archive::ArchiveMessage,
         .exec(db).await
         .map(|v| v.last_insert_id)
         .map_err(error::MessageError::SeaORM)?;
-    Ok(Some(res))
+    Ok(Some(MessageInfo {
+        id: db_message_id,
+        attachments: from_attachments(db, message.attachments, db_message_id).await
+    }))
 }
 
-async fn from_messages(db: &DatabaseConnection, messages: Vec<archive::ArchiveMessage>, channel: &model::discord::channel::Model) -> error::MessagesResult<Option<IDType>> {
+async fn from_messages(db: &DatabaseConnection, messages: Vec<archive::ArchiveMessage>, channel: &model::discord::channel::Model) -> error::MessagesResult<Option<MessageInfo>> {
     let mut results = error::MultiResult::new();
-    for message in messages {
+    for message in messages.into_iter().rev() {
         results.push(from_message(db, message, channel).await);
     }
     results
@@ -130,17 +138,17 @@ async fn from_messages(db: &DatabaseConnection, messages: Vec<archive::ArchiveMe
 pub struct ChannelInfo {
     pub id: IDType,
     pub users: error::UsersResult<Option<IDType>>,
-    pub messages: error::MessagesResult<Option<IDType>>,
+    pub messages: error::MessagesResult<Option<MessageInfo>>,
 }
 
 async fn from_channel(db: &DatabaseConnection, channel: archive::ArchiveChannel) -> error::ChannelResult<Option<ChannelInfo>> {
     let db_channel_id: IDType = channel.id.try_into().map_err(|_|error::ChannelError::BadID(channel.id))?;
     match model::discord::Channel::find_by_id(db_channel_id).one(db).await {
-        Ok(Some(v)) => return Ok(None),
+        Ok(Some(_)) => return Ok(None),
         Err(e) => return Err(error::ChannelError::SeaORM(e)),
         _ => ()
     }
-    let res = model::discord::Channel::insert(
+    let _res = model::discord::Channel::insert(
         model::discord::channel::ActiveModel {
             id: sea_orm::ActiveValue::Set(db_channel_id),
             name: sea_orm::ActiveValue::Set(channel.name),
@@ -178,14 +186,16 @@ async fn from_archive_path(db: &DatabaseConnection, path: PathBuf, default_user_
     let reader = BufReader::new(file);
     let archive_channel: archive::ArchiveChannel = serde_json::from_reader(reader).map_err(|e| error::ArchiveError::File(error::FileError::Serde(e)))?;
     let closed_by_user = match &archive_channel.closed_by {
-        Some(v) => {
-            //as... permitted because error will be catched in from_user
-            let id = v.user.id as IDType;
-            from_user(db, v.user.clone()).await.map_err(error::ArchiveError::ClosedBy)?;
-            id
+        Some(v) => v.user.clone(),
+        None => archive::ArchiveUser {
+            id: default_user_id as u64,
+            name: "CDDIO".to_string(),
+            avatar: "https://cdn.discordapp.com/avatars/871363223801196594/96899439c4a563f81ae19198e7692762?size=1024".to_string(),
         },
-        None => default_user_id,
     };
+    let closed_by_user_id = closed_by_user.id as IDType;
+    from_user(db, closed_by_user).await.map_err(error::ArchiveError::ClosedBy)?;
+
     let channel = from_channel(db, archive_channel).await.map_err(error::ArchiveError::Channel)?;
     let channel = match channel {
         Some(v) => v,
@@ -195,7 +205,7 @@ async fn from_archive_path(db: &DatabaseConnection, path: PathBuf, default_user_
     let res = model::archive::Entity::insert(
         model::archive::ActiveModel {
             ticket_id: sea_orm::ActiveValue::Set(channel.id),
-            closed_by: sea_orm::ActiveValue::Set(closed_by_user),
+            closed_by: sea_orm::ActiveValue::Set(closed_by_user_id),
             ..Default::default()
         }
     )
@@ -227,7 +237,9 @@ async fn migration_archives(db: &DatabaseConnection, default_user_id: IDType) ->
         results.push(from_archive_path(db, archive, default_user_id).await);
     }
     let new_path = std::path::Path::new(ARCHIVE_PATH).parent().unwrap().join("_archives");
-    std::fs::rename(ARCHIVE_PATH, new_path);
+    // if !cfg!(debug_assertions) {
+    //     std::fs::rename(ARCHIVE_PATH, new_path);
+    // }
     Ok(results)
 }
 
