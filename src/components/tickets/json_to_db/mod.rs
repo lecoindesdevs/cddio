@@ -12,17 +12,15 @@ use sea_orm::{
     prelude::*,
     ActiveValue
 };
-use crate::{
-    db::{
-        model,
-        IDType,
-    },
+use crate::db::{
+    model,
+    IDType,
 };
 
 
 struct Migration;
 
-const TICKET_PATH: &str = "./data/tickets";
+const DATA_TICKET_PATH: &str = "./data/tickets.json";
 const ARCHIVE_PATH: &str = "./data/tickets/archives";
 
 async fn from_category(db: &DatabaseConnection, category: archive::Category) -> error::CategoryResult<IDType> {
@@ -166,17 +164,51 @@ async fn from_channel(db: &DatabaseConnection, channel: archive::ArchiveChannel)
     )
 }
 
-async fn from_archive_path(db: &DatabaseConnection, path: PathBuf) -> Result<Option<ChannelInfo>, error::FileError> {
-    if !path.is_file() {
-        return Err(error::FileError::NotFound(path));
-    }
-    let file = File::open(path).map_err(error::FileError::Io)?;
-    let reader = BufReader::new(file);
-    let archive_channel: archive::ArchiveChannel = serde_json::from_reader(reader).map_err(error::FileError::Serde)?;
-    Ok(from_channel(db, archive_channel).await)
+pub struct ArchiveInfo {
+    archive: IDType,
+    channel: ChannelInfo,
 }
 
-async fn migration_archive(db: &DatabaseConnection) -> Result<error::MultiResult<Option<ChannelInfo>, error::FileError>, error::FileError> {
+async fn from_archive_path(db: &DatabaseConnection, path: PathBuf, default_user_id: IDType) -> Result<Option<ArchiveInfo>, error::ArchiveError> {
+    if !path.is_file() {
+        return Err(error::ArchiveError::File(error::FileError::NotFound(path)));
+    }
+    let file = File::open(path).map_err(|e| error::ArchiveError::File(error::FileError::Io(e)))?;
+    let reader = BufReader::new(file);
+    let archive_channel: archive::ArchiveChannel = serde_json::from_reader(reader).map_err(|e| error::ArchiveError::File(error::FileError::Serde(e)))?;
+    let closed_by_user = match &archive_channel.closed_by {
+        Some(v) => {
+            //as... permitted because error will be catched in from_user
+            let id = v.user.id as IDType;
+            from_user(db, v.user.clone()).await.map_err(error::ArchiveError::ClosedBy)?;
+            id
+        },
+        None => default_user_id,
+    };
+    let channel = from_channel(db, archive_channel).await.map_err(error::ArchiveError::Channel)?;
+    let channel = match channel {
+        Some(v) => v,
+        None => return Ok(None),
+    }; 
+    
+    let res = model::archive::Entity::insert(
+        model::archive::ActiveModel {
+            ticket_id: sea_orm::ActiveValue::Set(channel.id),
+            closed_by: sea_orm::ActiveValue::Set(closed_by_user),
+            ..Default::default()
+        }
+    )
+        .exec(db).await
+        .map(|v| ArchiveInfo {
+            archive: v.last_insert_id,
+            channel,
+        })
+        .map_err(error::ArchiveError::SeaORM)?;
+    Ok(Some(res))
+}
+
+async fn migration_archives(db: &DatabaseConnection, default_user_id: IDType) -> error::FileResult<error::ArchivesResult<Option<ArchiveInfo>>> {
+    // Get an iterator of all archive files
     let archive_files = read_dir(ARCHIVE_PATH)
         .map_err(error::FileError::Io)?
         .filter_map(std::result::Result::ok)
@@ -188,13 +220,31 @@ async fn migration_archive(db: &DatabaseConnection) -> Result<error::MultiResult
         )
         .filter(|item| item.path().extension() == Some(OsStr::new("json")))
         .map(|item| item.path());
+
     let mut results = error::MultiResult::new();
     for archive in archive_files {
-        results.push(from_archive_path(db, archive).await);
+        results.push(from_archive_path(db, archive, default_user_id).await);
     }
     Ok(results)
 }
 
-async fn ticket_data(db: &DatabaseConnection) -> Result<()> {
-    todo!("add ticket data");
+async fn migration_data_tickets() -> Result<(), error::FileError> {
+    use super::{Tickets, MessageChoice};
+    let file = File::open(DATA_TICKET_PATH).map_err(error::FileError::Io)?;
+    let reader = BufReader::new(file);
+    let old_data: archive::DataTickets = serde_json::from_reader(reader).map_err(error::FileError::Serde)?;
+    let component_data = Tickets::new_data();
+    let mut component_data = component_data.write().await;
+    if let Some(old_msg_choose) = old_data.msg_choose {
+        component_data.message_choice = Some(MessageChoice {
+            channel_id: old_msg_choose.0,
+            message_id: old_msg_choose.1,
+        });
+    }
+    Ok(())
+}
+
+async fn do_migration(db: &DatabaseConnection, default_user_id: IDType) -> error::MigrationResult<error::ArchivesResult<Option<ArchiveInfo>>> {
+    migration_data_tickets().await.map_err(error::MigrationError::DataTickets)?;
+    Ok(migration_archives(db, default_user_id).await.map_err(error::MigrationError::Archives)?)
 }

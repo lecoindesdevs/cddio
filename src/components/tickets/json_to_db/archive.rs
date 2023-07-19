@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Deserialize, PartialEq, Eq, Hash)]
+#[derive(Deserialize, PartialEq, Eq, Hash, Clone)]
 pub struct ArchiveUser {
     pub id: u64,
     pub name: String,

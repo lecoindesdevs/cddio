@@ -118,3 +118,22 @@ pub enum FileError {
     Serde(serde_json::Error),
     NotFound(std::path::PathBuf),
 }
+
+pub type FileResult<T> = Result<T, FileError>;
+
+pub enum ArchiveError {
+    File(FileError),
+    Channel(ChannelError),
+    ClosedBy(UserError),
+    SeaORM(sea_orm::DbErr),
+}
+
+pub type ArchiveResult<T> = Result<T, ArchiveError>;
+pub type ArchivesResult<T> = MultiResult<T, ArchiveError>;
+
+pub enum MigrationError {
+    DataTickets(FileError),
+    Archives(FileError)
+}
+
+pub type MigrationResult<T> = Result<T, MigrationError>;
