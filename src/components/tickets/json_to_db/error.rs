@@ -78,7 +78,7 @@ impl<T, E> Default for MultiResult<T, E> {
         Self::new()
     }
 }
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum CategoryError {
     BadID(u64),
     SeaORM(sea_orm::DbErr),
@@ -86,7 +86,7 @@ pub enum CategoryError {
 pub type CategoryResult<T> = Result<T, CategoryError>;
 pub type CategoriesResult<T> = MultiResult<T, CategoryError>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum UserError {
     BadID(u64),
     SeaORM(sea_orm::DbErr),
@@ -94,7 +94,7 @@ pub enum UserError {
 pub type UserResult<T> = Result<T, UserError>;
 pub type UsersResult<T> = MultiResult<T, UserError>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum MessageError {
     BadID(u64),
     BadUserID(u64),
@@ -104,7 +104,7 @@ pub enum MessageError {
 pub type MessageResult<T> = Result<T, MessageError>;
 pub type MessagesResult<T> = MultiResult<T, MessageError>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ChannelError {
     BadID(u64),
     SeaORM(sea_orm::DbErr),
