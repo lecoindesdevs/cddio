@@ -17,9 +17,9 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(
-        belongs_to = "user::Entity",
+        belongs_to = "Entity",
         from = "Column::InReplyTo",
-        to = "user::Column::Id"
+        to = "Column::Id"
     )]
     InReplyTo,
     #[sea_orm(has_many = "attachment::Entity")]
@@ -29,7 +29,13 @@ pub enum Relation {
         from = "Column::ChannelId",
         to = "channel::Column::Id"
     )]
-    Channel
+    Channel,
+    #[sea_orm(
+        belongs_to = "user::Entity",
+        from = "Column::UserId",
+        to = "user::Column::Id"
+    )]
+    User
 }
 
 impl Related<attachment::Entity> for Entity {
