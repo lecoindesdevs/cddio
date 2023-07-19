@@ -25,7 +25,7 @@ use serenity::{
 };
 use sea_orm::{entity::*, query::*};
 
-use super::utils::data2::Data;
+use super::utils::data2::{Data, DataGuard};
 
 /// Le composant de gestion des tickets
 pub struct Tickets {
@@ -84,12 +84,15 @@ fn category_to_message(model: &category::Model, title: &str) -> message::Message
 impl Tickets {
     /// Créer un nouveau composant de gestion des tickets
     pub fn new(config: Option<ConfigTicket>, database: Arc<sea_orm::DatabaseConnection>) -> Self {
-        let data = Data::from_file_or_default("tickets").expect("Impossible d'importer le fichier de données");
+        let data = Self::new_data();
         Self {
             data,
             config,
             database,
         }
+    }
+    fn new_data() -> Data<DataTickets> {
+        Data::from_file_or_default("tickets").expect("Impossible d'importer le fichier de données")
     }
 }
 
