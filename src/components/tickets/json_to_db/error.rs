@@ -82,6 +82,7 @@ impl<T, E> Default for MultiResult<T, E> {
 pub enum CategoryError {
     BadID(u64),
     SeaORM(sea_orm::DbErr),
+    NotFound,
 }
 pub type CategoryResult<T> = Result<T, CategoryError>;
 pub type CategoriesResult<T> = MultiResult<T, CategoryError>;
@@ -127,7 +128,9 @@ pub enum ArchiveError {
     File(FileError),
     Channel(ChannelError),
     ClosedBy(UserError),
-    SeaORM(sea_orm::DbErr),
+    Category(CategoryError),
+    TicketInsert(sea_orm::DbErr),
+    ArchiveInsert(sea_orm::DbErr),
 }
 
 pub type ArchiveResult<T> = Result<T, ArchiveError>;
