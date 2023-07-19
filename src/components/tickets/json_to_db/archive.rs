@@ -21,11 +21,6 @@ pub enum ArchiveReactionType {
     },
     Unicode(String),
 }
-#[derive(Deserialize, PartialEq, Eq, Hash)]
-pub struct ArchiveReaction {
-    count: u64,
-    emoji: ArchiveReactionType
-}
 #[derive(Deserialize)]
 pub struct ArchiveMessage {
     pub id: u64,
@@ -33,9 +28,7 @@ pub struct ArchiveMessage {
     pub content: String,
     pub attachments: Vec<String>,
     pub in_reply_to: Option<u64>,
-    pub timestamp: i64,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub reactions: Vec<ArchiveReaction>,
+    pub timestamp: i64
 }
 #[derive(Deserialize)]
 pub struct ArchiveChannel {
