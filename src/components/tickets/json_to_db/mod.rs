@@ -269,6 +269,19 @@ async fn from_archive_path(db: &DatabaseConnection, path: PathBuf, default_user_
     Ok(Some(res))
 }
 
+fn rename_with_underscore(name: &str) -> Result<(), error::FileError> {
+    if !cfg!(debug_assertions) {
+        let orig_path = std::path::Path::new(ARCHIVE_PATH);
+        let filename = orig_path.file_name()
+            .ok_or(error::FileError::BadPathProcessing)?;
+        let filename = filename.to_str()
+            .ok_or_else(|| error::FileError::BadPathConversionUTF8(filename.to_owned()))?;
+        let new_path = orig_path.parent().unwrap().join(format!("_{}", filename));
+        std::fs::rename(orig_path, new_path).map_err(error::FileError::Io)?;
+    }
+    Ok(())
+}
+
 async fn migration_archives(db: &DatabaseConnection, default_user_id: IDType) -> error::FileResult<error::ArchivesResult<Option<ArchiveInfo>>> {
     // Get an iterator of all archive files
     let archive_files = read_dir(ARCHIVE_PATH)
@@ -287,10 +300,7 @@ async fn migration_archives(db: &DatabaseConnection, default_user_id: IDType) ->
     for archive in archive_files {
         results.push(from_archive_path(db, archive, default_user_id).await);
     }
-    let new_path = std::path::Path::new(ARCHIVE_PATH).parent().unwrap().join("_archives");
-    if !cfg!(debug_assertions) {
-        std::fs::rename(ARCHIVE_PATH, new_path);
-    }
+    rename_with_underscore(ARCHIVE_PATH)?;
     Ok(results)
 }
 
