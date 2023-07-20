@@ -297,9 +297,11 @@ async fn migration_archives(db: &DatabaseConnection, default_user_id: IDType) ->
 async fn migration_data_tickets(db: &DatabaseConnection) -> error::FileResult<CategoriesResult<IDType>> {
     use super::{Tickets, MessageChoice};
     use sea_orm::TransactionTrait;
-    let file = File::open(DATA_TICKET_PATH).map_err(error::FileError::Io)?;
-    let reader = BufReader::new(file);
-    let old_data: archive::DataTickets = serde_json::from_reader(reader).map_err(error::FileError::Serde)?;
+    let old_data: archive::DataTickets = {
+        let file = File::open(DATA_TICKET_PATH).map_err(error::FileError::Io)?;
+        let reader = BufReader::new(file);
+        serde_json::from_reader(reader).map_err(error::FileError::Serde)?
+    };
     {
         let component_data = Tickets::new_data();
         let mut component_data = component_data.write().await;
