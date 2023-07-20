@@ -1,3 +1,5 @@
+use std::ffi::OsString;
+
 #[derive(Debug, Clone)]
 pub struct MultiResult<T, E> {
     ok: Vec<T>,
@@ -117,6 +119,8 @@ pub type ChannelsResult<T> = MultiResult<T, ChannelError>;
 #[derive(Debug)]
 pub enum FileError {
     Io(std::io::Error),
+    BadPathConversionUTF8(OsString),
+    BadPathProcessing,
     Serde(serde_json::Error),
     NotFound(std::path::PathBuf),
 }
