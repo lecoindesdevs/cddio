@@ -1,5 +1,6 @@
 //! Ticket manager
 
+#[cfg(migration_json_db)]
 mod json_to_db;
 
 use std::sync::Arc;
@@ -103,10 +104,8 @@ impl Tickets {
 impl Tickets {
     #[event(Ready)]
     async fn on_ready(&self, ctx: &Context, _:&ReadyEvent) {
-        log_info!("Migration des données de tickets...");
-        let res_migration = json_to_db::do_migration(&self.database, ctx.cache.current_user().id.0 as IDType).await;
-        std::fs::write("migration.log", format!("{:#?}", res_migration)).unwrap();
-        log_info!("Migration des données de tickets terminée");
+        #[cfg(migration_json_db)]
+        self.do_migration_json_db().await;
 
         let message_choice = self.data.read().await.message_choice;
         if let Some(MessageChoice { channel_id, message_id }) = message_choice {
@@ -123,6 +122,13 @@ impl Tickets {
                 self.reset_message_choose(None).await;
             }
         }
+    }
+    #[cfg(migration_json_db)]
+    async fn do_migration_json_db(&self) {
+        log_info!("Migration des données de tickets...");
+        let res_migration = json_to_db::do_migration(&self.database, ctx.cache.current_user().id.0 as IDType).await;
+        std::fs::write("migration.log", format!("{:#?}", res_migration)).unwrap();
+        log_info!("Migration des données de tickets terminée");
     }
     #[command(group="tickets", description="Assigne le salon de création de tickets")]
     async fn set_channel(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,

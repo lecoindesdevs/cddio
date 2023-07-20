@@ -38,6 +38,7 @@ features = ["unstable_discord_api", "builder", "cache", "client", "gateway", "ht
 [features]
 verbose = ["cddio-macros/verbose"]
 show_markdown = []
+migration_json_db = []
 
 [target.aarch64-unknown-linux-gnu.dependencies]
 openssl = { version = '0.10', features = ["vendored"] }
