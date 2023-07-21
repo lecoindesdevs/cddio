@@ -28,7 +28,13 @@ jobs:
           profile: minimal
           override: true
       - name: create env variable for OPENSSL_NO_VENDOR
-        run: echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+        run: echo "OPENSSL_NO_VENDOR=0" >> $GITHUB_ENV
+      - name: echo $GITHUB_ENV
+        run: echo $GITHUB_ENV
+      - name: cat $GITHUB_ENV
+        run: cat $GITHUB_ENV
+      - name: echo $OPENSSL_NO_VENDOR
+        run: echo $OPENSSL_NO_VENDOR
       - name: Build
         uses: actions-rs/cargo@v1
         with:
