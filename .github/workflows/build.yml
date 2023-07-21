@@ -32,7 +32,7 @@ jobs:
         with:
           command: build
           args: --release --target ${{ matrix.target }}
-          use-cross: true
+          use-cross: false
       - name: Rename Build
         run: mv target/${{ matrix.target }}/release/cddio target/${{ matrix.target }}/release/cddio-${{ matrix.target }}
       - name: Upload build artifact
