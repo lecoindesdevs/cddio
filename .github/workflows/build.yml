@@ -27,6 +27,8 @@ jobs:
           target: ${{ matrix.target }}
           profile: minimal
           override: true
+      - name: echo ENV
+        run: echo ${{ env }}
       - name: Build
         uses: actions-rs/cargo@v1
         with:
