@@ -1,38 +1,67 @@
 name: Build
 
 on:
-    workflow_dispatch:
-      
-    push:
-      branches: [ main ]
-    pull_request:
-      branches: [ main ]
+  workflow_dispatch:
+
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
-    build_linux_arm:
-        strategy:
-            fail-fast: false
-            matrix:
-                os: [ubuntu-latest]
-                arch: [aarch64, arm64, armv7]
-                mode: [release, debug]
-        runs-on: ${{ matrix.os }}
-        steps:
-            - uses: actions/checkout@v2
-            - name: Set up QEMU
-              uses: docker/setup-qemu-action@v1
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@v1
-            - name: Login to DockerHub
-              uses: docker/login-action@v1
-              with:
-                  username: ${{ secrets.DOCKER_USERNAME }}
-                  password: ${{ secrets.DOCKER_PASSWORD }}
-            - name: Build and push
-              uses: docker/build-push-action@v2
-              with:
-                  context: .
-                  file: ./Dockerfile
-                  platforms: linux/arm/v7
-                  push: true
-                  tags: ${{ secrets.DOCKER_USERNAME }}/docker-ubuntu-arm:latest
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: install openssl
+        run: sudo apt-get install libssl-dev
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          profile: minimal
+          override: true
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target ${{ matrix.target }}
+          use-cross: true
+      - name: Rename Build
+        run: mv target/${{ matrix.target }}/release/cddio target/${{ matrix.target }}/release/cddio-${{ matrix.target }}
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: cddio-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/cddio-${{ matrix.target }}
+
+  release:
+    needs: build
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Retreive version from Cargo.toml
+        id: version
+        run: echo ::set-output name=version::$(grep -m1 version Cargo.toml | cut -d '"' -f2)
+      - name: Download build artifact
+        uses: actions/download-artifact@v2
+      - name: Upload to Release
+        uses: meeDamian/github-release@2.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            cddio-aarch64-unknown-linux-gnu/cddio-aarch64-unknown-linux-gnu
+            cddio-aarch64-unknown-linux-musl/cddio-aarch64-unknown-linux-musl
+            cddio-x86_64-unknown-linux-gnu/cddio-x86_64-unknown-linux-gnu
+          tag: v${{ steps.version.outputs.version }}
+          name: CDDIO-v${{ steps.version.outputs.version }}
+          allow_override: true
