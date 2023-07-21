@@ -27,8 +27,8 @@ jobs:
           target: ${{ matrix.target }}
           profile: minimal
           override: true
-      - name: echo ENV
-        run: echo ${{ env }}
+      - name: create env variable for OPENSSL_NO_VENDOR
+        run: echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
       - name: Build
         uses: actions-rs/cargo@v1
         with:
