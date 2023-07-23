@@ -32,7 +32,7 @@ jobs:
       - name: Install gcc environnement for aarch64 musl
         if: matrix.target == 'aarch64-unknown-linux-musl'
         run:
-          wget http://more.musl.cc/x86_64-linux-musl/aarch64-linux-musl-cross.tgz;
+          wget -nv http://more.musl.cc/x86_64-linux-musl/aarch64-linux-musl-cross.tgz;
           tar -xf aarch64-linux-musl-cross.tgz;
           echo "PATH=$PWD/aarch64-linux-musl-cross/bin:$PATH" >> $GITHUB_ENV;
       - name: Install gcc environnement for aarch64 gnu
