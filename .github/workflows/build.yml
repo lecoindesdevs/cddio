@@ -38,14 +38,6 @@ jobs:
       - name: Install gcc environnement for aarch64 gnu
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: sudo apt install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
-      - name: create env variable for OPENSSL_NO_VENDOR
-        run: echo "OPENSSL_NO_VENDOR=0" >> $GITHUB_ENV
-      - name: echo $GITHUB_ENV
-        run: echo $GITHUB_ENV
-      - name: cat $GITHUB_ENV
-        run: cat $GITHUB_ENV
-      - name: echo $OPENSSL_NO_VENDOR
-        run: echo $OPENSSL_NO_VENDOR
       - name: Build
         uses: actions-rs/cargo@v1
         with:
