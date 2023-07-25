@@ -67,7 +67,7 @@ jobs:
         uses: meeDamian/github-release@2.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          files: |
+          files: >
             cddio-aarch64-unknown-linux-gnu/cddio-aarch64-unknown-linux-gnu
             cddio-aarch64-unknown-linux-musl/cddio-aarch64-unknown-linux-musl
             cddio-x86_64-unknown-linux-gnu/cddio-x86_64-unknown-linux-gnu
