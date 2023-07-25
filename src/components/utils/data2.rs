@@ -16,9 +16,11 @@ pub enum Error {
 #[derive(Debug)]
 pub struct Data<T>(RwLock<T>, PathBuf);
 
+const DATA_PATH: &str = "data";
+
 impl<T> Data<T> {
     fn filename(stem: &str) -> PathBuf {
-        PathBuf::from(format!("{}.json", stem))
+        PathBuf::from(Path::new(DATA_PATH).join(format!("{}.json", stem)))
     }
     pub fn new(stem: &str, data: T) -> Self {
         Self(RwLock::new(data), Self::filename(stem))
@@ -52,7 +54,8 @@ impl<T: Serialize> Data<T> {
         DataGuard::Read(self.0.read().await)
     }
     pub async fn write(&self) -> DataGuard<'_, T> {
-        DataGuard::Write(self.0.write().await, self.1.as_path())
+        DataGuard::Write(self.0.write().await, &self.1)
+
     }
 }
 
@@ -60,7 +63,7 @@ pub enum DataGuard<'a, T>
 where T: Serialize
 {
     Read(RwLockReadGuard<'a, T>),
-    Write(RwLockWriteGuard<'a, T>, &'a Path)
+    Write(RwLockWriteGuard<'a, T>, &'a PathBuf)
 }
 
 impl<'a, T: Serialize> Deref for DataGuard<'a, T> {

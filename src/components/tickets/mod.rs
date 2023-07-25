@@ -107,20 +107,8 @@ impl Tickets {
         #[cfg(feature = "migration_json_db")]
         self.do_migration_json_db(ctx).await;
 
-        let message_choice = self.data.read().await.message_choice;
-        if let Some(MessageChoice { channel_id, message_id }) = message_choice {
-            let mut msg = match ChannelId(channel_id).message(ctx, message_id).await {
-                Ok(msg) => msg,
-                Err(err) => {
-                    log_warn!("Erreur lors de la récupération du message du menu: {:?}", err);
-                    self.reset_message_choose(None).await;
-                    return;
-                }
-            };
-            if let Err(err) = self.update_menu(ctx, &mut msg).await {
-                log_warn!("Erreur lors de la mise à jour du menu: {}", err);
-                self.reset_message_choose(None).await;
-            }
+        if let Err(e) = self.update_menu(ctx).await {
+            log_error!("Erreur lors de la mise à jour du menu: {}", e);
         }
     }
     #[cfg(feature = "migration_json_db")]
@@ -161,17 +149,18 @@ impl Tickets {
         }
         let channel = chan.unwrap_or(app_cmd.0.channel_id);
 
-        let mut msg = match channel.send_message(ctx, |msg| msg.content("Sélectionnez le type de ticket que vous souhaitez créer :")).await {
+        let msg = match channel.send_message(ctx, |msg| msg.content("Sélectionnez le type de ticket que vous souhaitez créer :")).await {
             Ok(msg) => msg,
             Err(err) => {
                 log_error!("Erreur lors de l'envoi du message: {:?}", err);
                 return;
             }
         };
-        self.update_menu(ctx, &mut msg).await.unwrap_or_else(|e| {
+        self.data.write().await.message_choice = Some(MessageChoice{channel_id: channel.0, message_id: msg.id.0});
+        self.update_menu(ctx).await.unwrap_or_else(|e| {
             log_error!("Erreur lors de la mise a jour du menu: {:?}", e);
         });
-        self.data.write().await.message_choice = Some(MessageChoice{channel_id: channel.0, message_id: msg.id.0});
+        
         if let Err(err) = resp.send_message(message::success("Salon de création de tickets configuré")).await {
             log_error!("Erreur lors de l'envoi de la réponse: {:?}", err);
         }
@@ -208,6 +197,9 @@ impl Tickets {
                 Ok(id) => id,
                 Err(err) => break 'error Err(format!("Erreur lors de la création de la catégorie dans la base de données: {}", err))
             };
+            if let Err(e) = self.update_menu(ctx).await {
+                break 'error Err(format!("Erreur lors de la mise à jour du menu: {}", e));
+            }
             let category_model = match category::Entity::find_by_id(category_id).one(&*self.database).await {
                 Ok(Some(model)) => model,
                 Ok(None) => break 'error Err("L'insertion de la catégorie dans la base de données a échoué".to_string()),
@@ -409,7 +401,14 @@ impl Tickets {
 }
 
 impl Tickets {
-    async fn update_menu(&self, ctx: &Context, msg: &mut Message) -> serenity::Result<()>{
+    async fn update_menu(&self, ctx: &Context) -> serenity::Result<()> {
+        use std::ops::Deref;
+        let message_choice = self.data.read().await.deref().message_choice;
+        let mut msg = match message_choice {
+            Some(MessageChoice { channel_id, message_id }) => ChannelId(channel_id).message(ctx, message_id).await?,
+            _ => return Ok(()),
+        };
+
         let categories = match category::Entity::find()
             .filter(category::Column::Hidden.eq(false))
             .all(&*self.database).await 
