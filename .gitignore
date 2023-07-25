@@ -3,7 +3,6 @@ config.json
 config.yaml
 /data
 
-/.cargo
 /.vscode
 
 .DS_Store
