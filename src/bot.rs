@@ -48,7 +48,7 @@ impl Bot {
             container.add_component(cmp::SlashCommand::new(app_id, ref_container.clone(), owners_id));
             container.add_component(cmp::Misc::new(app_id, perms, ref_container.clone()));
             container.add_component(cmp::DalleMini);
-            container.add_component(cmp::Autobahn::new(modo));
+            container.add_component(cmp::Autobahn::new(modo, config.autobahn.unwrap_or_default()));
         }
         let client = Client::builder(&config_bot.token, GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT)
             .raw_event_handler(ref_container.read().await.get_event_dispatcher())
