@@ -41,7 +41,7 @@ impl Autobahn {
             Some(member) => member.roles.iter().map(|r| config::Mentionable::Role(r.0)).collect::<Vec<_>>(),
             None => return,
         };
-        if self.config.has(&roles) {
+        if self.config.has_exception(&roles) {
             return;
         }
         log_info!("MessageCreateEvent");

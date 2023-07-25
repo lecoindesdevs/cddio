@@ -39,7 +39,7 @@ pub struct Autobahn {
 }
 
 impl Autobahn {
-    pub fn has(&self, mention: &[Mentionable]) -> bool {
+    pub fn has_exception(&self, mention: &[Mentionable]) -> bool {
         self.exceptions.iter().any(|e| mention.contains(e))
     }
 }
