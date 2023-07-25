@@ -1,6 +1,7 @@
 //! Anti-spam system
 
 use crate::{log_error, log_warn, log_info};
+use crate::config::{self, Autobahn as AutobahnConfig};
 use std::sync::Arc;
 use std::collections::HashMap;
 use chrono::Utc;
@@ -10,6 +11,7 @@ use serenity::{model::{*, prelude::*}, client::Context};
 use std::hash::Hash;
 use super::Moderation;
 type MessageHash = u64;
+
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct MessageInfo {
@@ -21,6 +23,7 @@ struct MessageInfo {
 pub struct Autobahn {
     sent_messages: RwLock<Vec<(MessageHash, MessageInfo)>>,
     cmp_moderation: Arc<Moderation>,
+    config: AutobahnConfig,
 
     max_messages: usize,
     max_time: chrono::Duration,
@@ -32,6 +35,13 @@ impl Autobahn {
     async fn on_message_create(&self, ctx: &Context, msg_create: &MessageCreateEvent) {
         let msg = &msg_create.message;
         if msg.author.id == ctx.cache.current_user().id {
+            return;
+        }
+        let roles = match &msg_create.message.member {
+            Some(member) => member.roles.iter().map(|r| config::Mentionable::Role(r.0)).collect::<Vec<_>>(),
+            None => return,
+        };
+        if self.config.has(&roles) {
             return;
         }
         log_info!("MessageCreateEvent");
@@ -75,10 +85,11 @@ impl Autobahn {
 }
 
 impl Autobahn {
-    pub fn new(cmp_moderation: Arc<Moderation>) -> Autobahn {
+    pub fn new(cmp_moderation: Arc<Moderation>, config: AutobahnConfig) -> Autobahn {
         Autobahn {
             sent_messages: RwLock::new(Vec::with_capacity(100)),
             cmp_moderation,
+            config,
             max_messages: 4,
             max_time: chrono::Duration::seconds(20),
             mute_time: chrono::Duration::days(1),
