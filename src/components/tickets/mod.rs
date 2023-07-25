@@ -341,6 +341,10 @@ impl Tickets {
                 false
             }
         };
+        if let Err(e) = self.update_menu(ctx).await {
+            log_error!("Erreur lors de la mise à jour du menu: {}", e);
+        }
+        
         let guild_id = match msg.guild_id {
             Some(guild_id) => guild_id,
             None => {
