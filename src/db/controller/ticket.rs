@@ -17,7 +17,7 @@ pub async fn create_ticket(
 ) -> Result<IDType, Error> {
     log_info!("Creating ticket");
     discord::create_channel_if_not_exists(db, ctx, channel_id).await?;
-    discord::create_user_if_not_exists(db, ctx, opened_by).await?;
+    discord::save_user_from_id(db, ctx, opened_by).await?;
     
     let active_model = model::ticket::ActiveModel {
         category_id: sea_orm::ActiveValue::Set(category.id),
@@ -58,7 +58,7 @@ pub async fn archive_ticket(
         Err(e) => Err(Error::SeaORM(e))?,
         _ => ()
     }
-    discord::create_user_if_not_exists(db, ctx, closed_by_by).await?;
+    discord::save_user_from_id(db, ctx, closed_by_by).await?;
     super::discord::save_channel(db, ctx, channel_id).await?;
     let active_model = model::archive::ActiveModel {
         ticket_id: sea_orm::ActiveValue::Set(channel_id.0 as IDType),
