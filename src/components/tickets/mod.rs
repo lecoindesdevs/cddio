@@ -1,6 +1,6 @@
 //! Ticket manager
 
-#[cfg(migration_json_db)]
+#[cfg(feature = "migration_json_db")]
 mod json_to_db;
 
 use std::sync::Arc;
@@ -104,8 +104,8 @@ impl Tickets {
 impl Tickets {
     #[event(Ready)]
     async fn on_ready(&self, ctx: &Context, _:&ReadyEvent) {
-        #[cfg(migration_json_db)]
-        self.do_migration_json_db().await;
+        #[cfg(feature = "migration_json_db")]
+        self.do_migration_json_db(ctx).await;
 
         let message_choice = self.data.read().await.message_choice;
         if let Some(MessageChoice { channel_id, message_id }) = message_choice {
@@ -123,8 +123,8 @@ impl Tickets {
             }
         }
     }
-    #[cfg(migration_json_db)]
-    async fn do_migration_json_db(&self) {
+    #[cfg(feature = "migration_json_db")]
+    async fn do_migration_json_db(&self, ctx: &Context) {
         log_info!("Migration des données de tickets...");
         let res_migration = json_to_db::do_migration(&self.database, ctx.cache.current_user().id.0 as IDType).await;
         std::fs::write("migration.log", format!("{:#?}", res_migration)).unwrap();

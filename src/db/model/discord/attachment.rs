@@ -5,7 +5,7 @@ use crate::db::IDType;
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "discord_attachment")]
 pub struct Model {
-    #[sea_orm(primary_key)]
+    #[sea_orm(primary_key, auto_increment = false)]
     pub id: IDType,
     pub message_id: IDType,
     pub url: String,
