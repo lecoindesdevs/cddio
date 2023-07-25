@@ -233,7 +233,9 @@ impl Tickets {
             if let Err(e) = db_ctrl::ticket::remove_category(&*self.database, cat.id).await {
                 break 'error Err(format!("Erreur lors de la suppression de la catégorie dans la base de données: {:#?}", e));
             }
-            
+            if let Err(e) = self.update_menu(ctx).await {
+                break 'error Err(format!("Erreur lors de la mise à jour du menu: {}", e));
+            }
             Ok(cat)
         };
         match res {
