@@ -17,12 +17,31 @@ use serde::Deserialize;
 pub struct Config {
     pub bot: Bot,
     pub tickets: Option<Tickets>,
+    pub autobahn: Option<Autobahn>,
     #[serde(skip)]
     filepath: PathBuf,
 }
 #[derive(Deserialize)]
 pub struct Tickets {
     pub default_category: Option<String>
+}
+
+#[derive(Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", content = "id")]
+pub enum Mentionable {
+    User(u64),
+    Role(u64),
+}
+
+#[derive(Deserialize, Default)]
+pub struct Autobahn {
+    exceptions: Vec<Mentionable>,
+}
+
+impl Autobahn {
+    pub fn has(&self, mention: &[Mentionable]) -> bool {
+        mention.iter().any(|e| self.exceptions.contains(e))
+    }
 }
 
 #[derive(Deserialize)]
