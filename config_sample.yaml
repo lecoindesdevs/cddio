@@ -1,0 +1,14 @@
+bot:
+  token: ""
+  app_id: 123456789
+  database: "sqlite:./data.db?mode=rwc"
+  permissions: 8
+  owners: # discord ids of the owners/"sudoers" of the bot
+    - 123456789
+    - 987654321
+autobahn:
+  exceptions: # roles and users that are discarded from the auto-mute systeme
+    - type: Role
+      id: 123456789
+    - type: User
+      id: 1323456789
