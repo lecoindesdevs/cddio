@@ -50,6 +50,7 @@ pub struct Bot {
     pub app_id: u64,
     pub permissions: u64,
     pub owners: Vec<String>,
+    pub database: String
 }
 
 impl Config {
