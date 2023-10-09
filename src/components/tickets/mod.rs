@@ -130,22 +130,21 @@ impl Tickets {
                 return;
             }
         };
-        loop {
+        'msg: {
             let message_choice = self.data.read().await.message_choice;
             if let Some(MessageChoice { channel_id, message_id }) = message_choice {
                 let msg = match ChannelId(channel_id).message(ctx, message_id).await {
                     Ok(msg) => msg,
                     Err(err) => {
                         log_warn!("Erreur lors de la récupération du menu: {}", err);
-                        break;
+                        break 'msg;
                     }
                 };
                 if let Err(err) = msg.delete(ctx).await {
                     log_warn!("Erreur lors de la récupération du message: {}", err);
-                    break;
+                    break 'msg;
                 }
             }
-            break;
         }
         let channel = chan.unwrap_or(app_cmd.0.channel_id);
 
@@ -289,38 +288,38 @@ impl Tickets {
                 return;
             }
         };
-        let msg = loop {
+        let msg = 'msg: {
             let guild_id = match app_cmd.0.guild_id {
                 Some(guild_id) => guild_id,
-                None => break message::error("Cette commande n'est pas disponible dans un DM"),
+                None => break 'msg message::error("Cette commande n'est pas disponible dans un DM"),
             };
             
             match self.is_a_ticket(ctx, channel_id).await  {
                 Ok(true) => (),
-                Ok(false) => break message::error("Ce salon n'est pas un ticket"),
-                Err(e) => break message::error(e),
+                Ok(false) => break 'msg message::error("Ce salon n'est pas un ticket"),
+                Err(e) => break 'msg message::error(e),
             }
             let is_staff = match Self::is_staff(ctx, guild_id, app_cmd.0.user.id).await {
                 Ok(v) => v,
-                Err(e) => break message::error(e),
+                Err(e) => break 'msg message::error(e),
             };
             let is_owner = match Self::is_ticket_owner(ctx, channel_id, app_cmd.0.user.id).await {
                 Ok(v) => v,
-                Err(e) => break message::error(e),
+                Err(e) => break 'msg message::error(e),
             };
             if !is_staff && !is_owner {
-                break message::error("Vous n'avez pas la permission d'ajouter des membres au ticket.");
+                break 'msg message::error("Vous n'avez pas la permission d'ajouter des membres au ticket.");
             }
             
             let username = personne.to_user(ctx).await.map(|u| super::utils::user_fullname(&u)).unwrap_or_else(|_| personne.0.to_string());
-            break match channel_id.create_permission(ctx, &PermissionOverwrite {
+            match channel_id.create_permission(ctx, &PermissionOverwrite {
                 allow: Permissions::VIEW_CHANNEL,
                 deny: Default::default(),
                 kind: PermissionOverwriteType::Member(personne),
             }).await {
                 Ok(_) => message::success(format!("{} a bien été ajoutée.", username)),
                 Err(e) => message::error(format!("Impossible d'ajouter {}: {}", personne, e.to_string()))
-            };
+            }
         };
         delay_resp.send_message(msg).await.unwrap_or_else(|e| {
             log_error!("Erreur lors de l'envoi du message: {}", e);
