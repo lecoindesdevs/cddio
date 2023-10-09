@@ -11,7 +11,7 @@ use crate::{
         controller as db_ctrl,
         IDType
     },
-    config::Tickets as ConfigTicket, log_info
+    config::Tickets as ConfigTicket
 };
 use sea_orm::EntityTrait;
 use cddio_core::{message, ApplicationCommandEmbed};
@@ -19,14 +19,13 @@ use cddio_macros::component;
 use serde::{Serialize, Deserialize};
 use serenity::{
     client::Context,
-    model::{id::*, channel::Message, event::ReadyEvent, prelude::Member},
-    model::application::interaction:: {
-        message_component::MessageComponentInteraction
-    }, builder::CreateSelectMenuOption
+    model::{id::*, event::ReadyEvent, prelude::Member},
+    model::application::interaction::message_component::MessageComponentInteraction, 
+    builder::CreateSelectMenuOption
 };
 use sea_orm::{entity::*, query::*};
 
-use super::utils::data2::{Data, DataGuard};
+use super::utils::data2::Data;
 
 /// Le composant de gestion des tickets
 pub struct Tickets {
