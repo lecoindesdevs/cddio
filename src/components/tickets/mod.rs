@@ -169,6 +169,7 @@ impl Tickets {
             Self::send_error(ctx, app_cmd, e).await;
         }
     }
+    #[allow(clippy::too_many_arguments)]
     #[command(group="categories", name="add", description="Ajoute une catégorie de ticket. À ne pas confondre avec les catégories discord")]
     async fn add_categorie(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(name="nom", description="Nom de la catégorie")]
