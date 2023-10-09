@@ -214,6 +214,69 @@ impl Tickets {
             Self::send_error(ctx, app_cmd, e).await;
         }
     }
+    #[allow(clippy::too_many_arguments)]
+    #[command(group="categories", name="change", description="Change les données d'une categorie de ticket")]
+    async fn change_categorie(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
+        #[argument(name="nom", description="Nom de la catégorie")]
+        name: String,
+        #[argument(description="Catégorie Discord où les tickets seront créés", name="categorie_discord")]
+        category_id: Option<ChannelId>,
+        #[argument(description="Préfixe des tickets", name="prefix")]
+        prefix: Option<String>,
+        #[argument(description="Cacher la catégorie du menu de ticket ?")]
+        hidden: Option<bool>,
+        #[argument(description="Description de la catégorie", name="description")]
+        desc: Option<String>
+    ) {
+        let delay_resp = match app_cmd.delayed_response(ctx, false).await {
+            Ok(resp) => resp,
+            Err(e) => {
+                log_error!("Erreur lors de l'envoi du message: {}", e);
+                return;
+            }
+        };
+        let res = 'error: {
+            let model = {
+                let cat = category::Entity::find()
+                    .filter(category::Column::Name.eq(name))
+                    .one(&*self.database).await;
+                let cat = match cat {
+                    Ok(Some(cat)) => cat,
+                    Ok(None) => break 'error Err("Cette catégorie n'existe pas".to_string()),
+                    Err(err) => break 'error Err(format!("Erreur lors de la récupération de la catégorie dans la base de données: {:#?}", err))
+                };
+                cat
+            };
+            let mut active_model: category::ActiveModel = model.into();
+            if let Some(category_id) = category_id {
+                active_model.discord_category_id = Set(category_id.0 as i64);
+            }
+            if let Some(prefix) = prefix {
+                active_model.prefix = Set(prefix);
+            }
+            if let Some(hidden) = hidden {
+                active_model.hidden = Set(hidden);
+            }
+            if let Some(desc) = desc {
+                active_model.description = Set(Some(desc));
+            }
+            let new_model = match category::Entity::update(active_model).exec(&*self.database).await {
+                Ok(m) => m,
+                Err(e) => break 'error Err(format!("Erreur lors de la mise à jour de la catégorie dans la base de données: {:#?}", e)),
+            };
+            if let Err(e) = self.update_menu(ctx).await {
+                break 'error Err(format!("Erreur lors de la mise à jour du menu: {}", e));
+            }
+            Ok(new_model)
+        };
+        let msg = match res {
+            Ok(cat) => category_to_message(&cat, "Catégorie modifiée"),
+            Err(e) => message::error(format!("Erreur lors de la mise à jour de la catégorie: {}", e)),
+        };
+        delay_resp.send_message(msg).await.unwrap_or_else(|e| {
+            log_error!("Erreur lors de l'envoi du message: {}", e);
+        });
+    }
     #[command(group="categories", name="remove", description="Supprime une catégorie de ticket")]
     async fn remove_categorie(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(name="nom", description="Nom de la catégorie")]
