@@ -413,15 +413,12 @@ impl Moderation {
             log_warn!("Impossible d'enregistrer la sanction dans les logs: {}", e.to_string());
         }
         let msg = sanction.to_server_message(ctx).await;
-        match sanction {
-            Sanction { data: SanctionType::Ban { until: Some(until), .. } | SanctionType::Mute { until: Some(until), .. }, .. } => {
-                let mut tasks = self.tasks.write().await;
-                let tasks = tasks.as_mut().unwrap();
-                if let Err(e) = tasks.add(sanction, until.timestamp()).await {
-                    return Err(format!("Impossible d'ajouter la sanction à la liste: {}", e.to_string()))
-                }
-            },
-            _ => ()
+        if let Sanction { data: SanctionType::Ban { until: Some(until), .. }, .. } = sanction {
+            let mut tasks = self.tasks.write().await;
+            let tasks = tasks.as_mut().unwrap();
+            if let Err(e) = tasks.add(sanction, until.timestamp()).await {
+                return Err(format!("Impossible d'ajouter la sanction à la liste: {}", e))
+            }
         }
         Ok(msg)
     }

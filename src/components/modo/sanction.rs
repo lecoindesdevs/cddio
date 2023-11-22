@@ -73,23 +73,19 @@ impl Sanction {
             SanctionType::Ban{historique, reason, ..} => {
                 guild_id.ban_with_reason(ctx, user_id, *historique, reason).await
             },
-            SanctionType::Mute{..} => {
-                let role = guild_id
-                    .roles(ctx).await?
-                    .into_iter()
-                    .find(|(_, r)| r.name == ROLE_MUTED)
-                    .map(|(id, _)| id);
-                match role {
-                    Some(role) => {
-                        let mut member = guild_id.member(ctx, user_id).await?;
-                        member.add_role(ctx, role).await?;
-                        Ok(())
-                    },
+            SanctionType::Mute{ until, ..} => {
+                use serenity::model::timestamp::Timestamp;
+                let timestamp = match until {
+                    Some(until) => until.timestamp(),
                     None => {
-                        log_warn!("Impossible de trouver le rôle \"{}\" dans le serveur {}", ROLE_MUTED, guild_id);
-                        Err(serenity::Error::Other("Impossible de trouver le rôle \"muted\" dans le serveur"))
+                        Utc::now()
+                            .checked_add_signed(chrono::Duration::minutes(10))
+                            .ok_or_else(|| serenity::Error::Other("Impossible de trouver le temps"))?
+                            .timestamp()
                     }
-                }
+                };
+                let timestamp = Timestamp::from_unix_timestamp(timestamp).unwrap();
+                guild_id.member(ctx, user_id).await?.disable_communication_until_datetime(ctx, timestamp).await
             },
             SanctionType::Kick{reason} => {
                 guild_id.kick_with_reason(ctx, user_id, reason).await
@@ -98,22 +94,7 @@ impl Sanction {
                 guild_id.unban(ctx, user_id).await
             },
             SanctionType::Unmute => {
-                let role = guild_id
-                    .roles(ctx).await?
-                    .into_iter()
-                    .find(|(_, r)| r.name == ROLE_MUTED)
-                    .map(|(id, _)| id);
-                match role {
-                    Some(role) => {
-                        let mut member = guild_id.member(ctx, user_id).await?;
-                        member.remove_role(ctx, role).await?;
-                        Ok(())
-                    },
-                    None => {
-                        log_warn!("Impossible de trouver le rôle \"muted\" dans le serveur {}", guild_id);
-                        Err(serenity::Error::Other("Impossible de trouver le rôle \"muted\" dans le serveur"))
-                    }
-                } 
+                guild_id.member(ctx, user_id).await?.enable_communication(ctx).await
             }
         }
     }
