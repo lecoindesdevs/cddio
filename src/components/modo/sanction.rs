@@ -70,9 +70,7 @@ impl Sanction {
     pub async fn apply(&self, ctx: &Context) -> serenity::Result<()> {
         let (guild_id, user_id) = (self.guild_id, self.user_id);
         match &self.data {
-            SanctionType::Ban{historique, reason, ..} => {
-                guild_id.ban_with_reason(ctx, user_id, *historique, reason).await
-            },
+            SanctionType::Ban{historique, reason, ..} => guild_id.ban_with_reason(ctx, user_id, *historique, reason).await,
             SanctionType::Mute{ until, ..} => {
                 use serenity::model::timestamp::Timestamp;
                 let timestamp = match until {
@@ -87,15 +85,9 @@ impl Sanction {
                 let timestamp = Timestamp::from_unix_timestamp(timestamp).unwrap();
                 guild_id.member(ctx, user_id).await?.disable_communication_until_datetime(ctx, timestamp).await
             },
-            SanctionType::Kick{reason} => {
-                guild_id.kick_with_reason(ctx, user_id, reason).await
-            },
-            SanctionType::Unban => {
-                guild_id.unban(ctx, user_id).await
-            },
-            SanctionType::Unmute => {
-                guild_id.member(ctx, user_id).await?.enable_communication(ctx).await
-            }
+            SanctionType::Kick{reason} => guild_id.kick_with_reason(ctx, user_id, reason).await,
+            SanctionType::Unban => guild_id.unban(ctx, user_id).await,
+            SanctionType::Unmute => guild_id.member(ctx, user_id).await?.enable_communication(ctx).await,
         }
     }
     pub fn user_id(&self) -> UserId {
@@ -148,26 +140,14 @@ impl Sanction {
     fn to_message<S: ToString>(&self, color: serenity::utils::Colour, description: S) -> message::Message {
         let mut m = message::Message::new();
         m.add_embed(|e| {
-            e.title(self.name());
-            e.description(description);
-            e.color(color);
-            match &self.data {
-                SanctionType::Ban{until, reason, ..} => {
-                    if let Some(until) = until {
-                        e.field("Temps", Self::format_date(&until), true);
-                    }
-                    e.field("Raison", reason, true);
-                },
-                SanctionType::Mute{until, reason, ..} => {
-                    if let Some(until) = until {
-                        e.field("Temps", Self::format_date(&until), true);
-                    }
-                    e.field("Raison", reason, true);
-                },
-                SanctionType::Kick{reason, ..} => {
-                    e.field("Raison", reason, true);
-                },
-                _ => ()
+            e.title(self.name())
+                .description(description)
+                .color(color);
+            if let SanctionType::Ban{until: Some(until), ..} | SanctionType::Mute{until: Some(until), ..} = &self.data {
+                e.field("Temps", Self::format_date(until), true);
+            }
+            if let SanctionType::Ban{reason, ..} | SanctionType::Mute{reason, ..} | SanctionType::Kick{reason, ..} = &self.data {
+                e.field("Raison", reason, true);
             }
             e
         });
