@@ -42,6 +42,12 @@ impl Moderation {
     }
 }
 
+impl Default for Moderation {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 const AUDIT_TIME_THRESHOLD: i64 = 60;
 
 #[component]
@@ -63,30 +69,26 @@ impl Moderation {
     }
     #[event(GuildBanAdd)]
     async fn on_ban_add(&self, ctx: &Context, event: &GuildBanAddEvent) {
-        match self.push_log(ctx, event.guild_id, event.user.id, 22).await {
-            Ok(_) => {},
-            Err(e) => log_error!("{}", e),
+        if let Err(e) = self.push_log(ctx, event.guild_id, event.user.id, 22).await {
+            log_error!("{}", e);
         }
     }
     #[event(GuildBanRemove)]
     async fn on_ban_remove(&self, ctx: &Context, event: &GuildBanRemoveEvent) {
-        match self.push_log(ctx, event.guild_id, event.user.id, 23).await {
-            Ok(_) => {},
-            Err(e) => log_error!("{}", e),
+        if let Err(e) = self.push_log(ctx, event.guild_id, event.user.id, 23).await {
+            log_error!("{}", e);
         }
     }
     #[event(GuildMemberRemove)]
     async fn on_member_remove(&self, ctx: &Context, event: &GuildMemberRemoveEvent) {
-        match self.push_log(ctx, event.guild_id, event.user.id, 20).await {
-            Ok(_) => {},
-            Err(e) => log_error!("{}", e),
+        if let Err(e) = self.push_log(ctx, event.guild_id, event.user.id, 20).await {
+            log_error!("{}", e);
         }
     }
     #[event(GuildMemberUpdate)]
     async fn on_member_update(&self, ctx: &Context, event: &GuildMemberUpdateEvent) {
-        match self.push_log(ctx, event.guild_id, event.user.id, 20).await {
-            Ok(_) => {},
-            Err(e) => log_error!("{}", e),
+        if let Err(e) = self.push_log(ctx, event.guild_id, event.user.id, 24).await {
+            log_error!("{}", e);
         }
     }
     
@@ -102,36 +104,22 @@ impl Moderation {
         #[argument(description="Durée du ban")]
         duree: Option<String>
     ) {
-        let resp = match app_cmd.delayed_response(ctx, false).await {
-            Ok(resp) => resp,
-            Err(e) => {
-                log_error!("{}", e);
-                return;
-            }
-        };
-        let msg = loop {
-            let guild_id = match app_cmd.get_guild_id() {
-                Some(guild_id) => guild_id,
-                None => break message::error("Cette commande doit être executé sur un serveur.".to_string()),
+        self.command_send(ctx, &app_cmd, async {
+            let Some(guild_id) = app_cmd.get_guild_id() else {
+                 return message::error("Cette commande doit être executé sur un serveur.".to_string());
             };
             let user_by = app_cmd.0.user.id;
-            let until = match Self::duration_to_datetime(ctx, &app_cmd,  duree).await {
-                Some(v) => v,
-                None => break message::error("Durée invalide"),
+            let Some(until) = Self::duration_to_datetime(ctx, &app_cmd,  duree).await else {
+                return message::error("Durée invalide");
             };
-            break match self.ban(ctx, guild_id, member, Some(user_by), raison, until, del_msg).await {
+            match self.ban(ctx, guild_id, member, Some(user_by), raison, until, del_msg).await {
                 Ok(v) => v,
                 Err(e) => {
                     log_error!("{}", e);
                     message::error(e)
                 }
-            };
-        };
-        match resp.send_message(msg).await {
-            Ok(_) => {},
-            Err(e) => log_error!("{}", e),
-        }
-        
+            }
+        }).await;
     }
     #[command(name="kick",description="Expulse un membre du serveur")]
     async fn com_kick(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
@@ -140,31 +128,19 @@ impl Moderation {
         #[argument(description="Raison de l'expulsion")]
         raison: String
     ) {
-        let resp = match app_cmd.delayed_response(ctx, false).await {
-            Ok(resp) => resp,
-            Err(e) => {
-                log_error!("{}", e);
-                return;
-            }
-        };
-        let msg = loop {
-            let guild_id = match app_cmd.get_guild_id() {
-                Some(guild_id) => guild_id,
-                None => break message::error("Cette commande doit être executé sur un serveur.".to_string()),
+        self.command_send(ctx, &app_cmd, async {
+            let Some(guild_id) = app_cmd.get_guild_id() else {
+                return message::error("Cette commande doit être executé sur un serveur.".to_string());
             };
             let user_by = app_cmd.0.user.id;
-            break match self.kick(ctx, guild_id, member, Some(user_by), raison).await {
+            match self.kick(ctx, guild_id, member, Some(user_by), raison).await {
                 Ok(v) => v,
                 Err(e) => {
                     log_error!("{}", e);
                     message::error(e)
                 }
-            };
-        };
-        match resp.send_message(msg).await {
-            Ok(_) => {},
-            Err(e) => log_error!("{}", e),
-        }
+            }
+        }).await;
     }
     
     #[command(name="mute",description="Mute un membre du serveur")]
@@ -176,72 +152,69 @@ impl Moderation {
         #[argument(description="Durée du mute")]
         duree: Option<String>
     ) {
-        let resp = match app_cmd.delayed_response(ctx, false).await {
-            Ok(resp) => resp,
-            Err(e) => {
-                log_error!("{}", e);
-                return;
-            }
-        };
-        let msg = loop {
-            let guild_id = match app_cmd.get_guild_id() {
-                Some(guild_id) => guild_id,
-                None => break message::error("Cette commande doit être executé sur un serveur.".to_string()),
+        self.command_send(ctx, &app_cmd, async {
+            let Some(guild_id) = app_cmd.get_guild_id() else {
+                return message::error("Cette commande doit être executé sur un serveur.".to_string());
             };
             let user_by = app_cmd.0.user.id;
-            let until = match Self::duration_to_datetime(ctx, &app_cmd,  duree).await {
-                Some(v) => v,
-                None => break message::error("Durée invalide"),
+            let Some(until) = Self::duration_to_datetime(ctx, &app_cmd,  duree).await else {
+                return message::error("Durée invalide");
             };
-            break match self.mute(ctx, guild_id, member, Some(user_by), raison, until).await {
+            match self.mute(ctx, guild_id, member, Some(user_by), raison, until).await {
                 Ok(v) => v,
                 Err(e) => {
                     log_error!("{}", e);
                     message::error(e)
                 }
-            };
-        };
-        match resp.send_message(msg).await {
-            Ok(_) => {},
-            Err(e) => log_error!("{}", e),
-        }
+            }
+        }).await;
     }
     #[command(name="unban",description="Débanni un membre du serveur")]
     async fn com_unban(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(description="Membre à débannir", name="qui")]
         member: UserId
     ) {
-        let resp = match app_cmd.delayed_response(ctx, false).await {
-            Ok(resp) => resp,
-            Err(e) => {
-                log_error!("{}", e);
-                return;
-            }
-        };
-        let msg = loop {
-            let guild_id = match app_cmd.get_guild_id() {
-                Some(guild_id) => guild_id,
-                None => break message::error("Cette commande doit être executé sur un serveur.".to_string()),
+        self.command_send(ctx, &app_cmd, async {
+            let Some(guild_id) = app_cmd.get_guild_id() else {
+                return message::error("Cette commande doit être executé sur un serveur.".to_string());
             };
             let user_by = app_cmd.0.user.id;
-            break match self.unban(ctx, guild_id, member, Some(user_by)).await {
+            match self.unban(ctx, guild_id, member, Some(user_by)).await {
                 Ok(v) => v,
                 Err(e) => {
                     log_error!("{}", e);
                     message::error(e)
                 }
-            };
-        };
-        match resp.send_message(msg).await {
-            Ok(_) => {},
-            Err(e) => log_error!("{}", e),
-        }
+            }
+        }).await;
     }
     #[command(name="unmute",description="Démute un membre du serveur")]
     async fn com_unmute(&self, ctx: &Context, app_cmd: ApplicationCommandEmbed<'_>,
         #[argument(description="Membre à démute", name="qui")]
         member: UserId
     ) {
+        self.command_send(ctx, &app_cmd, async {
+            let Some(guild_id) = app_cmd.get_guild_id() else {
+                return message::error("Cette commande doit être executé sur un serveur.".to_string());
+            };
+            let user_by = app_cmd.0.user.id;
+            match self.unmute(ctx, guild_id, member, Some(user_by)).await {
+                Ok(v) => v,
+                Err(e) => {
+                    log_error!("{}", e);
+                    message::error(e)
+                }
+            }
+        }).await;
+    }
+
+}
+
+impl Moderation {
+    async fn command_send<Fut>(&self, ctx: &Context, app_cmd: &ApplicationCommandEmbed<'_>, f: Fut)
+    where 
+        Fut: std::future::Future<Output = message::Message>,
+    {
         let resp = match app_cmd.delayed_response(ctx, false).await {
             Ok(resp) => resp,
             Err(e) => {
@@ -249,29 +222,11 @@ impl Moderation {
                 return;
             }
         };
-        let msg = loop {
-            let guild_id = match app_cmd.get_guild_id() {
-                Some(guild_id) => guild_id,
-                None => break message::error("Cette commande doit être executé sur un serveur.".to_string()),
-            };
-            let user_by = app_cmd.0.user.id;
-            break match self.unmute(ctx, guild_id, member, Some(user_by)).await {
-                Ok(v) => v,
-                Err(e) => {
-                    log_error!("{}", e);
-                    message::error(e)
-                }
-            };
-        };
-        match resp.send_message(msg).await {
-            Ok(_) => {},
-            Err(e) => log_error!("{}", e),
+        let msg = f.await;
+        if let Err(e) = resp.send_message(msg).await {
+            log_error!("{}", e);
         }
     }
-
-}
-
-impl Moderation {
     #[inline]
     pub async fn ban(&self, ctx: &Context, guild_id: GuildId, user_id: UserId, user_by: Option<UserId>, reason: String, until: Option<DateTime<Utc>>, historique: Option<u8>) -> Result<message::Message, String> {
         let sanction = Sanction {
@@ -332,8 +287,7 @@ impl Moderation {
         self.do_sanction(ctx, sanction).await
     }
     async fn abort_last_sanction(&self, user_id: UserId, guild_id: GuildId) {
-        match 
-        {
+        let found_id = {
             let tasks = self.tasks.read().await;
             let registry = tasks
                 .as_ref()
@@ -344,25 +298,21 @@ impl Moderation {
             registry
                 .find_one(|v| v.data.user_id == user_id && v.data.guild_id == guild_id).await
                 .map(|(id, _)| id)
-        } 
-        // Some(2)
-        {
-            Some(v) => {
-                log_info!("Retrait de l'ancienne sanction du membre {}", user_id);
-                let mut tasks = self.tasks.write().await;
-                match tasks.as_mut().unwrap().remove(v).await {
-                    Ok(_) => log_info!("Sanction retirée"),
-                    Err(e) => log_error!("Impossible de supprimer la sanction: {}", e)
-                }
-            },
-            None => ()
         };
+        if let Some(id) = found_id {
+            log_info!("Retrait de l'ancienne sanction du membre {}", user_id);
+            let mut tasks = self.tasks.write().await;
+            match tasks.as_mut().unwrap().remove(id).await {
+                Ok(_) => log_info!("Sanction retirée"),
+                Err(e) => log_error!("Impossible de supprimer la sanction: {}", e)
+            }
+        }
     }
     async fn check_roles(ctx: &Context, guild_id: GuildId, user_to: UserId, user_by: UserId) -> serenity::Result<bool> {
         let member_to = guild_id.member(ctx, user_to).await?;
         let member_by = guild_id.member(ctx, user_by).await?;
         let find_top_role = |member: &serenity::model::guild::Member| member
-            .roles(&ctx)
+            .roles(ctx)
             .and_then(|roles| {
                 roles.into_iter().map(|r| r.position).max()
             })
@@ -380,55 +330,47 @@ impl Moderation {
             match Self::check_roles(ctx, guild_id, user_id, user_by).await {
                 Ok(true) => (),
                 Ok(false) => return Err("Vous avez un rôle plus faible que celui que vous tentez de santionner".to_string()),
-                Err(e) => return Err(format!("Impossible de vérifier les roles des membres: {}", e.to_string())),
+                Err(e) => return Err(format!("Impossible de vérifier les roles des membres: {}", e)),
             }
         }
         self.abort_last_sanction(user_id, guild_id).await;
 
         match sanction.data() {
             SanctionType::Ban { .. } | SanctionType::Mute { .. } | SanctionType::Kick { .. } => {
-                let user = match user_id.to_user(&ctx).await {
-                    Ok(v) => Some(v),
-                    Err(_) => None
-                };
+                let user = user_id.to_user(ctx).await.ok();
                 if let Some(user) = &user {
-                    let msg = sanction.to_user_message(&ctx).await;
+                    let msg = sanction.to_user_message(ctx).await;
                     let res = user.direct_message(ctx, |create_msg| {
                         *create_msg = msg.into();
                         create_msg
-                   }).await;
-                   match res {
-                        Ok(_) => (),
-                        Err(e) => log_warn!("L'utilisateur {} a été trouvé mais impossible de lui envoyer un message: {}", user_id, e.to_string())
-                   }
+                    }).await;
+                    if let Err(e) = res {
+                        log_warn!("L'utilisateur {} a été trouvé mais impossible de lui envoyer un message: {}", user_id, e)
+                    }
                 }
             }
             _ => ()
         }
-        match sanction.apply(ctx).await {
-            Ok(_) => (),
-            Err(e) => return Err(format!("Impossible d'appliquer la sanction: {}", e.to_string())),
-        };
+        if let Err(e) = sanction.apply(ctx).await {
+            return Err(format!("Impossible d'appliquer la sanction: {}", e))
+        }
         if let Err(e) = self.logger.push(&sanction).await {
-            log_warn!("Impossible d'enregistrer la sanction dans les logs: {}", e.to_string());
+            log_warn!("Impossible d'enregistrer la sanction dans les logs: {}", e);
         }
         let msg = sanction.to_server_message(ctx).await;
-        match sanction {
-            Sanction { data: SanctionType::Ban { until: Some(until), .. } | SanctionType::Mute { until: Some(until), .. }, .. } => {
-                let mut tasks = self.tasks.write().await;
-                let tasks = tasks.as_mut().unwrap();
-                if let Err(e) = tasks.add(sanction, until.timestamp()).await {
-                    return Err(format!("Impossible d'ajouter la sanction à la liste: {}", e.to_string()))
-                }
-            },
-            _ => ()
+        if let Sanction { data: SanctionType::Ban { until: Some(until), .. }, .. } = sanction {
+            let mut tasks = self.tasks.write().await;
+            let tasks = tasks.as_mut().unwrap();
+            if let Err(e) = tasks.add(sanction, until.timestamp()).await {
+                return Err(format!("Impossible d'ajouter la sanction à la liste: {}", e))
+            }
         }
         Ok(msg)
     }
     #[inline]
     async fn duration_to_datetime(ctx: &Context, app_cmd: &ApplicationCommandEmbed<'_>, duration_str: Option<String>) -> Option<Option<DateTime<Utc>>> {
         let res = duration_str
-            .map(|v| time::parse(v))
+            .map(time::parse)
             .transpose()
             .map(|v| v.map(|v| Utc::now() + Duration::seconds(v as _)));
         match res {

@@ -70,51 +70,24 @@ impl Sanction {
     pub async fn apply(&self, ctx: &Context) -> serenity::Result<()> {
         let (guild_id, user_id) = (self.guild_id, self.user_id);
         match &self.data {
-            SanctionType::Ban{historique, reason, ..} => {
-                guild_id.ban_with_reason(ctx, user_id, *historique, reason).await
-            },
-            SanctionType::Mute{..} => {
-                let role = guild_id
-                    .roles(ctx).await?
-                    .into_iter()
-                    .find(|(_, r)| r.name == ROLE_MUTED)
-                    .map(|(id, _)| id);
-                match role {
-                    Some(role) => {
-                        let mut member = guild_id.member(ctx, user_id).await?;
-                        member.add_role(ctx, role).await?;
-                        Ok(())
-                    },
+            SanctionType::Ban{historique, reason, ..} => guild_id.ban_with_reason(ctx, user_id, *historique, reason).await,
+            SanctionType::Mute{ until, ..} => {
+                use serenity::model::timestamp::Timestamp;
+                let timestamp = match until {
+                    Some(until) => until.timestamp(),
                     None => {
-                        log_warn!("Impossible de trouver le rôle \"{}\" dans le serveur {}", ROLE_MUTED, guild_id);
-                        Err(serenity::Error::Other("Impossible de trouver le rôle \"muted\" dans le serveur"))
+                        Utc::now()
+                            .checked_add_signed(chrono::Duration::minutes(10))
+                            .ok_or_else(|| serenity::Error::Other("Impossible de trouver le temps"))?
+                            .timestamp()
                     }
-                }
+                };
+                let timestamp = Timestamp::from_unix_timestamp(timestamp).unwrap();
+                guild_id.member(ctx, user_id).await?.disable_communication_until_datetime(ctx, timestamp).await
             },
-            SanctionType::Kick{reason} => {
-                guild_id.kick_with_reason(ctx, user_id, reason).await
-            },
-            SanctionType::Unban => {
-                guild_id.unban(ctx, user_id).await
-            },
-            SanctionType::Unmute => {
-                let role = guild_id
-                    .roles(ctx).await?
-                    .into_iter()
-                    .find(|(_, r)| r.name == ROLE_MUTED)
-                    .map(|(id, _)| id);
-                match role {
-                    Some(role) => {
-                        let mut member = guild_id.member(ctx, user_id).await?;
-                        member.remove_role(ctx, role).await?;
-                        Ok(())
-                    },
-                    None => {
-                        log_warn!("Impossible de trouver le rôle \"muted\" dans le serveur {}", guild_id);
-                        Err(serenity::Error::Other("Impossible de trouver le rôle \"muted\" dans le serveur"))
-                    }
-                } 
-            }
+            SanctionType::Kick{reason} => guild_id.kick_with_reason(ctx, user_id, reason).await,
+            SanctionType::Unban => guild_id.unban(ctx, user_id).await,
+            SanctionType::Unmute => guild_id.member(ctx, user_id).await?.enable_communication(ctx).await,
         }
     }
     pub fn user_id(&self) -> UserId {
@@ -167,26 +140,14 @@ impl Sanction {
     fn to_message<S: ToString>(&self, color: serenity::utils::Colour, description: S) -> message::Message {
         let mut m = message::Message::new();
         m.add_embed(|e| {
-            e.title(self.name());
-            e.description(description);
-            e.color(color);
-            match &self.data {
-                SanctionType::Ban{until, reason, ..} => {
-                    if let Some(until) = until {
-                        e.field("Temps", Self::format_date(&until), true);
-                    }
-                    e.field("Raison", reason, true);
-                },
-                SanctionType::Mute{until, reason, ..} => {
-                    if let Some(until) = until {
-                        e.field("Temps", Self::format_date(&until), true);
-                    }
-                    e.field("Raison", reason, true);
-                },
-                SanctionType::Kick{reason, ..} => {
-                    e.field("Raison", reason, true);
-                },
-                _ => ()
+            e.title(self.name())
+                .description(description)
+                .color(color);
+            if let SanctionType::Ban{until: Some(until), ..} | SanctionType::Mute{until: Some(until), ..} = &self.data {
+                e.field("Temps", Self::format_date(until), true);
+            }
+            if let SanctionType::Ban{reason, ..} | SanctionType::Mute{reason, ..} | SanctionType::Kick{reason, ..} = &self.data {
+                e.field("Raison", reason, true);
             }
             e
         });
