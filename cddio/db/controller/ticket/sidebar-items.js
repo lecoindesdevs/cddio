@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["add_category","archive_ticket","create_ticket","create_ticket_if_not_exist","is_ticket_exists","remove_category"]};

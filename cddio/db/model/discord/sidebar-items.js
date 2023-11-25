@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["attachment","channel","message","user"]};

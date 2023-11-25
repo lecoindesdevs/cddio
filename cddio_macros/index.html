@@ -1,0 +1,160 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="CDDIO MACROS"><title>cddio_macros - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-cb6f1f67f1bcd037.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="cddio_macros" data-themes="" data-resource-suffix="" data-rustdoc-version="1.73.0 (cc66ad468 2023-10-03)" data-channel="1.73.0" data-search-js="search-6dfdfced5eff6596.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-1596385f77d47ef2.css" data-theme-dark-css="dark-0a43001d3fc2282c.css" data-theme-ayu-css="ayu-fd19013d6ce078bf.css" ><script src="../static.files/storage-db41da1a38ea3cb8.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-0795b7d26be81095.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../static.files/light-1596385f77d47ef2.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../static.files/dark-0a43001d3fc2282c.css"><link rel="stylesheet" href="../static.files/noscript-cffde32267a19fd6.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="logo-container" href="../cddio_macros/index.html"><img class="rust-logo" src="../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><h2></h2></nav><nav class="sidebar"><a class="logo-container" href="../cddio_macros/index.html"><img class="rust-logo" src="../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><h2 class="location"><a href="#">Crate cddio_macros</a></h2><div class="sidebar-elems"><ul class="block"><li class="version">Version 1.0.0</li><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#attributes">Attribute Macros</a></li></ul></section></div></nav><main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">cddio_macros</a><button id="copy-path" title="Copy item path to clipboard"><img src="../static.files/clipboard-7571035ce49a181d.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="src" href="../src/cddio_macros/lib.rs.html#1-363">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="cddio-macros"><a href="#cddio-macros">CDDIO MACROS</a></h2><h3 id="exemple-dutilisation"><a href="#exemple-dutilisation">Exemple d’utilisation</a></h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>cddio_core::{ApplicationCommandEmbed, message};
+<span class="kw">use </span>serenity::{
+    client::Context,
+    event::<span class="kw-2">*</span>,
+    model::{
+        event::ReadyEvent,
+        id::ChannelId
+    }
+}
+
+<span class="kw">struct </span>MyComponent;
+
+<span class="attr">#[component]
+</span><span class="kw">impl </span>MyComponent {
+    <span class="doccomment">/// Nom de la commande Discord: ping
+    /// Arguments: (aucun)
+    /// Description: Renvoie un message &#39;Pong!&#39;
+    </span><span class="attr">#[command(name=<span class="string">&quot;ping&quot;</span>, description=<span class="string">&quot;Renvoie un message &#39;Pong!&#39;&quot;</span>)]
+    </span><span class="kw">async fn </span>ping_cmd(ctx: <span class="kw-2">&amp;</span>Context, app_cmd: ApplicationCommandEmbed&lt;<span class="lifetime">&#39;_</span>&gt;)
+    {
+        <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = app_cmd.direct_response(ctx, message::success(<span class="string">&quot;Pong!&quot;</span>)).<span class="kw">await </span>{
+            <span class="macro">println!</span>(<span class="string">&quot;ping: Erreur lors de la réponse: {}&quot;</span>, e);
+        }
+    }
+    <span class="doccomment">/// Nom de la commande Discord: creer_embed
+    /// Arguments: 
+    ///     - titre (obligatoire): type Texte,      Titre de l&#39;embed
+    ///     - contenu (obligatoire): type Texte,    Contenu de l&#39;embed
+    ///     - salon (optionnel): type ChannelId,    Salon où l&#39;envoyer. Salon actuel par défaut
+    ///     
+    /// Description: Renvoie un message &#39;Pong!&#39;
+    </span><span class="attr">#[command(description=<span class="string">&quot;Renvoie un message &#39;Pong!&#39;&quot;</span>)]
+    </span><span class="kw">async fn </span>creer_embed(ctx: <span class="kw-2">&amp;</span>Context, app_cmd: ApplicationCommandEmbed&lt;<span class="lifetime">&#39;_</span>&gt;
+        <span class="attr">#[argument(description=<span class="string">&quot;Titre de l&#39;embed&quot;</span>)]
+        </span>titre: String,
+        <span class="attr">#[argument(name=<span class="string">&quot;contenu&quot;</span>, description=<span class="string">&quot;Contenu de l&#39;embed&quot;</span>)]
+        </span>content: String,
+        <span class="attr">#[argument(description=<span class="string">&quot;Salon où l&#39;envoyer. Salon actuel par défaut&quot;</span>)]
+        </span>salon: <span class="prelude-ty">Option</span>&lt;ChannelId&gt;,
+    )
+    {
+        <span class="doccomment">/// implémentation...
+    </span>}
+    <span class="doccomment">/// Evenement appelé lorsque le bot est prêt
+    </span><span class="attr">#[event(Ready)]
+    </span><span class="kw">async fn </span>on_ready(ctx: <span class="kw-2">&amp;</span>Context, _evt_ready: <span class="kw-2">&amp;</span>ReadyEvent)
+    {
+        <span class="macro">println!</span>(<span class="string">&quot;Bot is ready&quot;</span>);
+    }
+}</code></pre></div>
+<h3 id="api"><a href="#api">API</a></h3>
+<p>Cette crate ne possède que des macros de type attribut à attacher à des symboles Rust.</p>
+<p>Sauf dans le cas de l’attribut event, les arguments prennent la forme suivante: <code>nom_argument_1=&quot;valeur 1&quot;, nom_argument2=&quot;valeur 2&quot;, ...</code>. L’ordre des arguments n’importe pas.</p>
+<h4 id="component"><a href="#component"><code>#[component]</code></a></h4>
+<p>Déclare une implémentation de structure en composant.</p>
+<p>Sans cette attribut, les autres attributs qui suivent ne seront pas détectés correctement. Il est impératif de l’appliquer à une implémentation de structure. Cette attribut ne doit être utilisé sur qu’une seule implémentation par structure.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">struct </span>MyStruct;
+
+<span class="attr">#[component]
+</span><span class="kw">impl </span>MyStruct
+{
+
+}</code></pre></div>
+<h4 id="group"><a href="#group"><code>#[group()]</code></a></h4>
+<p>Déclare un groupe de commande Discord. </p>
+<p>Par exemple pour créer la commande <code>ticket create</code>, <em>ticket</em> est un groupe de commande et <em>create</em> est une commande associée à ce groupe. Voir l’API <a href="#command">command</a> pour associer une commande à un groupe. Un groupe peut s’associer à un autre groupe avec l’argument <em>parent</em>. Il faut que le groupe <em>parent</em> soit déclaré avant le groupe en cours. Le nom du groupe ne doit pas contenir de caractère blanc. Les attributs <em>group</em> doivent être déclaré sur l’implémentation de la structure en dessous de l’attribut <a href="#component">component</a>.</p>
+<div><table><thead><tr><th style="text-align: left">argument</th><th style="text-align: center">optionnel</th><th style="text-align: left">description</th></tr></thead><tbody>
+<tr><td style="text-align: left"><em>name</em></td><td style="text-align: center"></td><td style="text-align: left">Nom du groupe</td></tr>
+<tr><td style="text-align: left"><em>description</em></td><td style="text-align: center"></td><td style="text-align: left">Description du groupe</td></tr>
+<tr><td style="text-align: left"><em>parent</em></td><td style="text-align: center">x</td><td style="text-align: left">Nom du groupe sur lequel s’associer</td></tr>
+</tbody></table>
+</div>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">struct </span>MyStruct;
+
+<span class="attr">#[component]
+#[group(name=<span class="string">&quot;ticket&quot;</span>, description=<span class="string">&quot;Gestion des tickets&quot;</span>)]
+#[group(name=<span class="string">&quot;member&quot;</span>, description=<span class="string">&quot;Gestion des membre dans un ticket&quot;</span>, parent=<span class="string">&quot;ticket&quot;</span>)]
+</span><span class="kw">impl </span>MyStruct {
+    <span class="attr">#[command(name=<span class="string">&quot;add&quot;</span>, description=<span class="string">&quot;Ajouter un membre au ticket&quot;</span>)]
+    </span><span class="kw">async fn </span>ticket_member_add(ctx: <span class="kw-2">&amp;</span>Context, app_cmd: ApplicationCommandEmbed&lt;<span class="lifetime">&#39;_</span>&gt;,
+        <span class="attr">#[argument(description=<span class="string">&quot;Membre à ajouter&quot;</span>)]
+        </span>member: UserId
+        <span class="attr">#[argument(name=<span class="string">&quot;bienvenue&quot;</span>, description=<span class="string">&quot;Message de bienvenue&quot;</span>)]
+        </span>welcome: <span class="prelude-ty">Option</span>&lt;String&gt;
+    ) 
+    {}
+}</code></pre></div>
+<h4 id="command"><a href="#command"><code>#[command()]</code></a></h4>
+<p>Déclare une commande Discord à partir d’une fonction Rust. </p>
+<p>Le nom de la commande ne doit pas contenir de caractère blanc. Une commande déclaré sans group est déclaré au premier niveau, c’est à dire que son nom est disponible juste après le slash. Pour créer des groupes de commande, allez voir l’attribut <a href="#group">group</a>. Pour associer une commande à un groupe, utilisez l’argument <em>parent</em> avec le nom du groupe. Les commandes n’ont aucun argument obligatoire. Néanmoins, le contexte et l’application command seront nécessaire pour répondre à la commande. Dans un but de simplification, l’argument de l’application command utilise un type custom de cddio-core : <code>ApplicationCommandEmbed&lt;'_&gt;</code>. Si la commande discord a besoin de paramètre, vous pouvez ajouter des arguments à la fonction Rust en plus du contexte et de l’app cmd. Voir l’attribut <a href="#argument">argument</a> pour plus de détails.</p>
+<div><table><thead><tr><th style="text-align: left">argument</th><th style="text-align: center">optionnel</th><th style="text-align: left">description</th></tr></thead><tbody>
+<tr><td style="text-align: left"><em>name</em></td><td style="text-align: center">x</td><td style="text-align: left">Nom de la commande. Utilise le nom de la fonction rust si non renseigné</td></tr>
+<tr><td style="text-align: left"><em>description</em></td><td style="text-align: center"></td><td style="text-align: left">Description de la commande</td></tr>
+<tr><td style="text-align: left"><em>group</em></td><td style="text-align: center">x</td><td style="text-align: left">Nom du groupe sur lequel s’associer</td></tr>
+</tbody></table>
+</div>
+<p>Voir l’exemple d’une commande dans l’attribut <a href="#group">group</a></p>
+<h4 id="argument"><a href="#argument"><code>#[argument()]</code></a></h4>
+<p>Déclare un argument de commande à un paramètre de fonction Rust.</p>
+<p>Le nom de l’argument ne doit pas contenir de caractère blanc. Parce que la description d’un argument est obligatoire, l’attribut <em>argument</em> est obligatoire pour chaque paramètre de fonction qui corresponde à un argument de commande Discord.</p>
+<div><table><thead><tr><th style="text-align: left">argument (de l’attribut)</th><th style="text-align: center">optionnel</th><th style="text-align: left">description</th></tr></thead><tbody>
+<tr><td style="text-align: left"><em>name</em></td><td style="text-align: center">x</td><td style="text-align: left">Nom de l’argument. Utilise le nom de la variable si non renseigné</td></tr>
+<tr><td style="text-align: left"><em>description</em></td><td style="text-align: center"></td><td style="text-align: left">Description de l’argument</td></tr>
+</tbody></table>
+</div>
+<p>Le type du paramètre de fonction est restreint à ce que peut recevoir une commande Discord. Voici la liste des types supportés : </p>
+<div><table><thead><tr><th style="text-align: right">Type rust</th><th style="text-align: left">Type API Discord</th><th style="text-align: left">Description</th></tr></thead><tbody>
+<tr><td style="text-align: right">String</td><td style="text-align: left">String</td><td style="text-align: left"></td></tr>
+<tr><td style="text-align: right">u64, u32, u16, u8, i64, i32, i16, i8</td><td style="text-align: left">Integer</td><td style="text-align: left">Un nombre entier</td></tr>
+<tr><td style="text-align: right">f32, f64</td><td style="text-align: left">Number</td><td style="text-align: left">Un nombre à virgule</td></tr>
+<tr><td style="text-align: right">bool</td><td style="text-align: left">Boolean</td><td style="text-align: left">Un état</td></tr>
+<tr><td style="text-align: right">User*, UserId*</td><td style="text-align: left">User</td><td style="text-align: left">Un utilisateur</td></tr>
+<tr><td style="text-align: right">Role*, RoleId*</td><td style="text-align: left">Role</td><td style="text-align: left">Un role</td></tr>
+<tr><td style="text-align: right">PartialChannel, ChannelId</td><td style="text-align: left">Channel</td><td style="text-align: left">Un salon (peut etre textuel, vocal, catégorie, stage ou fil)</td></tr>
+<tr><td style="text-align: right">Mentionable**</td><td style="text-align: left">Mentionable</td><td style="text-align: left">Peut être un utilisateur ou un role</td></tr>
+</tbody></table>
+</div>
+<p>*: Type disponible dans la crate serenity</p>
+<p>**: Type disponible dans la crate cddio-core</p>
+<p>Si l’argument de la commande discord doit être optionnel, encapsulez l’un des types au dessus dans un std::Option&lt;…&gt; </p>
+<p>Voir l’exemple d’un argument commande dans l’attribut <a href="#group">group</a></p>
+<h4 id="event"><a href="#event"><code>#[event()]</code></a></h4>
+<p>Déclare un événement Discord.</p>
+<p>L’attribut event a deux fonctionnement : le mode identifiant et le mode pattern.</p>
+<p><strong>Dans le mode identifiant</strong>, l’attribut prend pour seul argument le nom de l’événement (qui est un item de l’enumérateur Event dans la crate <em>serenity</em>). Vous pouvez retrouver la liste des événements supportés dans <a href="https://docs.rs/serenity/latest/serenity/model/event/enum.Event.html">la documentation de la crate <em>serenity</em></a>. </p>
+<p>Dans ce mode là, la fonction que l’attribut attache doit <strong>nécessairement</strong> avoir pour arguments la référence du contexte puis la référence de la structure que l’enumérateur <em>serenity</em> embarque.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="attr">#[event(Ready)]
+</span><span class="kw">async fn </span>on_ready(ctx: <span class="kw-2">&amp;</span>Context, evt_ready: <span class="kw-2">&amp;</span>ReadyEvent)
+{}</code></pre></div>
+<p><strong>Le mode pattern</strong> se base sur l’énumérateur Event de serenity. Il est possible d’extraire les valeurs des structure pour les utiliser en argument de fonction. L’ordre et le contenu des argument n’importe pas et le contexte peut être omis. Les evenement et les enumeration</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="attr">#[event(GuildBanAdd(GuildBanAddEvent{user, guild_id}) | GuildBanRemove(GuildBanRemoveEvent{user, guild_id}))]
+</span><span class="kw">async fn </span>on_guild_ban(ctx: <span class="kw-2">&amp;</span>Context, user: <span class="kw-2">&amp;</span>User, guild_id: <span class="kw-2">&amp;</span>GuildId)
+{}</code></pre></div>
+<h4 id="message_component"><a href="#message_component"><code>#[message_component()]</code></a></h4>
+<p>Déclare un événement Discord de type <em>message component</em>.</p>
+<div><table><thead><tr><th style="text-align: left">argument</th><th style="text-align: center">optionnel</th><th style="text-align: left">description</th></tr></thead><tbody>
+<tr><td style="text-align: left"><em>custom_id</em></td><td style="text-align: center"></td><td style="text-align: left">custom_id intégré au message component</td></tr>
+</tbody></table>
+</div>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="attr">#[message_component(custom_id=<span class="string">&quot;button_ticket_close&quot;</span>)]
+</span><span class="kw">async fn </span>on_button_ticket_close(<span class="kw-2">&amp;</span><span class="self">self</span>, ctx: <span class="kw-2">&amp;</span>Context, msg: <span class="kw-2">&amp;</span>MessageComponentInteraction) 
+{}</code></pre></div>
+<p>Cette attribut est un helper en plus de l’attribut <a href="#event">event</a>. L’équivalent de l’exemple au dessus en utilisant l’attribut event :</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code>
+<span class="kw">use </span>serenity::model::{
+    event::{
+        Event::InteractionCreate,
+        InteractionCreateEvent
+    },
+    interaction::Interaction::MessageComponent
+}
+<span class="attr">#[event(InteractionCreate(InteractionCreateEvent{interaction: MessageComponent(message_interaction), ..}) <span class="kw">if </span>message_interaction.data.custom_id == <span class="string">&quot;button_ticket_close&quot;</span>)]
+</span><span class="kw">async fn </span>on_button_ticket_close(<span class="kw-2">&amp;</span><span class="self">self</span>, ctx: <span class="kw-2">&amp;</span>Context, message_interaction: <span class="kw-2">&amp;</span>MessageComponentInteraction) 
+{}</code></pre></div>
+</div></details><h2 id="attributes" class="small-section-header"><a href="#attributes">Attribute Macros</a></h2><ul class="item-table"><li><div class="item-name"><a class="attr" href="attr.component.html" title="attr cddio_macros::component">component</a></div></li></ul></section></div></main></body></html>

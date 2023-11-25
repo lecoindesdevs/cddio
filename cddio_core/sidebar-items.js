@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["container","declarative","embed","event","message"],"trait":["Component"],"type":["Components"]};

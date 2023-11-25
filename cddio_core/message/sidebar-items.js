@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["COLOR_ERROR","COLOR_INFO","COLOR_SUCCESS","COLOR_WARN"],"fn":["custom_embed","error","info","success","warn"],"struct":["Embed","Message"],"trait":["ToMessage"]};

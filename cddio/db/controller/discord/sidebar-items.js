@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["ATTACHMENTS_PATH"],"fn":["create_channel_if_not_exists","save_attachment","save_attachment_file","save_channel","save_user","save_user_from_id"]};

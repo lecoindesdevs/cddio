@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["category_to_message"],"struct":["DataTickets","MessageChoice","Tickets"]};

@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"cddio":[["impl <a class=\"trait\" href=\"https://docs.rs/log/0.4.17/log/trait.Log.html\" title=\"trait log::Log\">Log</a> for <a class=\"struct\" href=\"cddio/log/struct.SimpleLogger.html\" title=\"struct cddio::log::SimpleLogger\">SimpleLogger</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

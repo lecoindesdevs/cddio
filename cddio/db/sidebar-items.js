@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["check_tables","start_db"],"macro":["create_tables_if_not_exists"],"mod":["controller","model"],"type":["IDType"]};
